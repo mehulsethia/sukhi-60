@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { createClient } from "@/lib/supabase/browser";
+import { hardNavigate } from "@/lib/client-prefs";
 import { Alert } from "@/components/ui";
 import { PasswordField } from "./PasswordField";
 import { authErrorKey } from "./authErrors";
@@ -34,8 +35,7 @@ export function SignupForm() {
       return setError(t("emailTaken"));
     }
     if (data.session) {
-      router.replace("/onboarding");
-      router.refresh();
+      hardNavigate("/onboarding");
     } else {
       router.push(`/check-email?email=${encodeURIComponent(email)}`);
     }

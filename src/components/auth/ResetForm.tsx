@@ -1,15 +1,14 @@
 "use client";
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { createClient } from "@/lib/supabase/browser";
+import { hardNavigate } from "@/lib/client-prefs";
 import { Alert } from "@/components/ui";
 import { PasswordField } from "./PasswordField";
 import { authErrorKey } from "./authErrors";
 
 export function ResetForm() {
   const t = useTranslations("auth");
-  const router = useRouter();
   const [pw, setPw] = useState("");
   const [pw2, setPw2] = useState("");
   const [busy, setBusy] = useState(false);
@@ -25,8 +24,7 @@ export function ResetForm() {
       return setMsg({ tone: "danger", text: t(authErrorKey(error)) });
     }
     setMsg({ tone: "ok", text: t("resetDone") });
-    router.replace("/today");
-    router.refresh();
+    hardNavigate("/today");
   }
   return (
     <form onSubmit={submit} className="flex flex-col gap-5" noValidate>

@@ -2,6 +2,7 @@ import { expect, test, type Page } from "@playwright/test";
 import { config } from "dotenv";
 import path from "node:path";
 import { createHmac } from "node:crypto";
+import { createClient } from "@supabase/supabase-js";
 
 config({ path: path.resolve(__dirname, "../../.env.test.local"), override: true });
 
@@ -150,6 +151,20 @@ test.describe.serial("core journey", () => {
       await page.goto(p);
       await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
     }
+  });
+
+  test("an existing user logs in and lands on Today", async ({ page }) => {
+    const admin = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SECRET_KEY!, { auth: { persistSession: false } });
+    const e = `login-${Date.now()}@example.test`;
+    const { data } = await admin.auth.admin.createUser({ email: e, password: "login-password-1", email_confirm: true });
+    await admin.from("profiles").update({ onboarded_at: new Date().toISOString(), display_name: "Ravi" }).eq("id", data.user!.id);
+    await page.goto("/today");
+    await expect(page).toHaveURL(/\/login/);
+    await page.getByLabel("Email").fill(e);
+    await page.getByLabel("Password", { exact: true }).fill("login-password-1");
+    await page.getByRole("button", { name: "Log in", exact: true }).click();
+    await expect(page).toHaveURL(/\/today/);
+    await expect(page.getByRole("heading", { level: 1 })).toContainText("Ravi");
   });
 
   test("demo route is clearly fictional", async ({ page }) => {

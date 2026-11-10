@@ -1,16 +1,15 @@
 "use client";
 import Link from "next/link";
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { createClient } from "@/lib/supabase/browser";
+import { hardNavigate } from "@/lib/client-prefs";
 import { Alert } from "@/components/ui";
 import { PasswordField } from "./PasswordField";
 import { authErrorKey } from "./authErrors";
 
 export function LoginForm({ next, initialError }: { next: string; initialError: string | null }) {
   const t = useTranslations("auth");
-  const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
@@ -31,8 +30,8 @@ export function LoginForm({ next, initialError }: { next: string; initialError: 
       setBusy(false);
       return;
     }
-    router.replace(next);
-    router.refresh();
+    // Full navigation so the new session cookie is used by the very next server render.
+    hardNavigate(next);
   }
 
   async function magic() {
