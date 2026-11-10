@@ -92,10 +92,10 @@ test("full patient journey on production", async ({ page, request }) => {
   await add.getByRole("button", { name: "Confirm & schedule" }).click();
   await expect(page.getByText("Confirmed · Version 1")).toBeVisible();
 
-  // Document extraction without an AI key must degrade honestly.
+  // Document extraction must degrade honestly (AI off: "unavailable"; AI on + blank image: "couldn't read").
   await page.locator("#src-file").setInputFiles(path.resolve(__dirname, "../fixtures/tiny.png"));
   await page.locator("form", { has: page.locator("#src-file") }).getByRole("button", { name: "Save" }).click();
-  await expect(page.getByText(/Automatic reading isn't available/)).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByText(/Automatic reading isn't available|We couldn't read this document/)).toBeVisible({ timeout: 45_000 });
 
   // Reminder via the real secured worker endpoint.
   const tick = await request.post("/api/worker/tick", { headers: { authorization: `Bearer ${process.env.WORKER_SECRET}` } });
@@ -104,14 +104,15 @@ test("full patient journey on production", async ({ page, request }) => {
   await expect(page.getByText(/Time for: Short walk/)).toBeVisible();
   await expect(page.getByText("Waiting for your reply")).toBeVisible();
 
-  // Evidence + assessment (AI unconfigured -> saved, not "verified").
+  // Evidence + assessment: never shown as verified; a blank photo can't support the action.
   await page.getByRole("link", { name: "Add photo or note" }).click();
   await page.getByLabel("Take or choose a photo").setInputFiles(path.resolve(__dirname, "../fixtures/tiny.png"));
   await page.getByLabel("Also mark this as done").check();
   await page.getByRole("button", { name: "Submit" }).click();
-  await expect(page.getByRole("status").filter({ hasText: "Couldn't assess clearly" })).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByRole("status").filter({ hasText: /Couldn't assess clearly|Doesn't seem to match|Partly supports/ })).toBeVisible({ timeout: 45_000 });
   await page.reload();
-  await expect(page.getByText("Done (your report)").first()).toBeVisible();
+  await expect(page.getByText(/Done \(your report\)|Needs a closer look/).first()).toBeVisible();
+  await expect(page.getByText("Done · supported by evidence")).toHaveCount(0);
 
   await page.goto("/progress");
   await expect(page.getByText("First step").first()).toBeVisible();
