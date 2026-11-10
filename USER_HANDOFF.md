@@ -1,6 +1,6 @@
 # User handoff
 
-Updated 2026-11-10. **Deployed at https://sukhi-60.vercel.app (Vercel project `sukhi-60`, team mehul-sethias-projects) on Supabase project `sukhi-60` (ref `cjgrxdthigtidftwcjbg`, ap-southeast-2).** Migrations 0100–0400 applied remotely and verified (24 tables, RLS on all, both buckets private); scheduler job `sukhi-worker-tick` active. Pending: Vercel env vars `SUPABASE_SECRET_KEY` (current value rejected by Supabase), `WORKER_SECRET`, `LINK_CODE_PEPPER`, `NEXT_PUBLIC_APP_URL`, `DEMO_MODE_ENABLED`; Supabase Auth URL config. No AI/voice/WhatsApp provider live-tested.
+Updated 2026-11-10. **Deployed at https://sukhi-60.vercel.app (Vercel project `sukhi-60`, team mehul-sethias-projects) on Supabase project `sukhi-60` (ref `cjgrxdthigtidftwcjbg`, ap-southeast-2).** Migrations 0100–0400 applied remotely and verified (24 tables, RLS on all, both buckets private); scheduler job `sukhi-worker-tick` active. Vercel env vars set by owner; functions pinned to `syd1` (next to the database). **Live smoke test passed on 2026-11-11** (`pnpm smoke:prod`): public endpoints, auth gating, sign-in → onboarding → plan confirm → real worker reminder → photo evidence → progress → safety escalation → family invite, plus cross-user isolation on the real project; test accounts and files were deleted afterwards. Scheduler returns HTTP 200 every minute. Not yet verified: real sign-up/magic-link email delivery (owner should sign up with a real address). No AI/voice/WhatsApp provider live-tested.
 
 ## Configuration status matrix
 

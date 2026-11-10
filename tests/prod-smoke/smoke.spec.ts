@@ -86,8 +86,8 @@ test("full patient journey on production", async ({ page, request }) => {
   await expect(page.getByText("Confirmed · Version 1")).toBeVisible();
 
   // Document extraction without an AI key must degrade honestly.
-  await page.getByLabel("Upload instructions (photo or PDF)").setInputFiles(path.resolve(__dirname, "../fixtures/tiny.png"));
-  await page.locator("section", { has: page.getByRole("heading", { name: "Upload instructions (photo or PDF)" }) }).getByRole("button", { name: "Save" }).click();
+  await page.locator("#src-file").setInputFiles(path.resolve(__dirname, "../fixtures/tiny.png"));
+  await page.locator("form", { has: page.locator("#src-file") }).getByRole("button", { name: "Save" }).click();
   await expect(page.getByText(/Automatic reading isn't available/)).toBeVisible({ timeout: 20_000 });
 
   // Reminder via the real secured worker endpoint.
