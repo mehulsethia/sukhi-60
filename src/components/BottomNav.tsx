@@ -26,8 +26,8 @@ export function BottomNav({ variant = "tabs" }: { variant?: "tabs" | "sidebar" }
             const active = isActive(href);
             return (
               <li key={href}>
-                <Link href={href} aria-current={active ? "page" : undefined} className={`flex min-h-12 items-center gap-3 rounded-2xl px-4 font-semibold transition-colors ${active ? "bg-primary text-primary-ink shadow-[var(--shadow-sm)]" : "text-ink-soft hover:bg-surface-2 hover:text-ink"}`}>
-                  <Icon aria-hidden="true" size={21} strokeWidth={active ? 2.4 : 2} />
+                <Link href={href} aria-current={active ? "page" : undefined} className={`flex min-h-11 items-center gap-3 rounded-lg px-3 text-[0.95rem] font-medium transition-colors ${active ? "bg-primary-soft text-primary" : "text-ink-soft hover:bg-surface-2 hover:text-ink"}`}>
+                  <Icon aria-hidden="true" size={19} strokeWidth={active ? 2.2 : 1.8} />
                   {t(key)}
                 </Link>
               </li>
@@ -46,8 +46,8 @@ export function BottomNav({ variant = "tabs" }: { variant?: "tabs" | "sidebar" }
           return (
             <li key={href} className="flex-1">
               <Link href={href} aria-current={active ? "page" : undefined} className={`flex min-h-[62px] flex-col items-center justify-center gap-1 text-[0.72rem] font-semibold ${active ? "text-primary" : "text-ink-soft"}`}>
-                <span className={`flex h-8 w-14 items-center justify-center rounded-full transition-colors ${active ? "bg-surface-2" : ""}`}>
-                  <Icon aria-hidden="true" size={22} strokeWidth={active ? 2.5 : 2} />
+                <span className={`flex h-7 w-12 items-center justify-center rounded-md transition-colors ${active ? "bg-primary-soft" : ""}`}>
+                  <Icon aria-hidden="true" size={20} strokeWidth={active ? 2.2 : 1.8} />
                 </span>
                 <span>{t(key)}</span>
               </Link>

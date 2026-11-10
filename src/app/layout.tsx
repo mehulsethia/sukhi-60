@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Baloo_2, Mukta } from "next/font/google";
+import { Anek_Devanagari, Mukta } from "next/font/google";
 import { NextIntlClientProvider } from "next-intl";
 import { getLocale } from "next-intl/server";
 import { cookies } from "next/headers";
@@ -7,7 +7,7 @@ import { SwRegister } from "@/components/SwRegister";
 import "./globals.css";
 
 // Both families cover Latin and Devanagari, so Hindi and Marathi render with the same care as English.
-const display = Baloo_2({ subsets: ["latin", "devanagari"], variable: "--font-display-face", display: "swap", weight: ["500", "600", "700", "800"] });
+const display = Anek_Devanagari({ subsets: ["latin", "devanagari"], variable: "--font-display-face", display: "swap", weight: ["500", "600", "700"] });
 const body = Mukta({ subsets: ["latin", "devanagari"], variable: "--font-body", display: "swap", weight: ["400", "500", "600", "700"] });
 
 export const metadata: Metadata = {
@@ -20,8 +20,8 @@ export const metadata: Metadata = {
 
 export const viewport: Viewport = {
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#f5f6fa" },
-    { media: "(prefers-color-scheme: dark)", color: "#0f1427" },
+    { media: "(prefers-color-scheme: light)", color: "#f6f7f9" },
+    { media: "(prefers-color-scheme: dark)", color: "#0b1220" },
   ],
   width: "device-width",
   initialScale: 1,

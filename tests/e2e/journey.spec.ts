@@ -100,10 +100,10 @@ test.describe.serial("core journey", () => {
     await expect(page.getByText("Recorded by rules (no AI description)")).toBeVisible();
     await expect(page.getByText("This is a description, not a score or proof.").first()).toBeVisible();
 
-    // Progress shows garden points and the week table.
+    // Progress shows consistency, points and the week table.
     await page.getByRole("link", { name: "Progress" }).first().click();
     await expect(page).toHaveURL(/\/progress/);
-    await expect(page.getByText(/\d+ garden points/).first()).toBeVisible();
+    await expect(page.getByText(/of 7 days active this week/).first()).toBeVisible();
     await expect(page.getByRole("table")).toBeVisible();
     await expect(page.getByText("First step").first()).toBeVisible();
 

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { decideSend, isTrustedMediaUrl, parseWebhook, signMetaBody, verifyMetaSignature } from "@/domain/whatsapp";
-import { gardenFromEvents, goalProgress, summarizeWeek } from "@/domain/rewards";
+import { activeDays, goalProgress, progressFromEvents, summarizeWeek } from "@/domain/rewards";
 import inbound from "../fixtures/whatsapp-inbound.json";
 
 describe("Meta signature", () => {
@@ -45,13 +45,14 @@ describe("decideSend", () => {
   });
 });
 
-describe("garden", () => {
-  it("only grows; missed days never subtract", () => {
-    const g = gardenFromEvents([{ kind: "participation", points: 1 }, { kind: "completion", points: 2 }, { kind: "return", points: 3 }, { kind: "milestone", points: 2 }]);
-    expect(g.points).toBe(8);
-    expect(g.stage).toBe("sprout");
-    expect(g.leaves).toBe(1);
-    expect(g.flowers).toBe(1);
+describe("progress", () => {
+  it("points only grow; missed days never subtract", () => {
+    const g = progressFromEvents([{ kind: "participation", points: 1 }, { kind: "completion", points: 2 }, { kind: "return", points: 3 }, { kind: "milestone", points: 2 }, { kind: "completion", points: -5 }]);
+    expect(g).toEqual({ points: 8, milestones: 1, returns: 1 });
+  });
+  it("active days count honest answers, not only completions", () => {
+    const w = summarizeWeek(["2026-11-09", "2026-11-10", "2026-11-11"], [{ local_date: "2026-11-09", status: "skipped" }, { local_date: "2026-11-10", status: "no_response" }, { local_date: "2026-11-11", status: "self_reported" }]);
+    expect(activeDays(w)).toBe(2);
   });
   it("week summary separates completion, evidence and silence", () => {
     const [d] = summarizeWeek(["2026-11-10"], [{ local_date: "2026-11-10", status: "self_reported" }, { local_date: "2026-11-10", status: "evidence_supported" }, { local_date: "2026-11-10", status: "no_response" }, { local_date: "2026-11-10", status: "skipped" }]);

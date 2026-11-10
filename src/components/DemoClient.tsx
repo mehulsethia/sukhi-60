@@ -2,9 +2,9 @@
 import Link from "next/link";
 import { useState } from "react";
 import { useTranslations } from "next-intl";
-import { Garden } from "@/components/Garden";
 import { Alert, StatusBadge } from "@/components/ui";
-import { gardenFromEvents } from "@/domain/rewards";
+import { progressFromEvents } from "@/domain/rewards";
+import { VProgress } from "@/components/Vignettes";
 
 const INITIAL = [
   { id: "d1", title: "Evening walk (personal goal)", time: "18:00", status: "due" },
@@ -17,7 +17,7 @@ export function DemoClient() {
   const [items, setItems] = useState(INITIAL);
   const [events, setEvents] = useState([{ kind: "participation", points: 1 }, { kind: "completion", points: 2 }, { kind: "milestone", points: 2 }]);
   const [showAssessment, setShowAssessment] = useState(false);
-  const garden = gardenFromEvents(events);
+  const stats = progressFromEvents(events);
 
   function answer(id: string, status: string) {
     const it = items.find((i) => i.id === id);
@@ -28,10 +28,11 @@ export function DemoClient() {
 
   return (
     <main className="mx-auto max-w-2xl p-4 pb-16">
-      <div role="status" className="sticky top-0 z-10 mb-4 rounded-xl bg-warn-bg px-4 py-3 font-semibold text-warn-ink">⚠ {t("demo.banner")}</div>
-      <h1 className="text-2xl font-bold">{t("demo.title")}</h1>
+      <div role="status" className="sticky top-2 z-10 mb-6 rounded-xl border border-line bg-warn-bg px-4 py-3 text-sm font-semibold text-warn-ink">{t("demo.banner")}</div>
+      <h1 className="text-3xl">{t("demo.title")}</h1>
       <p className="mb-4">{t("demo.person")}</p>
-      <div className="card mb-4"><Garden state={garden} label={t(`progress.stage_${garden.stage}`)} size={140} /><p className="text-center">{t("progress.points", { points: garden.points })}</p></div>
+      <div className="mb-4"><VProgress /></div>
+      <p className="mb-4 text-sm tabular-nums text-ink-soft">{t("progress.points", { points: stats.points })}</p>
       <ul className="flex flex-col gap-3">
         {items.map((i) => (
           <li key={i.id} className="card">

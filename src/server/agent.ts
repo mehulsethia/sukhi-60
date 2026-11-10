@@ -14,7 +14,7 @@ import { routeMessage } from "@/domain/router";
 import { CLINICAL_REFERRAL_MESSAGE, ESCALATION_MESSAGE, looksLikeInjection, quoteUntrusted, type Locale } from "@/domain/safety";
 import { reply, rewardLine } from "@/domain/replies";
 import { generateConfirmCode, sha256Hex } from "@/domain/router";
-import { gardenFromEvents, summarizeWeek } from "@/domain/rewards";
+import { progressFromEvents, summarizeWeek } from "@/domain/rewards";
 import { addDays, isValidTime, localDateOf, weekStart } from "@/domain/schedule";
 
 export interface SourceRef {
@@ -49,6 +49,7 @@ Rules you must follow:
 - If the person mentions concerning symptoms, tell them to contact their doctor or emergency services; do not reassure them that they are fine.
 - Encourage gently. Honest "I skipped" answers deserve thanks, never criticism. No guilt, no pressure.
 - Reply in the person's language ({locale}); natural mixing with English is fine. Keep replies under 80 words.
+- In Hindi and Marathi, do not assume the person's gender: use respectful, gender-neutral phrasing (e.g. आप + neutral constructions) unless they have told you otherwise.
 - In "sources", list the ids of plan items / occurrences / check-ins / memory facts your reply relies on (ids from tool results only).`;
 
 async function buildContext(admin: AdminClient, userId: string) {
@@ -342,7 +343,7 @@ export async function runAssistant(params: {
       ),
     }),
     get_progress: tool({
-      description: "Garden points, stage and this week's participation.",
+      description: "Progress points, milestones and this week's participation.",
       inputSchema: z.object({}),
       execute: wrap("get_progress", async () => {
         const ws = weekStart(localDateOf(new Date(), profile.timezone));
@@ -350,9 +351,9 @@ export async function runAssistant(params: {
           admin.from("reward_events").select("kind, points").eq("user_id", userId),
           admin.from("action_occurrences").select("local_date, status").eq("user_id", userId).gte("local_date", ws).lte("local_date", addDays(ws, 6)),
         ]);
-        const g = gardenFromEvents(ev ?? []);
+        const g = progressFromEvents(ev ?? []);
         const week = summarizeWeek(Array.from({ length: 7 }, (_, i) => addDays(ws, i)), occ ?? []);
-        return { garden: { points: g.points, stage: g.stage }, week: week.map((d) => ({ date: d.date, completed: d.completed, responded: d.responded, scheduled: d.scheduled })) };
+        return { progress: { points: g.points, milestones: g.milestones }, week: week.map((d) => ({ date: d.date, completed: d.completed, responded: d.responded, scheduled: d.scheduled })) };
       }),
     }),
     request_review: tool({
