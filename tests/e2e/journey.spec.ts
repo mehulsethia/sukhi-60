@@ -33,10 +33,14 @@ test.describe.serial("core journey", () => {
     page.on("pageerror", (e) => console.log("PAGEERROR", e.stack));
     page.on("console", (m) => m.type() === "error" && console.log("CONSOLE", m.text().slice(0, 300)));
     // Sign up (local Supabase: email confirmation disabled)
-    await page.goto("/login");
-    await page.getByRole("button", { name: "New here? Create an account" }).click();
+    await page.goto("/");
+    await page.getByRole("link", { name: "Get started" }).first().click();
+    await expect(page).toHaveURL(/\/signup/);
     await page.getByLabel("Email").fill(email);
-    await page.getByLabel("Password").fill(password);
+    await page.getByLabel("Password", { exact: true }).fill(password);
+    await page.getByRole("button", { name: "Create account" }).click();
+    await expect(page.getByText("Please agree to the Terms and Privacy notice to continue.")).toBeVisible();
+    await page.getByLabel(/I agree to the/).check();
     await page.getByRole("button", { name: "Create account" }).click();
     await expect(page).toHaveURL(/\/onboarding/);
 
@@ -118,6 +122,25 @@ test.describe.serial("core journey", () => {
     // The mock Graph API received replies (proves our outbound path, not Meta delivery).
     const sent = await (await page.request.get("http://127.0.0.1:4545/__sent")).json();
     expect(sent.some((m: { to: string }) => m.to === waNumber)).toBe(true);
+  });
+
+  test("auth pages: log in errors, forgot password, legal pages", async ({ page }) => {
+    await page.goto("/login");
+    await page.getByLabel("Email").fill("nobody@example.test");
+    await page.getByLabel("Password", { exact: true }).fill("wrong-password-1");
+    await page.getByRole("button", { name: "Log in", exact: true }).click();
+    await expect(page.getByText(/don't match/)).toBeVisible();
+    await page.getByRole("link", { name: "Forgot password?" }).click();
+    await expect(page).toHaveURL(/forgot-password/);
+    await page.getByLabel("Email").fill("nobody@example.test");
+    await page.getByRole("button", { name: "Send reset link" }).click();
+    await expect(page.getByText(/reset link is on its way/)).toBeVisible();
+    await page.goto("/reset-password");
+    await expect(page.getByText(/expired/)).toBeVisible();
+    for (const p of ["/privacy", "/terms"]) {
+      await page.goto(p);
+      await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+    }
   });
 
   test("demo route is clearly fictional", async ({ page }) => {

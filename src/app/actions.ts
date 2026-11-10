@@ -416,3 +416,26 @@ export async function removeRewardGoal() {
   await supabase.from("reward_goals").update({ active: false }).eq("user_id", user.id).eq("active", true);
   revalidatePath("/progress");
 }
+
+// ---------------------------------------------------------------------------
+// Account deletion (irreversible; typed confirmation required)
+// ---------------------------------------------------------------------------
+export async function deleteAccount(_prev: ActionState, fd: FormData): Promise<ActionState> {
+  const { supabase, user } = await requireUser();
+  if (fd.get("confirm") !== "DELETE") return { error: "confirm_mismatch" };
+  const admin = createAdminClient();
+  // Remove private files first (storage objects are not covered by the database cascade).
+  for (const bucket of ["evidence", "plan-sources"]) {
+    const { data: top } = await admin.storage.from(bucket).list(user.id, { limit: 1000 });
+    const paths: string[] = [];
+    for (const f of top ?? []) {
+      if (f.id) paths.push(`${user.id}/${f.name}`);
+      else (await admin.storage.from(bucket).list(`${user.id}/${f.name}`, { limit: 1000 })).data?.forEach((g) => paths.push(`${user.id}/${f.name}/${g.name}`));
+    }
+    if (paths.length) await admin.storage.from(bucket).remove(paths);
+  }
+  const { error } = await admin.auth.admin.deleteUser(user.id); // cascades to every patient table
+  if (error) return { error: "delete_failed" };
+  await supabase.auth.signOut();
+  redirect("/");
+}

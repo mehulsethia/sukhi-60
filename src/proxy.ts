@@ -1,7 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
-const PUBLIC_PREFIXES = ["/login", "/auth", "/demo", "/api/whatsapp", "/api/worker", "/api/health", "/family/accept", "/offline"];
+const PUBLIC_PREFIXES = ["/login", "/signup", "/forgot-password", "/reset-password", "/check-email", "/privacy", "/terms", "/auth", "/demo", "/api/whatsapp", "/api/worker", "/api/health", "/family/accept", "/offline"];
 
 // Refreshes the Supabase session cookie and redirects unauthenticated users away from
 // app pages. Authorization is still enforced again in every server handler and by RLS.

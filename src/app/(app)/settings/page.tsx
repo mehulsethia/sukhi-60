@@ -5,6 +5,7 @@ import { revokeFamily, setMemoryStatus, unlinkWhatsApp } from "@/app/actions";
 import { ConsentsForm, FamilyInviteForm, LinkCodeForm, PreferencesForm } from "@/components/SettingsForms";
 import { PageHeader, Section } from "@/components/ui";
 import { SubmitButton } from "@/components/SubmitButton";
+import { DeleteAccount } from "@/components/DeleteAccount";
 import { summarizeWeek } from "@/domain/rewards";
 import { addDays, localDateOf, weekStart } from "@/domain/schedule";
 import { fmtDate, fmtDateTime } from "@/lib/format";
@@ -29,7 +30,7 @@ export default async function SettingsPage() {
 
   return (
     <>
-      <PageHeader title={t("settings.title")} />
+      <PageHeader title={t("settings.title")} subtitle={user.email ?? undefined} />
       <Section title={t("settings.profile")} id="prefs">
         <PreferencesForm profile={{ display_name: profile?.display_name ?? "", locale: profile?.locale ?? "en", timezone: tz, checkin_times: profile?.checkin_times ?? [], quiet_start: profile?.quiet_start ?? "21:30", quiet_end: profile?.quiet_end ?? "07:30", reminder_frequency: profile?.reminder_frequency ?? "normal", accessibility: (profile?.accessibility as Record<string, boolean>) ?? {}, limitations: profile?.limitations ?? "", care_notes: profile?.care_notes ?? "" }} />
       </Section>
@@ -98,6 +99,10 @@ export default async function SettingsPage() {
           <li>{t("settings.svcWhatsapp")}: {features.whatsapp() ? t("settings.svcOn") : t("settings.svcOff")}</li>
         </ul>
         <p className="hint mt-2">{t("settings.latency")}</p>
+      </Section>
+
+      <Section title={t("app.deleteTitle")} id="delete">
+        <DeleteAccount />
       </Section>
 
       <form action="/auth/signout" method="post"><button className="btn btn-secondary w-full">{t("common.signOut")}</button></form>

@@ -43,7 +43,8 @@ test("public surface and machine endpoints", async ({ page, request }) => {
   expect((await request.post("/api/chat", { data: { text: "hi" } })).status()).toBe(401);
   expect((await request.get("/api/whatsapp/webhook?hub.mode=subscribe&hub.verify_token=wrong&hub.challenge=1")).status()).toBe(403);
   await page.goto("/");
-  await expect(page.getByText("A gentle companion")).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1 })).toContainText("Stay with the plan");
+  for (const p of ["/signup", "/forgot-password", "/privacy", "/terms"]) expect((await request.get(p)).status(), p).toBe(200);
   await page.goto("/demo");
   await expect(page.getByText(/Fictional demo/)).toBeVisible();
   await page.goto("/settings");
@@ -58,8 +59,8 @@ test("full patient journey on production", async ({ page, request }) => {
 
   await page.goto("/login");
   await page.getByLabel("Email").fill(a.email);
-  await page.getByLabel("Password").fill(a.password);
-  await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  await page.getByLabel("Password", { exact: true }).fill(a.password);
+  await page.getByRole("button", { name: "Log in", exact: true }).click();
   await expect(page).toHaveURL(/\/onboarding/);
 
   await page.getByLabel("What should we call you?").fill("Smoke Test");

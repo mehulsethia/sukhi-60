@@ -44,13 +44,13 @@ export default async function ProgressPage() {
 
       <Section title={t("progress.week")} id="week">
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm">
+          <table className="w-full text-left text-sm [&_td]:px-2 [&_td]:py-2.5 [&_th]:px-2 [&_thead_th]:pb-2 [&_thead_th]:align-bottom [&_thead_th]:text-xs [&_thead_th]:font-semibold [&_thead_th]:text-ink-soft sm:[&_thead_th]:text-sm">
             <caption className="sr-only">{t("progress.week")}</caption>
             <thead><tr><th scope="col" className="py-1">{t("progress.day")}</th><th scope="col">{t("progress.scheduled")}</th><th scope="col">{t("progress.completed")}</th><th scope="col">{t("progress.evidence")}</th><th scope="col">{t("progress.responded")}</th><th scope="col">{t("progress.noReply")}</th></tr></thead>
             <tbody>
               {week.map((d) => (
                 <tr key={d.date} className="border-t border-line">
-                  <th scope="row" className="py-2 font-semibold">{fmtDate(d.date, locale)}</th>
+                  <th scope="row" className="whitespace-nowrap py-2.5 font-semibold">{fmtDate(d.date, locale)}</th>
                   <td>{d.scheduled}</td><td>{d.completed}</td><td>{d.evidenceSupported}</td><td>{d.responded}</td><td>{d.noResponse}</td>
                 </tr>
               ))}

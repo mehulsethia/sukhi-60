@@ -4,10 +4,12 @@ test("mobile: landing fits, bottom nav after sign-up, microphone denial falls ba
   await page.goto("/");
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
   expect(overflow).toBeLessThanOrEqual(1);
-  await page.goto("/login");
-  await page.getByRole("button", { name: "New here? Create an account" }).click();
+  await page.getByRole("button", { name: "Menu" }).click();
+  await expect(page.getByRole("link", { name: "How it works" }).last()).toBeVisible();
+  await page.goto("/signup");
   await page.getByLabel("Email").fill(`m-${Date.now()}@example.test`);
-  await page.getByLabel("Password").fill("mobile-password-1");
+  await page.getByLabel("Password", { exact: true }).fill("mobile-password-1");
+  await page.getByLabel(/I agree to the/).check();
   await page.getByRole("button", { name: "Create account" }).click();
   await expect(page).toHaveURL(/\/onboarding/);
   for (let i = 0; i < 2; i++) await page.getByRole("button", { name: "Next" }).click();

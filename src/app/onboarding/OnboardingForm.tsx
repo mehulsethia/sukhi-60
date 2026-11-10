@@ -21,12 +21,17 @@ export function OnboardingForm({ defaults }: { defaults: { timezone: string; loc
 
   return (
     <form action={action} className="flex flex-col gap-4">
-      <h1 className="text-2xl font-bold">{t("onboarding.title")}</h1>
-      <p className="hint" aria-live="polite">{t("onboarding.step", { current: step + 1, total })}</p>
+      <h1 className="text-[2.2rem] font-bold">{t("onboarding.title")}</h1>
+      <div>
+        <p className="mb-2 text-sm font-semibold text-ink-soft" aria-live="polite">{t("onboarding.step", { current: step + 1, total })}</p>
+        <div className="flex gap-1.5" aria-hidden="true">
+          {Array.from({ length: total }).map((_, i) => <span key={i} className={`h-1.5 flex-1 rounded-full transition-colors ${i <= step ? "bg-primary" : "bg-surface-3"}`} />)}
+        </div>
+      </div>
       {state?.error ? <Alert tone="danger">{t("common.error")}</Alert> : null}
 
-      <fieldset className={`card flex flex-col gap-4 ${show(0)}`}>
-        <legend className="text-lg font-bold">{t("onboarding.aboutYou")}</legend>
+      <fieldset className={`card flex flex-col gap-5 p-6 ${show(0)}`}>
+        <legend className="display float-left mb-2 w-full text-2xl font-bold">{t("onboarding.aboutYou")}</legend>
         <div className="field">
           <label htmlFor="display_name">{t("onboarding.name")}</label>
           <input id="display_name" name="display_name" className="input" maxLength={80} autoComplete="given-name" />
@@ -53,8 +58,8 @@ export function OnboardingForm({ defaults }: { defaults: { timezone: string; loc
         </fieldset>
       </fieldset>
 
-      <fieldset className={`card flex flex-col gap-3 ${show(1)}`}>
-        <legend className="text-lg font-bold">{t("onboarding.accessibility")}</legend>
+      <fieldset className={`card flex flex-col gap-4 p-6 ${show(1)}`}>
+        <legend className="display float-left mb-2 w-full text-2xl font-bold">{t("onboarding.accessibility")}</legend>
         {(["large_text", "high_contrast", "reduce_motion", "audio_replies"] as const).map((k) => (
           <label key={k} className="flex min-h-12 items-center gap-3">
             <input type="checkbox" name={k} className="h-6 w-6" />
@@ -74,8 +79,8 @@ export function OnboardingForm({ defaults }: { defaults: { timezone: string; loc
         </div>
       </fieldset>
 
-      <fieldset className={`card flex flex-col gap-3 ${show(2)}`}>
-        <legend className="text-lg font-bold">{t("onboarding.permissions")}</legend>
+      <fieldset className={`card flex flex-col gap-4 p-6 ${show(2)}`}>
+        <legend className="display float-left mb-2 w-full text-2xl font-bold">{t("onboarding.permissions")}</legend>
         <p className="hint">{t("onboarding.permissionsIntro")}</p>
         {([
           ["ai_processing", "consentAi", true],
@@ -92,11 +97,11 @@ export function OnboardingForm({ defaults }: { defaults: { timezone: string; loc
         <p className="hint">{t("onboarding.whatsappLater")}</p>
       </fieldset>
 
-      <fieldset className={`card flex flex-col gap-3 ${show(3)}`}>
-        <legend className="text-lg font-bold">{t("onboarding.routine")}</legend>
+      <fieldset className={`card flex flex-col gap-4 p-6 ${show(3)}`}>
+        <legend className="display float-left mb-2 w-full text-2xl font-bold">{t("onboarding.routine")}</legend>
         <p className="hint">{t("onboarding.routineIntro")}</p>
         {(["walk", "water", "stretch", "clinician", "none"] as const).map((k, i) => (
-          <label key={k} className="card flex cursor-pointer items-start gap-3">
+          <label key={k} className="flex cursor-pointer items-start gap-3 rounded-2xl border border-line p-4 transition-colors has-[:checked]:border-primary has-[:checked]:bg-surface-2">
             <input type="radio" name="template" value={k} defaultChecked={i === 0} className="mt-1 h-5 w-5" />
             <span>
               <span className="block font-semibold">{k === "none" ? t("onboarding.skipRoutine") : t(`templates.${k}`)}</span>

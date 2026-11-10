@@ -30,16 +30,19 @@ export function StatusBadge({ status, label }: { status: string; label: string }
 export function Alert({ tone = "info", children, role }: { tone?: "info" | "warn" | "danger" | "ok"; children: ReactNode; role?: "alert" | "status" }) {
   const cls = { info: "bg-surface-2 text-ink", warn: "bg-warn-bg text-warn-ink", danger: "bg-danger-bg text-danger-ink", ok: "bg-ok-bg text-ok-ink" }[tone];
   return (
-    <div role={role ?? (tone === "danger" ? "alert" : "status")} className={`rounded-xl px-4 py-3 ${cls}`}>
+    <div role={role ?? (tone === "danger" ? "alert" : "status")} className={`rounded-2xl px-4 py-3 ${cls}`}>
       {children}
     </div>
   );
 }
 
-export function PageHeader({ title, children }: { title: string; children?: ReactNode }) {
+export function PageHeader({ title, subtitle, children }: { title: string; subtitle?: string; children?: ReactNode }) {
   return (
-    <header className="mb-4 flex flex-wrap items-end justify-between gap-2">
-      <h1 className="text-2xl font-bold tracking-tight">{title}</h1>
+    <header className="mb-6 flex flex-wrap items-end justify-between gap-3">
+      <div>
+        <h1 className="text-[2rem] font-bold sm:text-[2.4rem]">{title}</h1>
+        {subtitle ? <p className="mt-1 text-ink-soft">{subtitle}</p> : null}
+      </div>
       {children}
     </header>
   );
@@ -47,8 +50,8 @@ export function PageHeader({ title, children }: { title: string; children?: Reac
 
 export function Section({ title, children, id }: { title: string; children: ReactNode; id?: string }) {
   return (
-    <section aria-labelledby={id} className="card mb-4">
-      <h2 id={id} className="mb-3 text-lg font-bold">{title}</h2>
+    <section aria-labelledby={id} className="card mb-5 p-5 sm:p-6">
+      <h2 id={id} className="mb-4 text-xl font-bold">{title}</h2>
       {children}
     </section>
   );

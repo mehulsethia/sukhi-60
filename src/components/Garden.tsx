@@ -5,7 +5,7 @@ import type { GardenState } from "@/domain/rewards";
 export function Garden({ state, label, size = 220 }: { state: GardenState; label: string; size?: number }) {
   const s = state.stageIndex; // 0..6
   const stemH = [0, 18, 40, 62, 80, 92, 100][s];
-  const leaves = Math.min(6, Math.max(0, s - 1) + Math.min(2, state.leaves));
+  const leaves = s === 0 ? 0 : Math.min(6, s + 1 + Math.min(2, state.leaves));
   const flowers = s >= 4 ? Math.min(5, 1 + state.flowers) : 0;
   return (
     <svg role="img" aria-label={label} viewBox="0 0 200 200" width={size} height={size} className="mx-auto block">
@@ -31,7 +31,7 @@ export function Garden({ state, label, size = 220 }: { state: GardenState; label
         return (
           <g key={i}>
             {[0, 72, 144, 216, 288].map((a) => (
-              <circle key={a} cx={cx + 6 * Math.cos((a * Math.PI) / 180)} cy={cy + 6 * Math.sin((a * Math.PI) / 180)} r="5" fill="var(--accent)" opacity="0.9" />
+              <circle key={a} cx={cx + 6 * Math.cos((a * Math.PI) / 180)} cy={cy + 6 * Math.sin((a * Math.PI) / 180)} r="5" fill="var(--bloom)" opacity="0.92" />
             ))}
             <circle cx={cx} cy={cy} r="4" fill="var(--sun)" />
           </g>
