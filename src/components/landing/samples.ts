@@ -19,3 +19,11 @@ export const ASSESSMENT_SAMPLE = {
 };
 
 export const WEEK_SAMPLE = [2, 3, 1, 3, 0, 2, 3]; // check-ins answered per day (fictional)
+
+export const WHATSAPP_SAMPLE: { from: "sukhi" | "me"; text: string; lang?: string }[] = [
+  { from: "sukhi", text: "Time for: Evening walk. Reply done, later, skip, or unwell." },
+  { from: "me", text: "हो गया 🙂", lang: "hi" },
+  { from: "sukhi", text: "Noted: “Evening walk” marked as done (your report). Thank you. +5 garden points." },
+  { from: "me", text: "उद्या सकाळी लवकर आठवण करशील का?", lang: "mr" },
+  { from: "sukhi", text: "मी तुमच्या सकाळच्या आठवणीची वेळ बदलण्याचा प्रस्ताव तयार केला आहे. लागू करण्यासाठी CONFIRM K7P2Q लिहा.", lang: "mr" },
+];

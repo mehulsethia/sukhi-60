@@ -110,6 +110,17 @@ export async function completeOnboarding(_prev: ActionState, fd: FormData): Prom
   const { supabase, user } = r;
   try {
     await writeConsents(fd, user.id, supabase);
+    // "What brings you here" becomes confirmed context for the assistant (never a diagnosis).
+    const REASON_TEXT: Record<string, string> = {
+      discharge: "Recently came home from hospital and is settling into a routine.",
+      new_plan: "Has recently started a new treatment plan.",
+      existing: "Wants help keeping up with a plan they already have.",
+      wellbeing: "Is working on personal wellbeing goals.",
+    };
+    const reason = String(fd.get("reason") ?? "");
+    if (REASON_TEXT[reason]) {
+      await createAdminClient().from("memory_facts").insert({ user_id: user.id, kind: "context", content: REASON_TEXT[reason], source_type: "onboarding", status: "confirmed" });
+    }
     const tpl = String(fd.get("template") ?? "none");
     if (tpl === "walk" || tpl === "water" || tpl === "stretch") {
       await createTemplatePlan(supabase, user.id, tpl);
@@ -120,7 +131,7 @@ export async function completeOnboarding(_prev: ActionState, fd: FormData): Prom
     if (e && typeof e === "object" && "digest" in e) throw e; // let redirect() through
     return { error: "save_failed" };
   }
-  redirect("/today");
+  redirect("/today?welcome=1");
 }
 
 export async function savePreferences(_prev: ActionState, fd: FormData): Promise<ActionState> {

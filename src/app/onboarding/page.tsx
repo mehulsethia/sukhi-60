@@ -1,16 +1,13 @@
+import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { requireUser } from "@/lib/supabase/server";
 import { OnboardingForm } from "./OnboardingForm";
-import { Logo } from "@/components/Logo";
+
+export const metadata: Metadata = { title: "Welcome" };
 
 export default async function OnboardingPage() {
   const { supabase, user } = await requireUser();
-  const { data: profile } = await supabase.from("profiles").select("*").eq("id", user.id).single();
+  const { data: profile } = await supabase.from("profiles").select("timezone, locale, onboarded_at").eq("id", user.id).single();
   if (profile?.onboarded_at) redirect("/today");
-  return (
-    <main id="main" className="mx-auto max-w-xl px-4 pb-16 pt-6">
-      <div className="mb-8"><Logo /></div>
-      <OnboardingForm defaults={{ timezone: profile?.timezone ?? "Asia/Kolkata", locale: profile?.locale ?? "en" }} />
-    </main>
-  );
+  return <OnboardingForm defaults={{ timezone: profile?.timezone ?? "Asia/Kolkata", locale: profile?.locale ?? "en" }} />;
 }

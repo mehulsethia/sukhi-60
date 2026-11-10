@@ -8,6 +8,7 @@ import { getToday, materializeOccurrences } from "@/server/core";
 import { gardenFromEvents } from "@/domain/rewards";
 import { Garden } from "@/components/Garden";
 import { ActionCard } from "@/components/ActionCard";
+import { SceneGarden } from "@/components/Illustrations";
 import { fmtTime, hoursAgoIso, nowMs } from "@/lib/format";
 
 export const metadata: Metadata = { title: "Today" };
@@ -25,7 +26,8 @@ function ProgressRing({ done, total }: { done: number; total: number }) {
   );
 }
 
-export default async function TodayPage() {
+export default async function TodayPage({ searchParams }: { searchParams: Promise<{ welcome?: string }> }) {
+  const { welcome } = await searchParams;
   const { supabase, user } = await requireUser();
   const t = await getTranslations();
   const locale = await getLocale();
@@ -55,6 +57,17 @@ export default async function TodayPage() {
         <p className="font-semibold text-ink-soft">{dateLabel}</p>
         <h1 className="mt-1 text-[2.2rem] font-bold sm:text-[2.7rem]">{greet}{first ? `, ${first}` : ""}</h1>
       </header>
+
+      {welcome ? (
+        <section className="pop-in relative mb-6 overflow-hidden rounded-[28px] bg-primary p-6 text-primary-ink sm:flex sm:items-center sm:gap-6">
+          <div className="mx-auto w-40 shrink-0 sm:mx-0"><SceneGarden /></div>
+          <div>
+            <h2 className="text-2xl font-bold">{first ? t("onb.welcomeTitle", { name: first }) : t("onb.welcomeTitleNoName")}</h2>
+            <p className="mt-2 opacity-90">{t("onb.welcomeBody")}</p>
+            <Link href="/today" className="btn btn-accent mt-4">{t("onb.welcomeDismiss")}</Link>
+          </div>
+        </section>
+      ) : null}
 
       <div className={`mb-6 grid gap-4 ${actions.length ? "sm:grid-cols-[1.3fr_1fr]" : ""}`}>
         {actions.length ? <section className="card flex items-center gap-5 p-5" aria-label={t("today.title")}>

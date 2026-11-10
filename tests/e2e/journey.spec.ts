@@ -44,20 +44,29 @@ test.describe.serial("core journey", () => {
     await page.getByRole("button", { name: "Create account" }).click();
     await expect(page).toHaveURL(/\/onboarding/);
 
-    // Onboarding (4 steps). Keep Asia/Kolkata so times below are predictable.
+    // Onboarding (8 steps). Keep Asia/Kolkata so times below are predictable.
+    const next = () => page.getByRole("button", { name: "Continue" }).click();
+    await expect(page.getByRole("radio", { name: /English/ })).toHaveAttribute("aria-checked", "true");
+    await next(); // language
+    await expect(page.getByRole("heading", { name: "Here's how Sukhi helps" })).toBeVisible();
+    await next(); // tour
     await page.getByLabel("What should we call you?").fill("Asha Test");
     await page.getByLabel("Time zone").selectOption("Asia/Kolkata");
-    // Quiet hours must not cover "now" for the reminder test.
+    await next(); // about
     await page.locator("#quiet_start").fill("03:00");
     await page.locator("#quiet_end").fill("03:01");
-    await page.getByRole("button", { name: "Next" }).click();
-    await page.getByRole("button", { name: "Next" }).click();
+    await expect(page.getByText(/Sukhi will check in at/)).toBeVisible();
+    await next(); // rhythm
+    await page.getByRole("radio", { name: /keep up with a plan I already have/ }).click();
+    await next(); // reason
+    await next(); // comfort
     await page.getByLabel(/Allow voice notes/).check();
     await page.getByLabel(/connect WhatsApp later/).check();
-    await page.getByRole("button", { name: "Next" }).click();
+    await next(); // permissions
     await page.getByLabel("I'll set up my plan myself").check();
-    await page.getByRole("button", { name: "Finish" }).click();
+    await page.getByRole("button", { name: "Start using Sukhi" }).click();
     await expect(page).toHaveURL(/\/today/);
+    await expect(page.getByText("You're all set, Asha")).toBeVisible();
     await expect(page.getByText("No actions scheduled for today.")).toBeVisible();
 
     // Create a personal plan and confirm an item due 10 minutes ago.

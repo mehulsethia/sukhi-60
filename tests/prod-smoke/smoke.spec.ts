@@ -63,17 +63,23 @@ test("full patient journey on production", async ({ page, request }) => {
   await page.getByRole("button", { name: "Log in", exact: true }).click();
   await expect(page).toHaveURL(/\/onboarding/);
 
+  const next = () => page.getByRole("button", { name: "Continue" }).click();
+  await next();
+  await next();
   await page.getByLabel("What should we call you?").fill("Smoke Test");
   await page.getByLabel("Time zone").selectOption("Asia/Kolkata");
+  await next();
   await page.locator("#quiet_start").fill("03:00");
   await page.locator("#quiet_end").fill("03:01");
-  await page.getByRole("button", { name: "Next" }).click();
-  await page.getByRole("button", { name: "Next" }).click();
+  await next();
+  await page.getByRole("radio", { name: /keep up with a plan I already have/ }).click();
+  await next();
+  await next();
   await page.getByLabel(/connect WhatsApp later/).check();
   await page.getByLabel(/invite a family member/).check();
-  await page.getByRole("button", { name: "Next" }).click();
+  await next();
   await page.getByLabel("I'll set up my plan myself").check();
-  await page.getByRole("button", { name: "Finish" }).click();
+  await page.getByRole("button", { name: "Start using Sukhi" }).click();
   await expect(page).toHaveURL(/\/today/);
 
   await page.goto("/plan");

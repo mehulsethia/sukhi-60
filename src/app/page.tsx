@@ -1,12 +1,13 @@
 import Link from "next/link";
 import type { Metadata } from "next";
 import { getTranslations } from "next-intl/server";
-import { BellRing, Camera, Check, ClipboardCheck, HeartHandshake, Languages, Lock, MessageCircleHeart, ShieldCheck, Sprout, X } from "lucide-react";
+import { Camera, Check, ClipboardCheck, HeartHandshake, Languages, Lock, MessageCircleHeart, ShieldCheck, Sprout, X } from "lucide-react";
 import { getUser } from "@/lib/supabase/server";
 import { features } from "@/lib/config";
 import { SiteHeader } from "@/components/landing/SiteHeader";
 import { HeroCheckin } from "@/components/landing/HeroCheckin";
-import { ASSESSMENT_SAMPLE, CHAT_SAMPLE, WEEK_SAMPLE } from "@/components/landing/samples";
+import { ASSESSMENT_SAMPLE, CHAT_SAMPLE, WEEK_SAMPLE, WHATSAPP_SAMPLE } from "@/components/landing/samples";
+import { SceneCheckin, SceneGarden, SceneLanguages, SceneReminder, SceneShield, WhatsAppPhone } from "@/components/Illustrations";
 import { Logo } from "@/components/Logo";
 
 export const metadata: Metadata = {
@@ -19,10 +20,10 @@ export default async function Landing() {
   const t = await getTranslations("landing");
   const tr = await getTranslations();
   const steps = [
-    { icon: ClipboardCheck, title: t("step1Title"), body: t("step1Body") },
-    { icon: BellRing, title: t("step2Title"), body: t("step2Body") },
-    { icon: MessageCircleHeart, title: t("step3Title"), body: t("step3Body") },
-    { icon: Sprout, title: t("step4Title"), body: t("step4Body") },
+    { scene: SceneLanguages, title: t("step1Title"), body: t("step1Body") },
+    { scene: SceneReminder, title: t("step2Title"), body: t("step2Body") },
+    { scene: SceneCheckin, title: t("step3Title"), body: t("step3Body") },
+    { scene: SceneGarden, title: t("step4Title"), body: t("step4Body") },
   ];
   const why = [
     { icon: ClipboardCheck, title: t("why1Title"), body: t("why1Body") },
@@ -59,13 +60,11 @@ export default async function Landing() {
           <div className="mx-auto max-w-6xl px-4 sm:px-6">
             <h2 className="max-w-2xl text-4xl font-bold sm:text-5xl">{t("howTitle")}</h2>
             <p className="mt-4 max-w-xl text-lg text-ink-soft">{t("howIntro")}</p>
-            <ol className="relative mt-14 grid gap-10 md:grid-cols-4 md:gap-6">
-              <div aria-hidden="true" className="absolute left-6 right-6 top-6 hidden h-px bg-line md:block" />
+            <ol className="mt-14 grid gap-8 sm:grid-cols-2 lg:grid-cols-4 lg:gap-6">
               {steps.map((s, i) => (
-                <li key={s.title} className="relative">
-                  <span className="relative z-10 flex h-12 w-12 items-center justify-center rounded-full border border-line bg-bg text-lg font-bold text-primary">{i + 1}</span>
-                  <s.icon size={22} className="mt-6 text-primary" aria-hidden="true" />
-                  <h3 className="mt-2 text-xl font-bold">{s.title}</h3>
+                <li key={s.title} className="flex flex-col">
+                  <div className="relative"><s.scene /><span className="absolute left-4 top-4 flex h-10 w-10 items-center justify-center rounded-full bg-surface text-lg font-bold text-primary shadow-[var(--shadow-sm)]">{i + 1}</span></div>
+                  <h3 className="mt-5 text-xl font-bold">{s.title}</h3>
                   <p className="mt-2 text-ink-soft">{s.body}</p>
                 </li>
               ))}
@@ -120,6 +119,19 @@ export default async function Landing() {
           </div>
         </section>
 
+        {/* WhatsApp */}
+        <section className="overflow-hidden border-t border-line bg-[linear-gradient(180deg,var(--leaf-soft),var(--bg))] py-20 lg:py-24">
+          <div className="mx-auto grid max-w-6xl items-center gap-14 px-4 sm:px-6 lg:grid-cols-[1fr_auto]">
+            <div className="max-w-xl">
+              <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#1f6b4f] text-white"><MessageCircleHeart size={24} aria-hidden="true" /></span>
+              <h2 className="mt-5 text-4xl font-bold sm:text-5xl">{t("waTitle")}</h2>
+              <p className="mt-5 text-lg text-ink-soft">{t("waBody")}</p>
+              <p className="mt-4 text-sm text-ink-soft">{t("waNote")}</p>
+            </div>
+            <WhatsAppPhone title={t("waContact")} messages={WHATSAPP_SAMPLE} />
+          </div>
+        </section>
+
         {/* Why Sukhi */}
         <section className="border-t border-line bg-surface py-20 lg:py-24">
           <div className="mx-auto max-w-6xl px-4 sm:px-6">
@@ -142,6 +154,7 @@ export default async function Landing() {
         <section id="safety" className="scroll-mt-20 bg-[#18213f] py-20 text-[#eef0f8] lg:py-24">
           <div className="mx-auto grid max-w-6xl gap-12 px-4 sm:px-6 lg:grid-cols-[1fr_1.2fr]">
             <div>
+              <div className="mb-8 w-40 [--surface-2:#232c52] [--primary:#3d4fb0]"><SceneShield /></div>
               <h2 className="text-4xl font-bold sm:text-5xl">{t("safetyTitle")}</h2>
               <p className="mt-5 text-lg text-[#c3c9e0]">{t("safetyBody")}</p>
             </div>
