@@ -19,7 +19,8 @@
     "seed:demo": "tsx scripts/seed-demo.mts",
     "db:start": "supabase start -x realtime,studio,imgproxy,edge-runtime,logflare,vector,supavisor",
     "db:reset": "supabase db reset",
-    "db:types": "supabase gen types typescript --local > src/lib/database.types.ts"
+    "db:types": "supabase gen types typescript --local > src/lib/database.types.ts",
+    "smoke:prod": "playwright test -c playwright.prod.config.ts"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "4.0.99",
