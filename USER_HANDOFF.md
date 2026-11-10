@@ -1,6 +1,6 @@
 # User handoff
 
-As of 2026-11-10. **The app is built and verified locally. It is not deployed and not live-tested with any provider.** No remote Supabase project or Vercel project was modified.
+Updated 2026-11-10. **Deployed at https://sukhi-60.vercel.app (Vercel project `sukhi-60`, team mehul-sethias-projects) on Supabase project `sukhi-60` (ref `cjgrxdthigtidftwcjbg`, ap-southeast-2).** Migrations 0100–0400 applied remotely and verified (24 tables, RLS on all, both buckets private); scheduler job `sukhi-worker-tick` active. Pending: Vercel env vars `SUPABASE_SECRET_KEY` (current value rejected by Supabase), `WORKER_SECRET`, `LINK_CODE_PEPPER`, `NEXT_PUBLIC_APP_URL`, `DEMO_MODE_ENABLED`; Supabase Auth URL config. No AI/voice/WhatsApp provider live-tested.
 
 ## Configuration status matrix
 

@@ -2,7 +2,7 @@ import { config } from "dotenv";
 import path from "node:path";
 
 // Integration tests run against the LOCAL Supabase stack (supabase start), never a remote project.
-config({ path: path.resolve(__dirname, "../../.env.local") });
+config({ path: path.resolve(__dirname, "../../.env.test.local"), override: true });
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
 if (!/^http:\/\/(127\.0\.0\.1|localhost):54321/.test(url)) {
   throw new Error("Integration tests must target the local Supabase stack (http://127.0.0.1:54321).");

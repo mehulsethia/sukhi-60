@@ -3,7 +3,7 @@ import { config } from "dotenv";
 import path from "node:path";
 import { createHmac } from "node:crypto";
 
-config({ path: path.resolve(__dirname, "../../.env.local") });
+config({ path: path.resolve(__dirname, "../../.env.test.local"), override: true });
 
 const email = `e2e-${Date.now()}@example.test`;
 const password = "e2e-password-123";

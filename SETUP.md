@@ -18,6 +18,8 @@ pnpm seed:demo                # optional fictional account demo@sukhi.example (l
 pnpm worker:tick              # manual authenticated worker run (reminders, inbound, evaluation)
 pnpm jobs:health              # job states, dead letters, uncertain sends
 ```
+Env files: `.env.local` = the real (production) Supabase project used by `pnpm dev` and scripts; `.env.test.local` = the LOCAL Docker stack used only by `pnpm test` and `pnpm test:e2e` (the test setup refuses any non-local URL). Both are git-ignored.
+
 Locally, email confirmation is off (`supabase/config.toml`) and magic-link emails go to Mailpit (http://127.0.0.1:54324).
 
 ## 3. Supabase project (remote)

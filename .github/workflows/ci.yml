@@ -30,10 +30,9 @@ jobs:
             echo "WORKER_SECRET=$(openssl rand -hex 32)"
             echo "LINK_CODE_PEPPER=$(openssl rand -hex 32)"
             echo "DEMO_MODE_ENABLED=true"
-          } > .env.local
+          } > .env.test.local
       - run: pnpm typecheck
       - run: pnpm lint
       - run: pnpm test
-      - run: pnpm build
       - run: pnpm exec playwright install --with-deps chromium
       - run: pnpm exec playwright test

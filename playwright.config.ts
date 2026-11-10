@@ -1,4 +1,8 @@
 import { defineConfig, devices } from "@playwright/test";
+import { config } from "dotenv";
+
+// Tests use the LOCAL Supabase stack from .env.test.local (process env overrides .env.local in Next).
+const testEnv = config({ path: ".env.test.local", processEnv: {} }).parsed ?? {};
 
 // E2E runs the production build against the LOCAL Supabase stack. WhatsApp traffic goes to a
 // loopback mock of the Graph API (tests/e2e/graph-mock.ts) — this is NOT real Meta delivery.
@@ -16,11 +20,12 @@ export default defineConfig({
     { name: "mobile", use: { ...devices["Pixel 7"] }, testMatch: /mobile\.spec\.ts/ },
   ],
   webServer: {
-    command: `pnpm exec next start -p ${PORT}`,
+    command: `pnpm exec next build && pnpm exec next start -p ${PORT}`,
     url: `http://localhost:${PORT}/api/health`,
     reuseExistingServer: false,
-    timeout: 120_000,
+    timeout: 240_000,
     env: {
+      ...testEnv,
       NEXT_PUBLIC_APP_URL: `http://localhost:${PORT}`,
       WHATSAPP_ACCESS_TOKEN: "e2e-fake-token-xxxxxxxxxxxxxxxx",
       WHATSAPP_PHONE_NUMBER_ID: "1234567890",
