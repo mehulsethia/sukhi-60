@@ -1,0 +1,39 @@
+name: CI
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with: { version: 10 }
+      - uses: actions/setup-node@v4
+        with: { node-version: 24, cache: pnpm }
+      - run: pnpm install --frozen-lockfile
+      - uses: supabase/setup-cli@v1
+        with: { version: latest }
+      - name: Start local Supabase and apply migrations
+        run: |
+          supabase start -x realtime,studio,imgproxy,edge-runtime,logflare,vector,supavisor
+          eval "$(supabase status -o env)"
+          {
+            echo "NEXT_PUBLIC_SUPABASE_URL=$API_URL"
+            echo "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=$PUBLISHABLE_KEY"
+            echo "SUPABASE_SECRET_KEY=$SECRET_KEY"
+            echo "SUPABASE_DB_URL=$DB_URL"
+            echo "NEXT_PUBLIC_APP_URL=http://localhost:3000"
+            echo "WORKER_SECRET=$(openssl rand -hex 32)"
+            echo "LINK_CODE_PEPPER=$(openssl rand -hex 32)"
+            echo "DEMO_MODE_ENABLED=true"
+          } > .env.local
+      - run: pnpm typecheck
+      - run: pnpm lint
+      - run: pnpm test
+      - run: pnpm build
+      - run: pnpm exec playwright install --with-deps chromium
+      - run: pnpm exec playwright test

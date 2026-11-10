@@ -1,0 +1,26 @@
+{
+  "object": "whatsapp_business_account",
+  "entry": [
+    {
+      "id": "WABA_ID_FIXTURE",
+      "changes": [
+        {
+          "field": "messages",
+          "value": {
+            "messaging_product": "whatsapp",
+            "metadata": { "display_phone_number": "15550000000", "phone_number_id": "PHONE_ID_FIXTURE" },
+            "contacts": [{ "profile": { "name": "Fictional Tester" }, "wa_id": "919800000001" }],
+            "messages": [
+              { "from": "919800000001", "id": "wamid.IN_TEXT_1", "timestamp": "1762761600", "type": "text", "text": { "body": "done" } },
+              { "from": "919800000001", "id": "wamid.IN_IMG_1", "timestamp": "1762761660", "type": "image", "image": { "id": "MEDIA_IMG_1", "mime_type": "image/jpeg", "sha256": "x", "caption": "my walk" } },
+              { "from": "919800000001", "id": "wamid.IN_AUD_1", "timestamp": "1762761720", "type": "audio", "audio": { "id": "MEDIA_AUD_1", "mime_type": "audio/ogg; codecs=opus", "voice": true } }
+            ],
+            "statuses": [
+              { "id": "wamid.OUT1", "status": "failed", "timestamp": "1762761780", "recipient_id": "919800000001", "errors": [{ "code": 131047, "title": "Re-engagement message" }] }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}
