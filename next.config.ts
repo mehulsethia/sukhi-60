@@ -17,7 +17,12 @@ const nextConfig: NextConfig = {
       "*.css": { loaders: ["@tailwindcss/turbopack"], as: "*.css" },
     },
   },
-  experimental: { serverActions: { bodySizeLimit: "2mb" } },
+  experimental: {
+    serverActions: { bodySizeLimit: "2mb" },
+    // The persistent Turbopack build cache (restored by Vercel between builds) served a stale
+    // Tailwind stylesheet after globals.css changed. Always build CSS fresh.
+    turbopackFileSystemCacheForBuild: false,
+  },
   async headers() {
     return [
       { source: "/:path*", headers: securityHeaders },
