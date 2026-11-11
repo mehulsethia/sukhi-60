@@ -6,8 +6,20 @@ const PUBLIC_PREFIXES = ["/login", "/signup", "/forgot-password", "/reset-passwo
 // Refreshes the Supabase session cookie and redirects unauthenticated users away from
 // app pages. Authorization is still enforced again in every server handler and by RLS.
 export async function proxy(request: NextRequest) {
-  let response = NextResponse.next({ request });
   const path = request.nextUrl.pathname;
+
+  // Production: send page visits on any other alias (e.g. the protected team URL) to the
+  // canonical public domain, so sessions, cookies and auth links all live on one origin.
+  const canonical = process.env.VERCEL_ENV === "production" ? process.env.NEXT_PUBLIC_APP_URL : undefined;
+  if (canonical && request.method === "GET" && !path.startsWith("/api/")) {
+    const target = new URL(canonical);
+    if (request.nextUrl.host !== target.host) {
+      const url = new URL(request.nextUrl.pathname + request.nextUrl.search, target);
+      return NextResponse.redirect(url, 308);
+    }
+  }
+
+  let response = NextResponse.next({ request });
   // Machine endpoints authenticate themselves (signature / bearer secret); no session work.
   if (path.startsWith("/api/whatsapp") || path.startsWith("/api/worker") || path.startsWith("/api/health")) {
     return response;
@@ -41,5 +53,5 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|icons/|manifest.webmanifest|sw.js|robots.txt).*)"],
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|icon.svg|icons/|manifest.webmanifest|sw.js|robots.txt).*)"],
 };

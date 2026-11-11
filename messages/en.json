@@ -136,7 +136,7 @@
     "consentAi": "Allow AI processing of my messages, photos and plan documents to help me (via Anthropic's API)",
     "consentReminders": "Send me reminders",
     "consentWhatsapp": "I may connect WhatsApp later for reminders and replies",
-    "consentVoice": "Allow voice notes to be transcribed and replies read aloud (via Sarvam AI)",
+    "consentVoice": "Allow voice notes to be transcribed and replies read aloud (by our speech provider, ElevenLabs)",
     "consentFamily": "I may invite a family member to see a progress summary (nothing is shared until I invite someone)",
     "routine": "Start a routine",
     "routineIntro": "Pick a starting point. You can edit everything later. These are examples, not prescriptions.",
@@ -551,7 +551,7 @@
     "pUseTitle": "How we use it",
     "pUseBody": "To schedule reminders, answer your questions from your own plan, show your progress, and keep an honest history. We don't sell your information or use it for advertising.",
     "pProcessorsTitle": "Services that help us",
-    "pProcessorsBody": "Supabase stores your data. If you allow it, Anthropic helps the assistant and photo descriptions, and Sarvam AI turns voice notes into text. If you connect WhatsApp, Meta delivers those messages.",
+    "pProcessorsBody": "Supabase stores your data. If you allow it, Anthropic helps the assistant and photo descriptions, and our speech provider (ElevenLabs) turns voice notes into text and reads replies aloud. If you connect WhatsApp, Meta delivers those messages.",
     "pFamilyTitle": "Family sharing",
     "pFamilyBody": "Nothing is shared unless you invite someone. Invited family see weekly participation counts only, and you can stop sharing at any time.",
     "pChoicesTitle": "Your choices",
@@ -636,6 +636,13 @@
     "welcomeTitle": "You're all set, {name}",
     "welcomeTitleNoName": "You're all set",
     "welcomeBody": "This is your day. Tap Done when you finish an action — or tell Sukhi it's not a good day. Both count.",
-    "welcomeDismiss": "Got it"
+    "welcomeDismiss": "Got it",
+    "clinicianPlanTitle": "My care team's instructions",
+    "uploadTitle": "Add your instructions now",
+    "uploadBody": "Optional. Upload a photo or PDF of your prescription or discharge sheet — we'll draft each item for you to check. Nothing is scheduled until you confirm.",
+    "uploadFile": "Photo or PDF",
+    "uploadReading": "Reading your document…",
+    "reviewDrafts": "We drafted your plan from your document. Check each item against the original, fill in anything unclear, then confirm it to start reminders.",
+    "reviewNoDoc": "Add each instruction from your care team below, or upload a photo or PDF to draft them for you."
   }
 }

@@ -18,7 +18,7 @@ const nextConfig: NextConfig = {
     },
   },
   experimental: {
-    serverActions: { bodySizeLimit: "2mb" },
+    serverActions: { bodySizeLimit: "4mb" }, // onboarding can include a plan document (Vercel body limit ~4.5 MB)
     // The persistent Turbopack build cache (restored by Vercel between builds) served a stale
     // Tailwind stylesheet after globals.css changed. Always build CSS fresh.
     turbopackFileSystemCacheForBuild: false,

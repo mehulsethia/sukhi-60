@@ -1,7 +1,7 @@
 // Sukhi service worker — deliberately minimal and audited.
 // Caches ONLY public, versioned static assets and the offline page.
 // Never caches HTML of authenticated pages, API responses, Supabase traffic, signed URLs or media.
-const VERSION = "sukhi-v1";
+const VERSION = "sukhi-v2";
 const OFFLINE_URL = "/offline";
 const PRECACHE = [OFFLINE_URL, "/manifest.webmanifest", "/icons/192", "/icons/512"];
 

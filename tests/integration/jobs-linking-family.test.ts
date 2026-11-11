@@ -22,6 +22,17 @@ describe("durable job queue", () => {
     }
   });
 
+  it("time-sensitive jobs are claimed before a backlog of routine jobs", async () => {
+    const a = admin();
+    const tag = crypto.randomUUID();
+    await a.from("jobs").insert(Array.from({ length: 30 }, (_, i) => ({ kind: "generate_occurrences" as const, dedupe_key: `prio-gen-${tag}-${i}`, run_at: new Date(Date.now() - 3600_000).toISOString() })));
+    const { data: urgent } = await a.from("jobs").insert({ kind: "send_outbound", dedupe_key: `prio-send-${tag}`, payload: {} }).select("id").single();
+    const { data: claimed } = await a.rpc("claim_jobs", { p_worker: `prio-${tag}`, p_limit: 3 });
+    expect((claimed ?? []).map((j) => j.id)).toContain(urgent!.id);
+    for (const j of claimed ?? []) await a.rpc("complete_job", { p_job: j.id, p_worker: `prio-${tag}` });
+    await a.from("jobs").update({ status: "cancelled" }).like("dedupe_key", `prio-gen-${tag}-%`);
+  });
+
   it("expired leases are recovered; repeated failure ends in dead letter with backoff", async () => {
     const a = admin();
     const { data: job } = await a.from("jobs").insert({ kind: "apply_silence_rule", dedupe_key: `lease-${crypto.randomUUID()}`, max_attempts: 2 }).select("id").single();

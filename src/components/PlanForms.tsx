@@ -5,6 +5,7 @@ import { addExtractedDrafts, createPlan, saveItem } from "@/app/actions";
 import { Alert } from "@/components/ui";
 import { SubmitButton } from "@/components/SubmitButton";
 import type { DraftItem } from "@/domain/extraction";
+import { shrinkImage } from "@/lib/client-image";
 
 export function CreatePlanForm({ defaultMode }: { defaultMode: "clinician_instructions" | "personal_goal" }) {
   const t = useTranslations();
@@ -145,7 +146,9 @@ export function ExtractUpload({ planId }: { planId: string }) {
     setErr(null);
     setResult(null);
     try {
-      const res = await fetch("/api/plan/extract", { method: "POST", body: fd });
+      const file = fd.get("file");
+      if (file instanceof File && file.size > 0) fd.set("file", await shrinkImage(file));
+      const res = await fetch("/api/plan/extract", { method: "POST", body: fd, signal: AbortSignal.timeout(90_000) });
       const j = await res.json();
       if (!res.ok) setErr(t("plan.extractFailed"));
       else if (!j.ok) setErr(j.error === "unconfigured" ? t("plan.extractUnavailable") : j.error === "no_consent" ? t("plan.extractNoConsent") : t("plan.extractFailed"));

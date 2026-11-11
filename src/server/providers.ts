@@ -16,53 +16,66 @@ export function getModel() {
 }
 
 // ---------------------------------------------------------------------------
-// Sarvam speech (https://docs.sarvam.ai) — server-side only
+// Speech (ElevenLabs or Sarvam) — server-side only, behind one interface
 // ---------------------------------------------------------------------------
 const SARVAM_LANG: Record<string, string> = { en: "en-IN", hi: "hi-IN", mr: "mr-IN" };
 
 export type SpeechResult<T> = { ok: true; value: T } | { ok: false; error: "unconfigured" | "provider_error" | "invalid_input" | "timeout" };
+type Transcript = { transcript: string; language: string | null; languageProbability: number | null };
 
-export async function transcribe(audio: Blob, locale: string | null): Promise<SpeechResult<{ transcript: string; language: string | null; languageProbability: number | null }>> {
-  if (!features.speech()) return { ok: false, error: "unconfigured" };
+const fail = (e: unknown): SpeechResult<never> => ({ ok: false, error: e instanceof Error && e.name === "TimeoutError" ? "timeout" : "provider_error" });
+const extFor = (type: string) => (type.includes("ogg") ? "ogg" : type.includes("mpeg") ? "mp3" : type.includes("mp4") ? "m4a" : type.includes("wav") ? "wav" : "webm");
+
+export async function transcribe(audio: Blob, locale: string | null): Promise<SpeechResult<Transcript>> {
+  const provider = settings.speechProvider();
+  if (!provider) return { ok: false, error: "unconfigured" };
   if (audio.size === 0 || audio.size > MEDIA_LIMITS.audio.maxBytes) return { ok: false, error: "invalid_input" };
   const form = new FormData();
-  const type = audio.type || "audio/webm";
-  const ext = type.includes("ogg") ? "ogg" : type.includes("mpeg") ? "mp3" : type.includes("mp4") ? "m4a" : type.includes("wav") ? "wav" : "webm";
-  form.append("file", audio, `voice.${ext}`);
-  form.append("model", settings.sarvamAsrModel());
-  // "unknown" lets the provider auto-detect (supports natural code-switching).
-  form.append("language_code", locale && SARVAM_LANG[locale] ? SARVAM_LANG[locale] : "unknown");
+  form.append("file", audio, `voice.${extFor(audio.type || "audio/webm")}`);
   try {
-    const res = await fetch("https://api.sarvam.ai/speech-to-text", {
-      method: "POST",
-      headers: { "api-subscription-key": process.env.SARVAM_API_KEY! },
-      body: form,
-      signal: AbortSignal.timeout(20_000),
-    });
+    if (provider === "elevenlabs") {
+      form.append("model_id", settings.elevenSttModel());
+      // No language_code: Scribe auto-detects, which handles Hindi/Marathi/English code-switching.
+      const res = await fetch("https://api.elevenlabs.io/v1/speech-to-text", { method: "POST", headers: { "xi-api-key": process.env.ELEVENLABS_API_KEY! }, body: form, signal: AbortSignal.timeout(25_000) });
+      if (!res.ok) return { ok: false, error: "provider_error" };
+      const j = (await res.json()) as { text?: string; language_code?: string; language_probability?: number };
+      return { ok: true, value: { transcript: (j.text ?? "").trim(), language: j.language_code ?? null, languageProbability: j.language_probability ?? null } };
+    }
+    form.append("model", settings.sarvamAsrModel());
+    form.append("language_code", locale && SARVAM_LANG[locale] ? SARVAM_LANG[locale] : "unknown");
+    const res = await fetch("https://api.sarvam.ai/speech-to-text", { method: "POST", headers: { "api-subscription-key": process.env.SARVAM_API_KEY! }, body: form, signal: AbortSignal.timeout(20_000) });
     if (!res.ok) return { ok: false, error: "provider_error" };
     const j = (await res.json()) as { transcript?: string; language_code?: string | null; language_probability?: number };
     return { ok: true, value: { transcript: (j.transcript ?? "").trim(), language: j.language_code ?? null, languageProbability: j.language_probability ?? null } };
   } catch (e) {
-    return { ok: false, error: e instanceof Error && e.name === "TimeoutError" ? "timeout" : "provider_error" };
+    return fail(e);
   }
 }
 
-export async function synthesize(text: string, locale: string): Promise<SpeechResult<{ audioBase64: string; mime: "audio/wav" }>> {
-  if (!features.speech()) return { ok: false, error: "unconfigured" };
+export async function synthesize(text: string, locale: string): Promise<SpeechResult<{ audioBase64: string; mime: string }>> {
+  const provider = settings.speechProvider();
+  if (!provider) return { ok: false, error: "unconfigured" };
   const clipped = text.slice(0, 2400);
   if (!clipped.trim()) return { ok: false, error: "invalid_input" };
   try {
+    if (provider === "elevenlabs") {
+      const voice = settings.elevenVoice(locale);
+      if (!voice) return { ok: false, error: "unconfigured" };
+      const res = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${encodeURIComponent(voice)}?output_format=mp3_44100_128`, {
+        method: "POST",
+        headers: { "xi-api-key": process.env.ELEVENLABS_API_KEY!, "Content-Type": "application/json", Accept: "audio/mpeg" },
+        body: JSON.stringify({ text: clipped, model_id: settings.elevenTtsModel(), language_code: ["en", "hi", "mr"].includes(locale) ? locale : "en" }),
+        signal: AbortSignal.timeout(25_000),
+      });
+      if (!res.ok) return { ok: false, error: "provider_error" };
+      const buf = Buffer.from(await res.arrayBuffer());
+      if (!buf.byteLength) return { ok: false, error: "provider_error" };
+      return { ok: true, value: { audioBase64: buf.toString("base64"), mime: "audio/mpeg" } };
+    }
     const res = await fetch("https://api.sarvam.ai/text-to-speech", {
       method: "POST",
       headers: { "api-subscription-key": process.env.SARVAM_API_KEY!, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        text: clipped,
-        language_code: SARVAM_LANG[locale] ?? "en-IN",
-        model: settings.sarvamTtsModel(),
-        speaker: settings.sarvamSpeaker(),
-        output_audio_codec: "wav",
-        speech_sample_rate: 22050,
-      }),
+      body: JSON.stringify({ text: clipped, language_code: SARVAM_LANG[locale] ?? "en-IN", model: settings.sarvamTtsModel(), speaker: settings.sarvamSpeaker(), output_audio_codec: "wav", speech_sample_rate: 22050 }),
       signal: AbortSignal.timeout(20_000),
     });
     if (!res.ok) return { ok: false, error: "provider_error" };
@@ -70,7 +83,7 @@ export async function synthesize(text: string, locale: string): Promise<SpeechRe
     if (!j.audios?.[0]) return { ok: false, error: "provider_error" };
     return { ok: true, value: { audioBase64: j.audios[0], mime: "audio/wav" } };
   } catch (e) {
-    return { ok: false, error: e instanceof Error && e.name === "TimeoutError" ? "timeout" : "provider_error" };
+    return fail(e);
   }
 }
 

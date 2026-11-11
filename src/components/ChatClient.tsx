@@ -40,7 +40,7 @@ export function ChatClient({ initial, voice, audioReplies }: { initial: ChatMess
     setMessages((m) => [...m, { id: tempId, role: "user", channel: "web", content: body, sources: [], pending: true }]);
     setText("");
     try {
-      const res = await fetch("/api/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text: body }) });
+      const res = await fetch("/api/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text: body }), signal: AbortSignal.timeout(60_000) });
       const j = await res.json();
       if (!res.ok) {
         setMessages((m) => m.filter((x) => x.id !== tempId));

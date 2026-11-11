@@ -43,7 +43,8 @@ Locally, email confirmation is off (`supabase/config.toml`) and magic-link email
 
 ## 4. AI (Anthropic) and voice (Sarvam)
 - `ANTHROPIC_API_KEY` comes from console.anthropic.com. It is billed separately and is **not** covered by Claude.ai or Claude Code plans. `ANTHROPIC_MODEL` must be a current model ID with tool use and vision, taken from Anthropic's models page (e.g. `claude-opus-5-5` as of Nov 2026). Without them, the assistant falls back to deterministic quick replies and evidence is stored without an automatic description.
-- `SARVAM_API_KEY` comes from dashboard.sarvam.ai. Defaults are `saaras:v4` (ASR; webm/ogg/opus/mp4 accepted; REST is meant for clips under 30 s, which is why the app limits recordings to 60 s) and `bulbul:v3` with speaker `shubh` (TTS; en-IN/hi-IN/mr-IN; WAV output). Without it, voice controls are hidden and text works fully.
+- **Voice (ElevenLabs, preferred):** set `ELEVENLABS_API_KEY` and `ELEVENLABS_VOICE_ID` (optionally `ELEVENLABS_VOICE_ID_HI` / `_MR`). Transcription uses `scribe_v2` (auto-detects en/hi/mr and code-mixing); replies use `eleven_v4` (supports Hindi and Marathi). Without a voice ID, transcription still works and audio playback is hidden.
+- **Voice (Sarvam, alternative):** `SARVAM_API_KEY` comes from dashboard.sarvam.ai; used only when no ElevenLabs key is set. Defaults are `saaras:v4` (ASR; webm/ogg/opus/mp4 accepted; REST is meant for clips under 30 s, which is why the app limits recordings to 60 s) and `bulbul:v3` with speaker `shubh` (TTS; en-IN/hi-IN/mr-IN; WAV output). Without it, voice controls are hidden and text works fully.
 - Smoke test after setting keys: sign in, open Assistant, ask "what is on my plan today?", record a short Hindi voice note, upload a photo on an action, then check Settings → Service status.
 
 ## 5. Vercel

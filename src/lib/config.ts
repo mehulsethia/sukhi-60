@@ -7,7 +7,7 @@ interface VarSpec {
   name: string;
   required: boolean;
   secret: boolean;
-  group: "supabase" | "app" | "worker" | "anthropic" | "sarvam" | "whatsapp";
+  group: "supabase" | "app" | "worker" | "anthropic" | "speech" | "sarvam" | "whatsapp";
   validate?: (v: string) => boolean;
 }
 
@@ -21,6 +21,12 @@ export const VARS: VarSpec[] = [
   { name: "DEMO_MODE_ENABLED", required: false, secret: false, group: "app", validate: (v) => v === "true" || v === "false" },
   { name: "ANTHROPIC_API_KEY", required: false, secret: true, group: "anthropic", validate: (v) => v.startsWith("sk-ant-") },
   { name: "ANTHROPIC_MODEL", required: false, secret: false, group: "anthropic", validate: (v) => /^claude-[a-z0-9-]+$/.test(v) },
+  { name: "ELEVENLABS_API_KEY", required: false, secret: true, group: "speech", validate: (v) => v.length > 10 },
+  { name: "ELEVENLABS_VOICE_ID", required: false, secret: false, group: "speech", validate: (v) => /^[A-Za-z0-9]{10,40}$/.test(v) },
+  { name: "ELEVENLABS_VOICE_ID_HI", required: false, secret: false, group: "speech", validate: (v) => /^[A-Za-z0-9]{10,40}$/.test(v) },
+  { name: "ELEVENLABS_VOICE_ID_MR", required: false, secret: false, group: "speech", validate: (v) => /^[A-Za-z0-9]{10,40}$/.test(v) },
+  { name: "ELEVENLABS_TTS_MODEL", required: false, secret: false, group: "speech", validate: (v) => /^eleven_[a-z0-9_]+$/.test(v) },
+  { name: "ELEVENLABS_STT_MODEL", required: false, secret: false, group: "speech", validate: (v) => /^scribe_[a-z0-9_]+$/.test(v) },
   { name: "SARVAM_API_KEY", required: false, secret: true, group: "sarvam", validate: (v) => v.length > 10 },
   { name: "SARVAM_ASR_MODEL", required: false, secret: false, group: "sarvam", validate: (v) => /^saaras:v\d/.test(v) },
   { name: "SARVAM_TTS_MODEL", required: false, secret: false, group: "sarvam", validate: (v) => /^bulbul:v\d/.test(v) },
@@ -50,7 +56,7 @@ const ok = (name: string) => checkVar(name) === "set";
 
 export const features = {
   ai: () => ok("ANTHROPIC_API_KEY") && ok("ANTHROPIC_MODEL"),
-  speech: () => ok("SARVAM_API_KEY"),
+  speech: () => ok("ELEVENLABS_API_KEY") || ok("SARVAM_API_KEY"),
   whatsapp: () => ok("WHATSAPP_ACCESS_TOKEN") && ok("WHATSAPP_PHONE_NUMBER_ID") && ok("WHATSAPP_APP_SECRET") && ok("WHATSAPP_VERIFY_TOKEN"),
   demo: () => process.env.DEMO_MODE_ENABLED === "true",
 };
@@ -63,6 +69,11 @@ export function env(name: string): string {
 
 export const settings = {
   anthropicModel: () => process.env.ANTHROPIC_MODEL ?? "",
+  /** ElevenLabs when its key is set, otherwise Sarvam, otherwise none. */
+  speechProvider: (): "elevenlabs" | "sarvam" | null => (ok("ELEVENLABS_API_KEY") ? "elevenlabs" : ok("SARVAM_API_KEY") ? "sarvam" : null),
+  elevenTtsModel: () => process.env.ELEVENLABS_TTS_MODEL || "eleven_v4",
+  elevenSttModel: () => process.env.ELEVENLABS_STT_MODEL || "scribe_v2",
+  elevenVoice: (locale: string) => (locale === "hi" ? process.env.ELEVENLABS_VOICE_ID_HI : locale === "mr" ? process.env.ELEVENLABS_VOICE_ID_MR : undefined) || process.env.ELEVENLABS_VOICE_ID || "",
   sarvamAsrModel: () => process.env.SARVAM_ASR_MODEL || "saaras:v4",
   sarvamTtsModel: () => process.env.SARVAM_TTS_MODEL || "bulbul:v3",
   sarvamSpeaker: () => process.env.SARVAM_TTS_SPEAKER || "shubh",

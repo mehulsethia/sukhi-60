@@ -167,6 +167,25 @@ test.describe.serial("core journey", () => {
     await expect(page.getByRole("heading", { level: 1 })).toContainText("Ravi");
   });
 
+  test("onboarding: clinician instructions with a document lands on the new plan", async ({ page }) => {
+    await page.goto("/signup");
+    await page.getByLabel("Email").fill(`clin-${Date.now()}@example.test`);
+    await page.getByLabel("Password", { exact: true }).fill("clin-password-1");
+    await page.getByLabel(/I agree to the/).check();
+    await page.getByRole("button", { name: "Create account" }).click();
+    await expect(page).toHaveURL(/\/onboarding/);
+    for (let i = 0; i < 7; i++) await page.getByRole("button", { name: "Continue" }).click();
+    await page.getByLabel(/Enter my doctor's instructions/).check();
+    await page.getByLabel("Clinician or clinic name").fill("Fictional Clinic");
+    await page.getByLabel("Photo or PDF").setInputFiles(path.resolve(__dirname, "../fixtures/sample-instructions.jpg"));
+    await page.getByRole("button", { name: "Start using Sukhi" }).click();
+    await expect(page).toHaveURL(/\/plan\/[0-9a-f-]{36}\?from=onboarding/);
+    await expect(page.getByRole("heading", { level: 1 })).toHaveText("My care team's instructions");
+    await expect(page.getByText("Transcribed by you — not clinician-verified")).toBeVisible();
+    await expect(page.getByText(/Add each instruction from your care team|We drafted your plan/)).toBeVisible();
+    await expect(page.getByRole("link", { name: "View source document" })).toBeVisible();
+  });
+
   test("demo route is clearly fictional", async ({ page }) => {
     await page.goto("/demo");
     await expect(page.getByText(/Fictional demo — no real AI, WhatsApp, or medical evaluation/)).toBeVisible();

@@ -14,7 +14,7 @@ export const metadata: Metadata = {
   title: { default: "Sukhi — a gentle companion for your care routine", template: "%s · Sukhi" },
   description: "A gentle companion for the care routine you agreed on.",
   manifest: "/manifest.webmanifest",
-  icons: { icon: "/icons/192", apple: "/icons/180" },
+  icons: { icon: [{ url: "/icon.svg", type: "image/svg+xml" }, { url: "/icons/192", type: "image/png", sizes: "192x192" }], apple: "/icons/180" },
   appleWebApp: { capable: true, title: "Sukhi", statusBarStyle: "default" },
 };
 

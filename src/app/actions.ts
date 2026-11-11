@@ -16,6 +16,8 @@ import { generateLinkCode, hashLinkCode, randomToken, sha256Hex } from "@/domain
 import { TEMPLATES } from "@/domain/templates";
 import type { DraftItem } from "@/domain/extraction";
 import { CONSENT_KINDS, writeConsentChoices } from "@/server/consents";
+import { validateUpload } from "@/server/files";
+import { extractPlanDraft } from "@/server/ai-tasks";
 
 export type ActionState = { ok?: boolean; error?: string; data?: Record<string, unknown> } | null;
 
@@ -95,6 +97,47 @@ async function writeConsents(fd: FormData, userId: string, supabase: Awaited<Ret
   await writeConsentChoices(supabase, userId, choices);
 }
 
+
+type UserDb = Awaited<ReturnType<typeof requireUser>>["supabase"];
+
+/** Insert extracted items as unconfirmed drafts with provenance (never scheduled until confirmed). */
+async function insertDraftItems(supabase: UserDb, userId: string, planId: string, documentId: string, drafts: DraftItem[]) {
+  if (drafts.length === 0) return null;
+  return supabase.from("plan_items").insert(
+    drafts.map((d) => ({
+      plan_id: planId,
+      user_id: userId,
+      title: d.title.slice(0, 120),
+      instructions: d.instructions?.slice(0, 1000) ?? null,
+      category: d.category,
+      schedule_kind: d.schedule_kind,
+      times: d.times,
+      weekdays: d.weekdays,
+      weekly_target: d.schedule_kind === "weekly_target" ? (d.weekly_target ?? 1) : d.weekly_target,
+      once_date: d.schedule_kind === "once" ? new Date().toISOString().slice(0, 10) : null,
+      status: "draft" as const,
+      provenance: "extracted" as const,
+      source_document_id: documentId,
+      source_page: d.source_page,
+      source_snippet: d.source_snippet.slice(0, 1000),
+      unresolved_fields: d.unresolved_fields,
+    })),
+  );
+}
+
+/** Store a plan source privately under the user's folder and return its document id. */
+async function storePlanSource(supabase: UserDb, userId: string, file: File) {
+  const v = await validateUpload(file, ["image/jpeg", "image/png", "image/webp", "application/pdf"], LIMITS.uploadMaxBytes);
+  if (!v.ok) return null;
+  const path = `${userId}/${v.file.sha256.slice(0, 24)}.${v.file.ext}`;
+  const up = await supabase.storage.from("plan-sources").upload(path, v.file.bytes, { contentType: v.file.mime, upsert: false });
+  if (up.error && !/exists|duplicate/i.test(up.error.message)) return null;
+  const existing = await supabase.from("documents").select("id").eq("bucket", "plan-sources").eq("storage_path", path).maybeSingle();
+  if (existing.data) return existing.data.id;
+  const { data } = await supabase.from("documents").insert({ user_id: userId, bucket: "plan-sources", storage_path: path, mime_type: v.file.mime, size_bytes: v.file.size, sha256: v.file.sha256, original_name: file.name.slice(0, 200) }).select("id").single();
+  return data?.id ?? null;
+}
+
 async function createTemplatePlan(supabase: Awaited<ReturnType<typeof requireUser>>["supabase"], userId: string, key: keyof typeof TEMPLATES) {
   const tpl = TEMPLATES[key];
   const { data: plan, error } = await supabase.from("care_plans").insert({ user_id: userId, title: tpl.plan, mode: "personal_goal", status: "active", source_description: "Sukhi example routine (personal goal)" }).select("id").single();
@@ -126,7 +169,32 @@ export async function completeOnboarding(_prev: ActionState, fd: FormData): Prom
       await createTemplatePlan(supabase, user.id, tpl);
       await materializeOccurrences(createAdminClient(), user.id, 7);
     }
-    if (tpl === "clinician") redirect("/plan?new=clinician");
+    if (tpl === "clinician") {
+      const { data: plan, error: planErr } = await supabase
+        .from("care_plans")
+        .insert({
+          user_id: user.id,
+          title: String(fd.get("plan_title") || "My care team's instructions").slice(0, 120),
+          mode: "clinician_instructions",
+          status: "active",
+          clinician_name: String(fd.get("clinician_name") ?? "").trim().slice(0, 120) || null,
+          source_description: String(fd.get("source_description") ?? "").trim().slice(0, 500) || null,
+        })
+        .select("id")
+        .single();
+      if (planErr || !plan) throw new Error("plan_create_failed");
+      const file = fd.get("plan_file");
+      let drafted = false;
+      if (file instanceof File && file.size > 0) {
+        const docId = await storePlanSource(supabase, user.id, file);
+        if (docId) {
+          await supabase.from("care_plans").update({ source_document_id: docId }).eq("id", plan.id);
+          const ex = await extractPlanDraft(createAdminClient(), user.id, docId);
+          if (ex.ok && ex.drafts.length) drafted = !(await insertDraftItems(supabase, user.id, plan.id, docId, ex.drafts))?.error;
+        }
+      }
+      redirect(`/plan/${plan.id}?from=onboarding${drafted ? "&drafted=1" : ""}`);
+    }
   } catch (e) {
     if (e && typeof e === "object" && "digest" in e) throw e; // let redirect() through
     return { error: "save_failed" };
@@ -284,26 +352,8 @@ export async function addExtractedDrafts(_prev: ActionState, fd: FormData): Prom
   const drafts = ((doc?.extraction as { drafts?: DraftItem[] } | null)?.drafts ?? []).filter((_, i) => picked.includes(i));
   if (!doc || drafts.length === 0) return { error: "nothing_selected" };
   await supabase.from("care_plans").update({ source_document_id: doc.id }).eq("id", planId);
-  const { error } = await supabase.from("plan_items").insert(
-    drafts.map((d) => ({
-      plan_id: planId,
-      user_id: user.id,
-      title: d.title.slice(0, 120),
-      instructions: d.instructions?.slice(0, 1000) ?? null,
-      category: d.category,
-      schedule_kind: d.schedule_kind,
-      times: d.times,
-      weekdays: d.weekdays,
-      weekly_target: d.schedule_kind === "weekly_target" ? (d.weekly_target ?? 1) : d.weekly_target,
-      once_date: d.schedule_kind === "once" ? new Date().toISOString().slice(0, 10) : null,
-      status: "draft" as const,
-      provenance: "extracted" as const,
-      source_document_id: doc.id,
-      source_page: d.source_page,
-      source_snippet: d.source_snippet.slice(0, 1000),
-      unresolved_fields: d.unresolved_fields,
-    })),
-  );
+  const res = await insertDraftItems(supabase, user.id, planId, doc.id, drafts);
+  const error = res?.error;
   if (error) return { error: "save_failed" };
   revalidatePath(`/plan/${planId}`);
   return { ok: true };

@@ -3,24 +3,9 @@ import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { Alert } from "@/components/ui";
+import { shrinkImage } from "@/lib/client-image";
 
 type Kind = "photo" | "text";
-
-/** Downscale photos in the browser (max 1600px JPEG) so uploads stay well under server limits. */
-async function shrinkImage(file: File): Promise<Blob> {
-  if (!file.type.startsWith("image/") || file.size < 900_000) return file;
-  try {
-    const bmp = await createImageBitmap(file);
-    const scale = Math.min(1, 1600 / Math.max(bmp.width, bmp.height));
-    const canvas = document.createElement("canvas");
-    canvas.width = Math.round(bmp.width * scale);
-    canvas.height = Math.round(bmp.height * scale);
-    canvas.getContext("2d")!.drawImage(bmp, 0, 0, canvas.width, canvas.height);
-    return await new Promise<Blob>((res) => canvas.toBlob((b) => res(b ?? file), "image/jpeg", 0.82));
-  } catch {
-    return file;
-  }
-}
 
 export function EvidenceForm({ occurrenceId, canMarkDone }: { occurrenceId: string; canMarkDone: boolean }) {
   const t = useTranslations();
@@ -42,7 +27,7 @@ export function EvidenceForm({ occurrenceId, canMarkDone }: { occurrenceId: stri
     setBusy(true);
     setMsg(null);
     try {
-      const res = await fetch("/api/evidence", { method: "POST", body: fd });
+      const res = await fetch("/api/evidence", { method: "POST", body: fd, signal: AbortSignal.timeout(75_000) });
       const j = await res.json();
       if (res.status === 409 && j.error === "duplicate_evidence") setMsg({ tone: "info", text: t("action.duplicate") });
       else if (!res.ok) setMsg({ tone: "danger", text: t("common.error") });

@@ -7,8 +7,9 @@ import { Alert, PageHeader, Section } from "@/components/ui";
 import { SubmitButton } from "@/components/SubmitButton";
 import { fmtDateTime } from "@/lib/format";
 
-export default async function PlanDetail({ params }: { params: Promise<{ id: string }> }) {
+export default async function PlanDetail({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ from?: string; drafted?: string }> }) {
   const { id } = await params;
+  const sp = await searchParams;
   if (!/^[0-9a-f-]{36}$/.test(id)) notFound();
   const { supabase, user } = await requireUser();
   const t = await getTranslations();
@@ -33,6 +34,7 @@ export default async function PlanDetail({ params }: { params: Promise<{ id: str
       <PageHeader title={plan.title}>
         <span className="chip">{t(`plan.status_${plan.status}`)}</span>
       </PageHeader>
+      {sp.from === "onboarding" ? <div className="mb-4"><Alert tone={sp.drafted ? "warn" : "info"}>{sp.drafted ? t("onb.reviewDrafts") : t("onb.reviewNoDoc")}</Alert></div> : null}
       <div className="card mb-4 flex flex-col gap-2">
         <p className="font-semibold">{clinical ? t(`plan.verification_${plan.clinician_verification}`) : t("plan.personalBadge")}</p>
         {plan.clinician_name ? <p>{t("plan.clinicianName")}: {plan.clinician_name}</p> : null}
