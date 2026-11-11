@@ -64,17 +64,20 @@ export async function materializeOccurrences(admin: AdminClient, userId: string,
     e.dues.push(r.due_at);
     byItem.set(r.item_id, e);
   });
-  for (const [itemId, { version, dues }] of byItem) {
-    const { data } = await admin
-      .from("action_occurrences")
-      .update({ status: "pending", item_version: version, status_changed_at: new Date().toISOString() })
-      .eq("user_id", userId)
-      .eq("item_id", itemId)
-      .eq("status", "paused")
-      .in("due_at", dues)
-      .select("id, item_id, plan_id, item_version, due_at, target_count");
-    resumed.push(...(data ?? []));
-  }
+  // One update per item, in parallel (was sequential: N round trips on every call).
+  const updates = await Promise.all(
+    [...byItem].map(([itemId, { version, dues }]) =>
+      admin
+        .from("action_occurrences")
+        .update({ status: "pending", item_version: version, status_changed_at: new Date().toISOString() })
+        .eq("user_id", userId)
+        .eq("item_id", itemId)
+        .eq("status", "paused")
+        .in("due_at", dues)
+        .select("id, item_id, plan_id, item_version, due_at, target_count"),
+    ),
+  );
+  for (const { data } of updates) resumed.push(...(data ?? []));
 
   let reminders = 0;
   if (consents.reminders && profile.reminder_frequency !== "off") {

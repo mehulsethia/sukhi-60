@@ -42,6 +42,7 @@ export async function runCheckins(admin: AdminClient, now = new Date(), limit = 
     .limit(2000);
   const due: Slot[] = [];
   for (const p of (profiles ?? []) as Profile[]) {
+    try {
     const times = [...new Set(p.checkin_times ?? [])].sort();
     if (!times.length) continue;
     const slots = p.reminder_frequency === "gentle" ? times.slice(0, 1) : times;
@@ -58,6 +59,7 @@ export async function runCheckins(admin: AdminClient, now = new Date(), limit = 
     const last = times.indexOf(slot) === times.length - 1;
     const kind = h < 12 ? "morning" : h < 17 ? "midday" : sunday && last ? "weekly" : "evening";
     due.push({ profile: p, slot, kind, date, key: `checkin:${p.id}:${date}:${slot}` });
+    } catch { /* one bad profile (e.g. invalid time zone) must not stop everyone's check-ins */ }
   }
   if (!due.length) return 0;
   const { data: sent } = await admin.from("messages").select("provider_message_id").in("provider_message_id", due.map((d) => d.key));

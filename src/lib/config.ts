@@ -22,6 +22,8 @@ export const VARS: VarSpec[] = [
   { name: "ANTHROPIC_API_KEY", required: false, secret: true, group: "anthropic", validate: (v) => v.startsWith("sk-ant-") },
   { name: "ANTHROPIC_MODEL", required: false, secret: false, group: "anthropic", validate: (v) => /^claude-[a-z0-9-]+$/.test(v) },
   { name: "ANTHROPIC_EXTRACT_MODEL", required: false, secret: false, group: "anthropic", validate: (v) => /^claude-[a-z0-9-]+$/.test(v) },
+  // Optional: let the LLM re-phrase approved support messages (validated; templates are the fallback). Default off.
+  { name: "SUPPORT_LLM_WORDING", required: false, secret: false, group: "anthropic", validate: (v) => v === "true" || v === "false" },
   { name: "ADMIN_EMAILS", required: false, secret: false, group: "app", validate: (v) => /@/.test(v) },
   { name: "ELEVENLABS_API_KEY", required: false, secret: true, group: "speech", validate: (v) => v.length > 10 },
   { name: "ELEVENLABS_VOICE_ID", required: false, secret: false, group: "speech", validate: (v) => /^[A-Za-z0-9]{10,40}$/.test(v) },
@@ -73,6 +75,7 @@ export const settings = {
   anthropicModel: () => process.env.ANTHROPIC_MODEL ?? "",
   /** Reading handwritten prescriptions needs the strongest vision model; defaults to Opus. */
   extractModel: () => (ok("ANTHROPIC_EXTRACT_MODEL") ? process.env.ANTHROPIC_EXTRACT_MODEL! : "claude-opus-5-5"),
+  supportLlmWording: () => process.env.SUPPORT_LLM_WORDING === "true",
   adminEmails: () => (process.env.ADMIN_EMAILS ?? "").split(",").map((s) => s.trim().toLowerCase()).filter(Boolean),
   /** ElevenLabs when its key is set, otherwise Sarvam, otherwise none. */
   speechProvider: (): "elevenlabs" | "sarvam" | null => (ok("ELEVENLABS_API_KEY") ? "elevenlabs" : ok("SARVAM_API_KEY") ? "sarvam" : null),

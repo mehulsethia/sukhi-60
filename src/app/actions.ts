@@ -290,6 +290,12 @@ export async function chatQuickAction(occurrenceId: string, kind: "done" | "late
   return { ok: true, messages: [u.data && { id: u.data.id, role: "user" as const, content: u.data.content }, a.data && { id: a.data.id, role: "assistant" as const, content: a.data.content }].filter(Boolean) as { id: string; role: "user" | "assistant"; content: string }[] };
 }
 
+/** Daily activity for engagement metrics (one row per user per local day). */
+export async function pingActivity() {
+  const { supabase } = await requireUser();
+  await supabase.rpc("touch_activity");
+}
+
 /** The chat was opened: clears the unread badge on this device. */
 export async function markChatSeen() {
   await requireUser();

@@ -46,19 +46,23 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
   const { supabase, user } = await requireUser();
   const t = await getTranslations();
   const locale = await getLocale();
-  // Idempotent top-up so Today is correct even before the scheduler's next run.
-  await materializeOccurrences(createAdminClient(), user.id, 2).catch(() => undefined);
   const { data: profile } = await supabase.from("profiles").select("display_name, timezone").eq("id", user.id).single();
   const tz = profile?.timezone ?? "UTC";
   const ws = weekStart(localDateOf(new Date(), tz));
   const weekDates = Array.from({ length: 7 }, (_, i) => addDays(ws, i));
-  const [actions, { data: events }, { data: notices }, { data: weekOcc }, suggestions] = await Promise.all([
+  const [firstActions, { data: events }, { data: notices }, { data: weekOcc }, suggestions] = await Promise.all([
     getToday(supabase, user.id, tz),
     supabase.from("reward_events").select("kind, points"),
     supabase.from("messages").select("id, content, created_at").eq("role", "notice").gte("created_at", hoursAgoIso(12)).order("created_at", { ascending: false }).limit(1),
     supabase.from("action_occurrences").select("local_date, status").gte("local_date", ws).lte("local_date", addDays(ws, 6)),
     assistantSuggestions(supabase, user.id, tz, t),
   ]);
+  // Top up only when today looks empty (new plan, or before the scheduler's daily run).
+  let actions = firstActions;
+  if (actions.length === 0) {
+    const r = await materializeOccurrences(createAdminClient(), user.id, 2).catch(() => null);
+    if (r) actions = await getToday(supabase, user.id, tz);
+  }
   const timed = actions.filter((a) => a.target_count === 1);
   const weekly = actions.filter((a) => a.target_count > 1);
   const stats = progressFromEvents(events ?? []);

@@ -95,12 +95,19 @@ export function ChatClient({ initial, voice, audioReplies, suggestions, name, au
 
   // Opening the chat clears its unread badge; new proactive messages arrive by refresh.
   useEffect(() => { void markChatSeen(); }, []);
+  const lastId = messages.at(-1)?.id ?? null;
   useEffect(() => {
-    const h = setInterval(() => {
-      if (document.visibilityState === "visible" && !input.current?.value && !document.querySelector("[data-attach-open]")) router.refresh();
+    // Cheap check for new messages; re-render the page only when there is one.
+    const h = setInterval(async () => {
+      if (document.visibilityState !== "visible" || input.current?.value || document.querySelector("[data-attach-open]")) return;
+      try {
+        const r = await fetch("/api/chat/latest", { cache: "no-store" });
+        const j = (await r.json()) as { id: string | null };
+        if (j.id && j.id !== lastId) router.refresh();
+      } catch { /* offline */ }
     }, 45_000);
     return () => clearInterval(h);
-  }, [router]);
+  }, [router, lastId]);
   const addMessages = useCallback((m: ChatMessage[], occId?: string, status?: string) => {
     setMessages((cur) => [...cur, ...m]);
     if (occId && status) setStatusById((s) => ({ ...s, [occId]: status }));

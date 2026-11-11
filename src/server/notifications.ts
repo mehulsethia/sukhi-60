@@ -32,7 +32,7 @@ export async function getNotifications(db: AdminClient, userId: string, tz: stri
   const [checkins, due, missedY, drafts, evals, rewards, proposals, family, binding, consent] = await Promise.all([
     db.from("messages").select("id, content, created_at").eq("user_id", userId).eq("role", "assistant").eq("channel", "system").gte("created_at", since3d).order("created_at", { ascending: false }).limit(2),
     // Due now: inside its window and still unanswered (DB status may lag the scheduler).
-    db.from("action_occurrences").select("id, due_at, status, plan_items!inner(title)").eq("user_id", userId).eq("local_date", today).in("status", ["pending", "due", "awaiting_response", "later"]).lte("due_at", now.toISOString()).gt("window_end_at", now.toISOString()).order("due_at"),
+    db.from("action_occurrences").select("id, due_at, status, snooze_until, plan_items!inner(title)").eq("user_id", userId).eq("local_date", today).in("status", ["pending", "due", "awaiting_response", "later"]).lte("due_at", now.toISOString()).gt("window_end_at", now.toISOString()).order("due_at"),
     db.from("action_occurrences").select("id", { count: "exact", head: true }).eq("user_id", userId).eq("local_date", yesterday).eq("status", "no_response"),
     db.from("plan_items").select("id, plan_id, created_at").eq("user_id", userId).eq("status", "draft").order("created_at", { ascending: false }),
     db.from("evaluations").select("id, occurrence_id, outcome, created_at, action_occurrences!inner(plan_items!inner(title))").eq("user_id", userId).gte("created_at", since3d).order("created_at", { ascending: false }).limit(5),
@@ -48,7 +48,7 @@ export async function getNotifications(db: AdminClient, userId: string, tz: stri
     const preview = c.content.length > 90 ? `${c.content.slice(0, 88)}…` : c.content;
     out.push({ id: `ci-${c.id}`, kind: "checkin", key: "checkin", values: { preview }, href: "/chat", at: c.created_at });
   }
-  for (const o of due.data ?? []) {
+  for (const o of (due.data ?? []).filter((x) => !x.snooze_until || x.snooze_until <= now.toISOString())) {
     out.push({ id: `due-${o.id}`, kind: "due", key: "due", values: { title: (o.plan_items as unknown as { title: string }).title }, href: "/today", at: o.due_at });
   }
   if ((missedY.count ?? 0) > 0) {

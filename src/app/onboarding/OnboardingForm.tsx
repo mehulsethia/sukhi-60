@@ -35,9 +35,12 @@ type TemplateKey = "walk" | "water" | "stretch" | "clinician" | "none";
 const SCENES = [VLanguages, VCheckin, VReminder, VRhythm, VContext, VComfort, VPrivacy, VProgress];
 const TOTAL = SCENES.length;
 
-function fmt(time: string, locale: string) {
+// Deterministic on purpose: Node and browsers format Intl times differently ("8:00 AM" vs
+// "8:00 am"), which broke hydration of this server-rendered client component.
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+function fmt(time: string, _locale: string) {
   const [h, m] = time.split(":").map(Number);
-  return new Intl.DateTimeFormat(locale === "en" ? "en-IN" : `${locale}-IN`, { hour: "numeric", minute: "2-digit", timeZone: "UTC" }).format(new Date(Date.UTC(2026, 0, 1, h, m)));
+  return `${h % 12 || 12}:${String(m).padStart(2, "0")} ${h < 12 ? "am" : "pm"}`;
 }
 
 export function OnboardingForm({ defaults }: { defaults: { timezone: string; locale: string } }) {

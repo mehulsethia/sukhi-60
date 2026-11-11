@@ -4,7 +4,7 @@ import type { AdminClient } from "@/lib/supabase/admin";
 import { getExtractModel, getModel } from "./providers";
 import { getConsents } from "./core";
 import { constrainEvaluation, fallbackEvaluation, ModelAssessmentSchema, type Category, type ConstrainedEvaluation } from "@/domain/evaluation";
-import { ExtractionSchema, toDraftItems, type DraftItem } from "@/domain/extraction";
+import { cleanExtraction, ExtractionSchema, toDraftItems, type DraftItem } from "@/domain/extraction";
 import { looksLikeInjection, quoteUntrusted } from "@/domain/safety";
 
 const EVALUATOR_SYSTEM = `You describe evidence a person shared about one agreed routine action.
@@ -217,20 +217,21 @@ export async function extractPlanDraft(admin: AdminClient, userId: string, docum
         },
       ],
     });
-    const drafts = toDraftItems(output);
-    const injection = output.contains_instructions_to_assistant || output.items.some((i) => looksLikeInjection(`${i.title ?? ""} ${i.instructions ?? ""} ${i.source_snippet}`));
+    const clean = cleanExtraction(output);
+    const drafts = toDraftItems(clean);
+    const injection = clean.contains_instructions_to_assistant || clean.items.some((i) => looksLikeInjection(`${i.title ?? ""} ${i.instructions ?? ""} ${i.source_snippet}`));
     await admin
       .from("documents")
       .update({
         extraction_status: "done",
         extraction: {
           drafts,
-          document_kind: output.document_kind,
-          clinician_name: output.clinician_name,
-          document_date: output.document_date,
-          orientation: output.orientation,
-          transcription: output.transcription,
-          warnings: output.warnings,
+          document_kind: clean.document_kind,
+          clinician_name: clean.clinician_name,
+          document_date: clean.document_date,
+          orientation: clean.orientation,
+          transcription: clean.transcription,
+          warnings: clean.warnings,
           injection,
           model_id: m.id,
           latency_ms: Date.now() - started,
@@ -238,7 +239,7 @@ export async function extractPlanDraft(admin: AdminClient, userId: string, docum
         } as never,
       })
       .eq("id", doc.id);
-    return { ok: true, drafts, documentKind: output.document_kind, clinicianName: output.clinician_name, warnings: output.warnings, injection, modelId: m.id };
+    return { ok: true, drafts, documentKind: clean.document_kind, clinicianName: clean.clinician_name, warnings: clean.warnings, injection, modelId: m.id };
   } catch (e) {
     console.error("extract_failed", e instanceof Error ? e.message : e);
     await admin.from("documents").update({ extraction_status: "failed", extraction: { error: e instanceof Error ? e.message.slice(0, 200) : "unknown", model_id: m.id, latency_ms: Date.now() - started } as never }).eq("id", doc.id);

@@ -32,6 +32,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   return (
     <html
       lang={locale}
+      data-scroll-behavior="smooth"
       className={`${inter.variable} ${deva.variable}`}
       data-text={a11y.includes("large") ? "large" : undefined}
       data-contrast={a11y.includes("contrast") ? "high" : undefined}

@@ -202,6 +202,74 @@ export type Database = {
         }
         Relationships: []
       }
+      barrier_reports: {
+        Row: {
+          barrier_code: string
+          channel: Database["public"]["Enums"]["channel_kind"]
+          check_in_id: string | null
+          created_at: string
+          id: string
+          idempotency_key: string
+          item_id: string
+          nudge_event_id: string | null
+          occurrence_id: string | null
+          user_id: string
+        }
+        Insert: {
+          barrier_code: string
+          channel?: Database["public"]["Enums"]["channel_kind"]
+          check_in_id?: string | null
+          created_at?: string
+          id?: string
+          idempotency_key: string
+          item_id: string
+          nudge_event_id?: string | null
+          occurrence_id?: string | null
+          user_id: string
+        }
+        Update: {
+          barrier_code?: string
+          channel?: Database["public"]["Enums"]["channel_kind"]
+          check_in_id?: string | null
+          created_at?: string
+          id?: string
+          idempotency_key?: string
+          item_id?: string
+          nudge_event_id?: string | null
+          occurrence_id?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "barrier_reports_check_in_id_fkey"
+            columns: ["check_in_id"]
+            isOneToOne: false
+            referencedRelation: "check_ins"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "barrier_reports_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "plan_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "barrier_reports_nudge_fk"
+            columns: ["nudge_event_id"]
+            isOneToOne: false
+            referencedRelation: "nudge_events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "barrier_reports_occurrence_id_fkey"
+            columns: ["occurrence_id"]
+            isOneToOne: false
+            referencedRelation: "action_occurrences"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       care_plans: {
         Row: {
           clinician_name: string | null
@@ -632,6 +700,48 @@ export type Database = {
         }
         Relationships: []
       }
+      habit_confidence: {
+        Row: {
+          confidence: number | null
+          id: string
+          item_id: string | null
+          plan_id: string | null
+          recorded_at: string
+          user_id: string
+        }
+        Insert: {
+          confidence?: number | null
+          id?: string
+          item_id?: string | null
+          plan_id?: string | null
+          recorded_at?: string
+          user_id: string
+        }
+        Update: {
+          confidence?: number | null
+          id?: string
+          item_id?: string | null
+          plan_id?: string | null
+          recorded_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "habit_confidence_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "plan_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "habit_confidence_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: false
+            referencedRelation: "care_plans"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       inbound_events: {
         Row: {
           event_type: string
@@ -838,6 +948,78 @@ export type Database = {
         }
         Relationships: []
       }
+      nudge_events: {
+        Row: {
+          acknowledged_at: string | null
+          channel: Database["public"]["Enums"]["channel_kind"]
+          created_at: string
+          dedupe_key: string | null
+          delivered_at: string | null
+          id: string
+          item_id: string | null
+          kind: string
+          occurrence_id: string | null
+          outcome: string | null
+          strategy_id: string
+          style_used: string
+          template_or_variant_id: string
+          user_id: string
+          user_initiated: boolean
+          wording_source: string
+        }
+        Insert: {
+          acknowledged_at?: string | null
+          channel?: Database["public"]["Enums"]["channel_kind"]
+          created_at?: string
+          dedupe_key?: string | null
+          delivered_at?: string | null
+          id?: string
+          item_id?: string | null
+          kind: string
+          occurrence_id?: string | null
+          outcome?: string | null
+          strategy_id: string
+          style_used: string
+          template_or_variant_id: string
+          user_id: string
+          user_initiated?: boolean
+          wording_source?: string
+        }
+        Update: {
+          acknowledged_at?: string | null
+          channel?: Database["public"]["Enums"]["channel_kind"]
+          created_at?: string
+          dedupe_key?: string | null
+          delivered_at?: string | null
+          id?: string
+          item_id?: string | null
+          kind?: string
+          occurrence_id?: string | null
+          outcome?: string | null
+          strategy_id?: string
+          style_used?: string
+          template_or_variant_id?: string
+          user_id?: string
+          user_initiated?: boolean
+          wording_source?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "nudge_events_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "plan_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "nudge_events_occurrence_id_fkey"
+            columns: ["occurrence_id"]
+            isOneToOne: false
+            referencedRelation: "action_occurrences"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       outbound_messages: {
         Row: {
           attempts: number
@@ -1040,69 +1222,87 @@ export type Database = {
       profiles: {
         Row: {
           accessibility: Json
+          behaviour_prefs_updated_at: string | null
+          behaviour_schema_version: number
           care_notes: string | null
           care_recipient_name: string | null
           care_recipient_relation: string | null
           care_situation: string | null
           checkin_times: string[]
+          communication_styles: string[]
           conditions: string[]
           created_at: string
           display_name: string | null
           health_context: string | null
           id: string
           is_internal: boolean
+          learning_reset_at: string | null
           limitations: string | null
           locale: Database["public"]["Enums"]["app_locale"]
           onboarded_at: string | null
+          personal_motivation: string | null
           quiet_end: string
           quiet_start: string
           reminder_frequency: string
+          restart_preference: string | null
           setup_for: string | null
           timezone: string
           updated_at: string
         }
         Insert: {
           accessibility?: Json
+          behaviour_prefs_updated_at?: string | null
+          behaviour_schema_version?: number
           care_notes?: string | null
           care_recipient_name?: string | null
           care_recipient_relation?: string | null
           care_situation?: string | null
           checkin_times?: string[]
+          communication_styles?: string[]
           conditions?: string[]
           created_at?: string
           display_name?: string | null
           health_context?: string | null
           id: string
           is_internal?: boolean
+          learning_reset_at?: string | null
           limitations?: string | null
           locale?: Database["public"]["Enums"]["app_locale"]
           onboarded_at?: string | null
+          personal_motivation?: string | null
           quiet_end?: string
           quiet_start?: string
           reminder_frequency?: string
+          restart_preference?: string | null
           setup_for?: string | null
           timezone?: string
           updated_at?: string
         }
         Update: {
           accessibility?: Json
+          behaviour_prefs_updated_at?: string | null
+          behaviour_schema_version?: number
           care_notes?: string | null
           care_recipient_name?: string | null
           care_recipient_relation?: string | null
           care_situation?: string | null
           checkin_times?: string[]
+          communication_styles?: string[]
           conditions?: string[]
           created_at?: string
           display_name?: string | null
           health_context?: string | null
           id?: string
           is_internal?: boolean
+          learning_reset_at?: string | null
           limitations?: string | null
           locale?: Database["public"]["Enums"]["app_locale"]
           onboarded_at?: string | null
+          personal_motivation?: string | null
           quiet_end?: string
           quiet_start?: string
           reminder_frequency?: string
+          restart_preference?: string | null
           setup_for?: string | null
           timezone?: string
           updated_at?: string
@@ -1246,6 +1446,79 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      support_suggestions: {
+        Row: {
+          applied: Json | null
+          barrier_report_id: string | null
+          created_at: string
+          decided_at: string | null
+          expires_at: string
+          id: string
+          item_id: string
+          item_version: number
+          kind: string
+          nudge_event_id: string | null
+          proposal: Json
+          status: string
+          strategy_id: string
+          user_id: string
+        }
+        Insert: {
+          applied?: Json | null
+          barrier_report_id?: string | null
+          created_at?: string
+          decided_at?: string | null
+          expires_at?: string
+          id?: string
+          item_id: string
+          item_version: number
+          kind: string
+          nudge_event_id?: string | null
+          proposal?: Json
+          status?: string
+          strategy_id: string
+          user_id: string
+        }
+        Update: {
+          applied?: Json | null
+          barrier_report_id?: string | null
+          created_at?: string
+          decided_at?: string | null
+          expires_at?: string
+          id?: string
+          item_id?: string
+          item_version?: number
+          kind?: string
+          nudge_event_id?: string | null
+          proposal?: Json
+          status?: string
+          strategy_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "support_suggestions_barrier_report_id_fkey"
+            columns: ["barrier_report_id"]
+            isOneToOne: false
+            referencedRelation: "barrier_reports"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "support_suggestions_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "plan_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "support_suggestions_nudge_event_id_fkey"
+            columns: ["nudge_event_id"]
+            isOneToOne: false
+            referencedRelation: "nudge_events"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {

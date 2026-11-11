@@ -690,7 +690,18 @@
     "uploadFile": "Photo or PDF",
     "uploadReading": "Reading your document…",
     "reviewDrafts": "We drafted your plan from your document. Check each item against the original, fill in anything unclear, then confirm it to start reminders.",
-    "reviewNoDoc": "Add each instruction from your care team below, or upload a photo or PDF to draft them for you."
+    "reviewNoDoc": "Add each instruction from your care team below, or upload a photo or PDF to draft them for you.",
+    "motivationLabel": "What makes this routine matter to you?",
+    "motivationHint": "Optional. A few words, in any language. Only you see this, and you can change it any time.",
+    "styleQTitle": "How would you like Sukhi to talk to you?",
+    "styleQHint": "Choose one or two. You can skip this.",
+    "styleMax": "You can choose up to two.",
+    "restartQTitle": "When you miss a habit, what helps you most?",
+    "restartQHint": "Choose one. You can skip this.",
+    "clearChoice": "Skip this question",
+    "confidenceTitle": "How sure do you feel you can keep this up?",
+    "confidenceHint": "Optional. 1 = not sure at all, 10 = very sure.",
+    "confidenceValue": "{n} out of 10"
   },
   "doc": {
     "tipsTitle": "For the best reading",
@@ -912,5 +923,215 @@
     "button": "Install",
     "iosSteps": "In Safari, tap Share, then “Add to Home Screen”.",
     "dismiss": "Not now"
+  },
+  "support": {
+    "style_warm_gentle": "Warm and gentle",
+    "style_warm_gentleDesc": "Kind encouragement",
+    "style_fun_playful": "Fun and playful",
+    "style_fun_playfulDesc": "Light humour and friendly chat",
+    "style_motivating": "Motivating",
+    "style_motivatingDesc": "Goals and small challenges",
+    "style_simple_practical": "Simple and practical",
+    "style_simple_practicalDesc": "Short, clear reminders",
+    "restart_encouragement": "A little encouragement",
+    "restart_simpler_alternative": "Help finding a simpler alternative",
+    "restart_gentle_push": "A gentle push to restart",
+    "restart_give_space": "Some space before checking in again",
+    "barrierQ": "What got in the way?",
+    "barrierHint": "Optional. Tap one so Sukhi can suggest something useful.",
+    "barrier_forgot": "I forgot",
+    "barrier_busy": "I was busy",
+    "barrier_low_motivation": "Didn't feel like it",
+    "barrier_routine_disrupted": "My routine changed",
+    "barrier_too_difficult": "It felt too hard",
+    "barrier_physical_discomfort": "Pain or discomfort",
+    "barrier_other": "Something else",
+    "barrier_prefer_not_to_say": "Prefer not to say",
+    "didIt": "I did it",
+    "notNow": "Not now",
+    "close": "Close",
+    "newTimeLabel": "New time",
+    "saveTime": "Save new time",
+    "keepTime": "Keep my current time",
+    "suggestedTime": "Your check-ins suggest about {time}.",
+    "timeSaved": "Saved. “{title}” is now at {time}. Your earlier progress is kept.",
+    "timeKept": "Okay, your time stays the same.",
+    "editRoutine": "Make it smaller in My plan",
+    "editHint": "You choose the smaller version. Nothing changes until you confirm it.",
+    "yourWhy": "You said this matters because: “{text}”",
+    "suggestionExpired": "This suggestion has expired or the plan changed. Nothing was changed.",
+    "settingsTitle": "Support style",
+    "settingsHelp": "How Sukhi talks to you and helps you restart. Your own choices always come first.",
+    "motivationSettings": "Why this matters to you (optional)",
+    "learnedTitle": "What Sukhi has noticed",
+    "learnedHelp": "Simple counts from your recent check-ins. These are suggestions only; nothing changes without you.",
+    "learnedNone": "Not enough check-ins yet to notice anything.",
+    "learnedBarrier": "Reason you shared most often: {reason} ({n} times).",
+    "learnedResumed": "You picked a routine back up after a break {n} times.",
+    "learnedTiming": "You usually report “{title}” around {time} (planned for {scheduled}). You can change the time in My plan.",
+    "learnedStyle": "You replied most often to “{style}” messages. Your chosen style still comes first.",
+    "learnedReset": "Reset what Sukhi has noticed",
+    "learnedResetDone": "Done. Your own choices above were kept.",
+    "promptTitle": "New: choose how Sukhi talks to you",
+    "promptBody": "Pick a style and what helps when a day doesn't go to plan. It takes 20 seconds.",
+    "promptCta": "Choose",
+    "promptDismiss": "Not now",
+    "offer_encouragement": "Would a little help to restart be useful?",
+    "offer_simpler_alternative": "Want to find an easier way to fit it in?",
+    "offer_gentle_push": "Shall we pick it back up today?",
+    "offer_give_space": "Whenever you're ready, I'm here.",
+    "tpl": {
+      "gentle_checkin": {
+        "warm_gentle": {
+          "1": "How did “{title}” go yesterday? If it didn't happen, that's completely okay.",
+          "2": "Just checking on “{title}” from yesterday. Whatever happened, today is a new chance."
+        },
+        "fun_playful": {
+          "1": "Quick check: did “{title}” make it into yesterday? No worries if it took a day off!",
+          "2": "“{title}” yesterday: done, or did the day have other plans? Either is fine!"
+        },
+        "motivating": {
+          "1": "How did “{title}” go yesterday? Whatever the answer, your progress still counts.",
+          "2": "Yesterday's “{title}”: done or not, today is your next step."
+        },
+        "simple_practical": {
+          "1": "Did “{title}” happen yesterday?",
+          "2": "Quick check on yesterday's “{title}”."
+        }
+      },
+      "ask_barrier": {
+        "warm_gentle": {
+          "1": "Yesterday's “{title}” didn't go as planned, and that's okay.",
+          "2": "Missing “{title}” once doesn't undo anything."
+        },
+        "fun_playful": {
+          "1": "Plans sometimes take a little detour! “{title}” can get back on track.",
+          "2": "“{title}” took a day off yesterday. We can invite it back."
+        },
+        "motivating": {
+          "1": "One missed day doesn't erase your progress with “{title}”.",
+          "2": "Every restart counts, including “{title}”."
+        },
+        "simple_practical": {
+          "1": "“{title}” was missed yesterday.",
+          "2": "Let's sort out “{title}” for today."
+        }
+      },
+      "suggest_reminder_time": {
+        "warm_gentle": {
+          "1": "That happens to everyone. Would a different reminder time for “{title}” help?",
+          "2": "Forgetting is normal. Shall we try a time for “{title}” that's easier to remember?"
+        },
+        "fun_playful": {
+          "1": "Memory took a holiday? Let's find a time “{title}” can't sneak past.",
+          "2": "No problem! Maybe “{title}” needs a better time slot. Want to try one?"
+        },
+        "motivating": {
+          "1": "Easy fix: pick a time for “{title}” that fits your day better.",
+          "2": "Let's make it stick. Would a different time for “{title}” work better?"
+        },
+        "simple_practical": {
+          "1": "Would another reminder time for “{title}” help?",
+          "2": "Pick a different time for “{title}”?"
+        }
+      },
+      "suggest_reschedule": {
+        "warm_gentle": {
+          "1": "Busy days happen. Would a different time feel easier for “{title}”?",
+          "2": "It sounds like a full day. Shall we find a calmer time for “{title}”?"
+        },
+        "fun_playful": {
+          "1": "Your day was packed! Want to move “{title}” to a quieter slot?",
+          "2": "Busy, busy! Maybe “{title}” would like a new time. Shall we try?"
+        },
+        "motivating": {
+          "1": "Let's work with your schedule. Which time suits “{title}” best?",
+          "2": "A better time can make all the difference. Want to choose one for “{title}”?"
+        },
+        "simple_practical": {
+          "1": "Would you like to reschedule “{title}”?",
+          "2": "Choose a more convenient time for “{title}”?"
+        }
+      },
+      "switch_encouragement": {
+        "warm_gentle": {
+          "1": "Some days are like that, and that's okay. Even a small start counts.",
+          "2": "Low-energy days are normal. Be kind to yourself and try again when it feels right."
+        },
+        "fun_playful": {
+          "1": "Even superheroes have slow days! A tiny start still counts.",
+          "2": "Motivation is shy sometimes. Let's tempt it with a tiny first step!"
+        },
+        "motivating": {
+          "1": "You've done this before, and you can again. What's one small step for today?",
+          "2": "Progress isn't about perfect days. One small step keeps you going."
+        },
+        "simple_practical": {
+          "1": "That's okay. A small start next time still counts.",
+          "2": "Noted. Try a small start next time."
+        }
+      },
+      "offer_flexible_plan": {
+        "warm_gentle": {
+          "1": "Changes in routine are hard. Would a new time for “{title}” suit you better for now?",
+          "2": "When life shifts, plans can shift too. Shall we find a new time for “{title}”?"
+        },
+        "fun_playful": {
+          "1": "Life rearranged the furniture! Want to find “{title}” a new spot in your day?",
+          "2": "New routine, new slot? Let's find a good time for “{title}”."
+        },
+        "motivating": {
+          "1": "Adapting is a strength. Pick the next good time for “{title}”.",
+          "2": "Let's keep going in your new routine. When could “{title}” fit?"
+        },
+        "simple_practical": {
+          "1": "Your routine changed. Pick a new time for “{title}”?",
+          "2": "Want to set a new time for “{title}”?"
+        }
+      },
+      "offer_smaller_action": {
+        "warm_gentle": {
+          "1": "Thank you for telling me. Would a smaller version of “{title}” feel more doable for now?",
+          "2": "It's fine to start smaller. You could make “{title}” lighter in My plan."
+        },
+        "fun_playful": {
+          "1": "Too big a bite? Let's make “{title}” snack-sized!",
+          "2": "No need to climb the whole mountain! A smaller “{title}” still counts."
+        },
+        "motivating": {
+          "1": "Smaller steps still build the habit. Want to make “{title}” easier for now?",
+          "2": "Start small, grow later. Shall we shrink “{title}” a little?"
+        },
+        "simple_practical": {
+          "1": "Make “{title}” smaller for now?",
+          "2": "Want to set an easier version of “{title}”?"
+        }
+      },
+      "supportive_checkin": {
+        "warm_gentle": {
+          "1": "Thank you for telling me. We can try again whenever you're ready.",
+          "2": "That's okay. I'm here when you want to try again."
+        },
+        "motivating": {
+          "1": "Thanks for sharing. The next chance is a fresh start.",
+          "2": "Noted. You can pick it back up any time."
+        },
+        "simple_practical": {
+          "1": "Thanks. We'll try again next time.",
+          "2": "Okay, noted."
+        }
+      },
+      "care_team_checkin": {
+        "neutral": {
+          "1": "Thank you for telling me. Please keep following your plan as your care team wrote it. If the timing is hard, ask your doctor or care team whether it can be adjusted.",
+          "2": "Thanks for letting me know. I can't change this part of your plan, but your doctor or care team can help if the timing doesn't work for you."
+        }
+      },
+      "safety_first": {
+        "neutral": {
+          "1": "Thank you for telling me. Please don't push through pain or discomfort. Rest, and check with your doctor or care team before doing this activity again. If it feels severe or sudden, call 112 or get help nearby now."
+        }
+      }
+    }
   }
 }

@@ -24,7 +24,7 @@ export default async function PlanDetail({ params, searchParams }: { params: Pro
   if (!plan) notFound();
   const [{ data: items }, { data: versions }, { data: profile }] = await Promise.all([
     supabase.from("plan_items").select("*").eq("plan_id", id).neq("status", "retired").order("created_at"),
-    supabase.from("plan_item_versions").select("id, item_id, version, change_kind, changed_via, created_at, snapshot").in("item_id", (await supabase.from("plan_items").select("id").eq("plan_id", id)).data?.map((i) => i.id) ?? ["00000000-0000-0000-0000-000000000000"]).order("created_at", { ascending: false }).limit(30),
+    supabase.from("plan_item_versions").select("id, item_id, version, change_kind, changed_via, created_at, snapshot, plan_items!inner(plan_id)").eq("plan_items.plan_id", id).order("created_at", { ascending: false }).limit(30),
     supabase.from("profiles").select("timezone").eq("id", user.id).single(),
   ]);
   const clinical = plan.mode === "clinician_instructions";

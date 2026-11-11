@@ -1,44 +1,27 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { getLocale, getTranslations } from "next-intl/server";
+import { getTranslations } from "next-intl/server";
 import { LogOut, MessageCircle } from "lucide-react";
 import { requireUser } from "@/lib/supabase/server";
 import { BottomNav } from "@/components/BottomNav";
 import { Logo } from "@/components/Logo";
-import { NotificationBell, type BellItem } from "@/components/NotificationBell";
+import { NotificationBell } from "@/components/NotificationBell";
+import { ActivityPing } from "@/components/ActivityPing";
 import { TopTitle } from "@/components/TopTitle";
-import { getNotifications } from "@/server/notifications";
-import { nowMs } from "@/lib/format";
 import { cookies } from "next/headers";
 
 export const dynamic = "force-dynamic";
 
-function relative(at: string, locale: string, now: number) {
-  const diff = (new Date(at).getTime() - now) / 1000;
-  const rtf = new Intl.RelativeTimeFormat(locale === "en" ? "en-IN" : `${locale}-IN`, { numeric: "auto" });
-  const abs = Math.abs(diff);
-  if (abs < 60) return rtf.format(Math.round(diff), "second");
-  if (abs < 3600) return rtf.format(Math.round(diff / 60), "minute");
-  if (abs < 86_400) return rtf.format(Math.round(diff / 3600), "hour");
-  return rtf.format(Math.round(diff / 86_400), "day");
-}
-
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const { supabase, user } = await requireUser();
-  const { data: profile } = await supabase.from("profiles").select("onboarded_at, display_name, timezone").eq("id", user.id).single();
+  const { data: profile } = await supabase.from("profiles").select("onboarded_at, display_name").eq("id", user.id).single();
   if (!profile?.onboarded_at) redirect("/onboarding");
-  // One row per user per day for engagement metrics; never blocks rendering.
   const chatSeen = (await cookies()).get("sukhi_chat_seen")?.value ?? profile.onboarded_at;
-  const [t, locale, notifs, unreadChat] = await Promise.all([
+  const [t, unreadChat] = await Promise.all([
     getTranslations(),
-    getLocale(),
-    getNotifications(supabase, user.id, profile.timezone ?? "Asia/Kolkata").catch(() => []),
     // Messages Sukhi started (reminders, check-ins) since the chat was last opened.
     supabase.from("messages").select("id", { count: "exact", head: true }).gt("created_at", chatSeen).or("role.eq.notice,channel.eq.system").then((r) => r.count ?? 0, () => 0),
-    supabase.rpc("touch_activity").then(() => undefined, () => undefined),
   ]);
-  const now = nowMs();
-  const bell: BellItem[] = notifs.map((n) => ({ id: n.id, kind: n.kind, text: t(`notif.${n.key}`, n.values), href: n.href, when: n.kind === "whatsapp" ? t("notif.tip") : relative(n.at, locale, now), unread: n.unread }));
   const name = profile.display_name || user.email || "";
   const initial = (profile.display_name || user.email || "?").trim().charAt(0).toUpperCase();
 
@@ -73,13 +56,14 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             <TopTitle />
           </div>
           <div className="flex items-center gap-1.5">
-            <NotificationBell items={bell} />
+            <NotificationBell />
             <Link href="/settings" aria-label={t("app.account")} className="flex h-10 w-10 items-center justify-center rounded-full bg-primary-soft text-sm font-bold text-primary lg:hidden">{initial}</Link>
           </div>
         </header>
         <main id="main" className="mx-auto w-full max-w-6xl flex-1 px-4 pb-32 pt-6 sm:px-6 lg:px-10 lg:pb-14 lg:pt-8">{children}</main>
       </div>
       <div className="lg:hidden"><BottomNav badges={{ chat: unreadChat }} /></div>
+      <ActivityPing />
     </div>
   );
 }

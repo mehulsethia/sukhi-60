@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { Award, Bell, CalendarClock, ClipboardCheck, Image as ImageIcon, MessageCircle, Sparkles, Users, Wind } from "lucide-react";
@@ -11,9 +11,22 @@ export interface BellItem { id: string; kind: string; text: string; href: string
 const ICONS: Record<string, typeof Bell> = { checkin: Sparkles, due: CalendarClock, reminder: CalendarClock, drafts: ClipboardCheck, assessment: ImageIcon, milestone: Award, proposal: Sparkles, missed: Wind, whatsapp: MessageCircle, family: Users };
 const TONE: Record<string, string> = { checkin: "var(--primary)", due: "var(--st-open)", missed: "var(--st-skipped)", drafts: "var(--st-review)", assessment: "var(--st-evidence)", milestone: "var(--haldi)", proposal: "var(--st-unable)", whatsapp: "var(--st-done)", family: "var(--st-done)", reminder: "var(--st-open)" };
 
-export function NotificationBell({ items }: { items: BellItem[] }) {
+export function NotificationBell() {
   const t = useTranslations("notif");
   const [open, setOpen] = useState(false);
+  const [items, setItems] = useState<BellItem[]>([]);
+  const load = useCallback(async () => {
+    try {
+      const r = await fetch("/api/notifications", { cache: "no-store" });
+      if (r.ok) setItems(((await r.json()) as { items: BellItem[] }).items);
+    } catch { /* offline: keep what we have */ }
+  }, []);
+  // Loaded after render (never blocks a page), refreshed on open and every 2 minutes.
+  useEffect(() => {
+    const first = setTimeout(load, 0);
+    const h = setInterval(() => { if (document.visibilityState === "visible") void load(); }, 120_000);
+    return () => { clearTimeout(first); clearInterval(h); };
+  }, [load]);
   const [, start] = useTransition();
   const router = useRouter();
   const ref = useRef<HTMLDivElement>(null);
@@ -28,11 +41,11 @@ export function NotificationBell({ items }: { items: BellItem[] }) {
     return () => { document.removeEventListener("mousedown", onDown); document.removeEventListener("keydown", onKey); };
   }, [open]);
 
-  const markRead = () => start(async () => { await markNotificationsRead(); router.refresh(); });
+  const markRead = () => start(async () => { await markNotificationsRead(); setItems((xs) => xs.map((x) => (x.kind === "due" ? x : { ...x, unread: false }))); router.refresh(); });
 
   return (
     <div ref={ref} className="relative">
-      <button type="button" aria-label={unread ? t("bellUnread", { n: unread }) : t("bell")} aria-expanded={open} onClick={() => setOpen((o) => !o)} className="relative flex h-10 w-10 items-center justify-center rounded-full text-ink-soft transition-colors hover:bg-surface-2 hover:text-ink">
+      <button type="button" aria-label={unread ? t("bellUnread", { n: unread }) : t("bell")} aria-expanded={open} onClick={() => { setOpen((o) => !o); if (!open) void load(); }} className="relative flex h-10 w-10 items-center justify-center rounded-full text-ink-soft transition-colors hover:bg-surface-2 hover:text-ink">
         <Bell size={20} aria-hidden="true" />
         {unread ? <span className="absolute right-1 top-1 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-st-missed px-1 text-[0.68rem] font-bold leading-none text-white">{unread > 9 ? "9+" : unread}</span> : null}
       </button>

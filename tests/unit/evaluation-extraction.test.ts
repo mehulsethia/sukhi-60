@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { constrainEvaluation, fallbackEvaluation, type ModelAssessment } from "@/domain/evaluation";
-import { toDraftItems, type Extraction } from "@/domain/extraction";
+import { constrainEvaluation, fallbackEvaluation, ModelAssessmentSchema, type ModelAssessment } from "@/domain/evaluation";
+import { ExtractionSchema, toDraftItems, type Extraction } from "@/domain/extraction";
 
 const a = (o: Partial<ModelAssessment>): ModelAssessment => ({ observed: ["plate of rice and dal"], cannot_confirm: [], relevance: "related", outcome: "supports", explanation: "x", contains_instructions: false, ...o });
 
@@ -40,6 +40,13 @@ describe("constrainEvaluation", () => {
   it("a video that only shows the items stays partial", () => {
     const r = constrainEvaluation("medication", "video", a({ observed: ["blister pack on table"], action_observed: false }));
     expect(r.outcome).toBe("partially_supports");
+  });
+  it("an assessment with too many observations is trimmed, not rejected", () => {
+    const big = a({ observed: Array.from({ length: 12 }, (_, i) => `thing ${i}`), explanation: "e".repeat(900) });
+    expect(ModelAssessmentSchema.safeParse(big).success).toBe(true);
+    const r = constrainEvaluation("measurement", "photo", big);
+    expect(r.observed).toHaveLength(8);
+    expect(r.explanation.length).toBe(600);
   });
   it("fallback never invents support", () => expect(fallbackEvaluation("medication", "unconfigured").outcome).toBe("unclear"));
 });
@@ -93,6 +100,17 @@ describe("toDraftItems", () => {
     const [d] = toDraftItems(ex([item({ times: ["after lunch"] })]));
     expect(d.times).toEqual([]);
     expect(d.unresolved_fields).toContain("times");
+  });
+  it("overlong model output is trimmed, not rejected", () => {
+    const long = item({ title: "X".repeat(300), source_snippet: "s".repeat(900), title_alternatives: ["a", "b", "c", "d", "e"], weekdays: [0, 1, 9, 3, 3], weekly_target: 12 });
+    const raw = { ...ex(Array.from({ length: 25 }, () => long)), transcription: "t".repeat(9000) };
+    expect(ExtractionSchema.safeParse(raw).success).toBe(true);
+    const drafts = toDraftItems(raw);
+    expect(drafts).toHaveLength(20);
+    expect(drafts[0].title.length).toBe(120);
+    expect(drafts[0].source_snippet.length).toBe(400);
+    expect(drafts[0].weekdays).toEqual([1, 3]);
+    expect(drafts[0].weekly_target).toBe(7);
   });
   it("unrelated documents yield no drafts", () => expect(toDraftItems({ ...ex([item({})]), document_kind: "unrelated" })).toEqual([]));
 });
