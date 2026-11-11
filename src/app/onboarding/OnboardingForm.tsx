@@ -25,7 +25,8 @@ const RELATIONS = ["parent", "spouse", "child", "grandparent", "sibling", "other
 const CONSENTS = [
   { kind: "ai_processing", title: "perm_ai", body: "consentAi", def: true, Icon: Bot },
   { kind: "reminders", title: "perm_reminders", body: "consentReminders", def: true, Icon: Bell },
-  { kind: "voice_processing", title: "perm_voice", body: "consentVoice", def: false, Icon: Mic },
+  // Voice-first: most users are older adults, so speaking and listening are on by default.
+  { kind: "voice_processing", title: "perm_voice", body: "consentVoice", def: true, Icon: Mic },
   { kind: "whatsapp", title: "perm_whatsapp", body: "consentWhatsapp", def: false, Icon: MessageCircle },
   { kind: "family_sharing", title: "perm_family", body: "consentFamily", def: false, Icon: Users },
 ] as const;
@@ -54,7 +55,7 @@ export function OnboardingForm({ defaults }: { defaults: { timezone: string; loc
   const [relation, setRelation] = useState<string>("parent");
   const [health, setHealth] = useState<"diagnosed" | "wellness" | "prefer_not" | "">("");
   const [conditions, setConditions] = useState<string[]>([]);
-  const [a11y, setA11y] = useState({ large_text: false, high_contrast: false, reduce_motion: false, audio_replies: false });
+  const [a11y, setA11y] = useState({ large_text: false, high_contrast: false, reduce_motion: false, audio_replies: true });
   const [style, setStyle] = useState<"normal" | "gentle">("normal");
   const [consents, setConsents] = useState<Record<string, boolean>>(Object.fromEntries(CONSENTS.map((c) => [c.kind, c.def])));
   const [template, setTemplate] = useState<TemplateKey>("walk");

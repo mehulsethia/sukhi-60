@@ -13,7 +13,7 @@ function pickMime(): string | undefined {
   return undefined;
 }
 
-export function VoiceRecorder({ enabled, disabledReason, onTranscript, onError, compact = false }: { enabled: boolean; disabledReason: string; onTranscript: (t: string, uncertain: boolean) => void; onError: (msg: string) => void; compact?: boolean }) {
+export function VoiceRecorder({ enabled, disabledReason, onTranscript, onError, compact = false, primary = false }: { enabled: boolean; disabledReason: string; onTranscript: (t: string, uncertain: boolean) => void; onError: (msg: string) => void; compact?: boolean; primary?: boolean }) {
   const t = useTranslations("chat");
   const [state, setState] = useState<"idle" | "recording" | "transcribing">("idle");
   const [seconds, setSeconds] = useState(0);
@@ -24,7 +24,9 @@ export function VoiceRecorder({ enabled, disabledReason, onTranscript, onError, 
 
   useEffect(() => () => { if (timer.current) clearInterval(timer.current); recRef.current?.stream.getTracks().forEach((tr) => tr.stop()); }, []);
 
-  const iconBtn = "flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-ink-soft transition-colors hover:bg-surface-2 hover:text-ink";
+  const iconBtn = primary
+    ? "flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-primary text-primary-ink shadow-[var(--shadow-md)] transition-colors hover:bg-[var(--primary-hover)]"
+    : "flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-ink-soft transition-colors hover:bg-surface-2 hover:text-ink";
   if (!enabled) return compact ? <button type="button" className={`${iconBtn} cursor-not-allowed opacity-40`} aria-label={disabledReason} title={disabledReason} onClick={() => onError(disabledReason)}><Mic size={20} aria-hidden="true" /></button> : <p className="hint">{disabledReason}</p>;
 
   async function start() {
@@ -87,7 +89,7 @@ export function VoiceRecorder({ enabled, disabledReason, onTranscript, onError, 
       </div>
     );
   }
-  if (state === "transcribing") return <span className="chip" role="status">{t("transcribing")}</span>;
+  if (state === "transcribing") return <span className="chip min-h-10" role="status">{t("transcribing")}</span>;
   if (compact) return <button type="button" className={iconBtn} onClick={start} aria-label={t("record")} title={t("record")}><Mic size={20} aria-hidden="true" /></button>;
   return <button type="button" className="btn btn-secondary" onClick={start}>🎙 {t("record")}</button>;
 }

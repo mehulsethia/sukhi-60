@@ -155,6 +155,8 @@ export function ChatClient({ initial, voice, audioReplies, suggestions, name, au
       const id = j.id ?? `a-${Date.now()}`;
       setMessages((m) => [...m.map((x) => (x.id === tempId ? { ...x, pending: false } : x)), { id, role: "assistant", channel: "web", content: j.text, sources: j.sources ?? [], safety: j.safety }]);
       setReveal({ id, n: 0 });
+      // Spoken replies: read the answer aloud right after the person sends (a user gesture, so autoplay is allowed).
+      if (audioReplies && voice.configured && voice.consent && j.text) void play(j.text, true);
     } catch {
       setMessages((m) => m.filter((x) => x.id !== tempId));
       setText(body);
@@ -163,7 +165,8 @@ export function ChatClient({ initial, voice, audioReplies, suggestions, name, au
       setBusy(false);
       input.current?.focus();
     }
-  }, [text, busy, t, tc]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [text, busy, t, tc, audioReplies, voice.configured, voice.consent]);
 
   // A suggestion tapped elsewhere (e.g. on Today) arrives as ?q= and is sent once.
   useEffect(() => {
@@ -174,14 +177,17 @@ export function ChatClient({ initial, voice, audioReplies, suggestions, name, au
     }
   }, [autoSend, router, send]);
 
-  async function play(content: string) {
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  async function play(content: string, quiet = false) {
     try {
+      audioRef.current?.pause();
       const res = await fetch("/api/voice/speak", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text: content }) });
-      if (!res.ok) return setError(t("voiceUnavailable"));
+      if (!res.ok) { if (!quiet) setError(t("voiceUnavailable")); return; }
       const j = await res.json();
-      await new Audio(j.audio).play();
+      audioRef.current = new Audio(j.audio);
+      await audioRef.current.play();
     } catch {
-      setError(t("voiceUnavailable"));
+      if (!quiet) setError(t("voiceUnavailable"));
     }
   }
   async function copy(m: ChatMessage) {
@@ -298,18 +304,24 @@ export function ChatClient({ initial, voice, audioReplies, suggestions, name, au
             <button type="button" disabled={today.length === 0} title={today.length === 0 ? t("noActionsForProof") : undefined} onClick={() => setAttachFor((a) => (a ? null : (openToday[0] ?? today[0])?.id ?? null))} aria-label={t("attachProof")} aria-expanded={!!attachFor} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-ink-soft transition-colors hover:bg-surface-2 hover:text-ink disabled:opacity-30"><Plus size={22} aria-hidden="true" /></button>
             <label htmlFor="chat-input" className="sr-only">{t("placeholder")}</label>
             <textarea ref={input} id="chat-input" rows={1} maxLength={2000} placeholder={t("placeholder")} value={text} onChange={(e) => setText(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); send(); } }} className="max-h-[200px] min-h-[44px] flex-1 resize-none bg-transparent px-1 py-2.5 text-[1.02rem] outline-none placeholder:text-ink-faint" />
-            <VoiceRecorder
-              compact
-              enabled={voice.configured && voice.consent}
-              disabledReason={!voice.consent ? t("voiceConsent") : t("voiceUnavailable")}
-              onTranscript={(tr, uncertain) => {
-                setText(tr);
-                setTranscriptNote(uncertain ? `${t("transcriptConfirm")} ${t("transcriptUncertain")}` : t("transcriptConfirm"));
-                input.current?.focus();
-              }}
-              onError={(m) => setError(m)}
-            />
-            <button type="submit" aria-label={t("send")} disabled={busy || !text.trim()} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-primary text-primary-ink transition-opacity disabled:opacity-30"><ArrowUp size={20} aria-hidden="true" /></button>
+            {text.trim() ? (
+              <button type="submit" aria-label={t("send")} disabled={busy} className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-primary text-primary-ink transition-opacity disabled:opacity-30"><ArrowUp size={21} aria-hidden="true" /></button>
+            ) : (
+              // Voice first: with an empty box the main button records a voice message.
+              <VoiceRecorder
+                compact
+                primary
+                enabled={voice.configured && voice.consent}
+                disabledReason={!voice.consent ? t("voiceConsent") : t("voiceUnavailable")}
+                onTranscript={(tr, uncertain) => {
+                  if (!uncertain && tr.trim()) { void send(tr); return; }
+                  setText(tr);
+                  setTranscriptNote(`${t("transcriptConfirm")} ${t("transcriptUncertain")}`);
+                  input.current?.focus();
+                }}
+                onError={(m) => setError(m)}
+              />
+            )}
           </form>
           <p className="mt-2 text-center text-xs text-ink-faint">{t("disclaimer")}</p>
         </div>
