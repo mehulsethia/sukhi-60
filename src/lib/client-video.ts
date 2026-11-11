@@ -50,6 +50,11 @@ export async function videoFrames(file: File, count = 4): Promise<{ duration: nu
 
 const EXT: Record<string, string> = { "video/mp4": "mp4", "video/webm": "webm", "video/quicktime": "mov" };
 
+/** Delete one of the user's own uploads (owner delete policy on the evidence bucket). */
+export async function removeUpload(path: string) {
+  try { await createClient().storage.from("evidence").remove([path]); } catch { /* the hourly sweep cleans up */ }
+}
+
 /** Upload to evidence/<user>/<occurrence>/<uuid>.<ext>; returns the storage path. */
 export async function uploadVideo(file: File, occurrenceId: string): Promise<string> {
   const supabase = createClient();

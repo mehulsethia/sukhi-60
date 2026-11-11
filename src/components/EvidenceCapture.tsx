@@ -6,7 +6,7 @@ import { useTranslations } from "next-intl";
 import { Camera, Images, PenLine, Video, X } from "lucide-react";
 import { Alert } from "@/components/ui";
 import { shrinkImage } from "@/lib/client-image";
-import { uploadVideo, videoFrames, VIDEO_MAX_BYTES, VIDEO_MAX_SECONDS } from "@/lib/client-video";
+import { removeUpload, uploadVideo, videoFrames, VIDEO_MAX_BYTES, VIDEO_MAX_SECONDS } from "@/lib/client-video";
 
 export type EvidenceResult = { ok: true; outcome: string; explanation: string; points: number } | { ok: false; error: string };
 
@@ -20,12 +20,14 @@ export async function submitEvidence(o: { occurrenceId: string; file?: File | nu
   if (o.text) fd.set("text", o.text);
   const f = o.file;
   if (!f) fd.set("kind", "text");
-  else if (f.type.startsWith("video/")) {
+  let uploadedPath: string | null = null;
+  if (!f) { /* text only */ } else if (f.type.startsWith("video/")) {
     if (f.size > VIDEO_MAX_BYTES) return { ok: false, error: "video_too_large" };
     const { duration, frames } = await videoFrames(f);
     if (duration > VIDEO_MAX_SECONDS + 1) return { ok: false, error: "video_too_long" };
     let path: string;
     try { path = await uploadVideo(f, o.occurrenceId); } catch { return { ok: false, error: "upload_failed" }; }
+    uploadedPath = path;
     fd.set("kind", "video");
     fd.set("video_path", path);
     frames.forEach((b, i) => fd.append("frames", new File([b], `frame-${i}.jpg`, { type: "image/jpeg" })));
@@ -36,6 +38,9 @@ export async function submitEvidence(o: { occurrenceId: string; file?: File | nu
   try {
     const res = await fetch("/api/evidence", { method: "POST", body: fd, signal: AbortSignal.timeout(90_000) });
     const j = await res.json();
+    // Rejected before anything was saved (validation, missing occurrence, rate limit): delete the
+    // uploaded clip now. Other failures may already reference it; the hourly sweep is the backstop.
+    if (uploadedPath && [400, 404, 429].includes(res.status)) void removeUpload(uploadedPath);
     if (res.status === 409 && j.error === "duplicate_evidence") return { ok: false, error: "duplicate" };
     if (res.status === 429) return { ok: false, error: "rate_limited" };
     if (!res.ok) return { ok: false, error: "error" };

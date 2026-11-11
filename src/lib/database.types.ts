@@ -1241,6 +1241,7 @@ export type Database = {
           locale: Database["public"]["Enums"]["app_locale"]
           onboarded_at: string | null
           personal_motivation: string | null
+          points_total: number
           quiet_end: string
           quiet_start: string
           reminder_frequency: string
@@ -1270,6 +1271,7 @@ export type Database = {
           locale?: Database["public"]["Enums"]["app_locale"]
           onboarded_at?: string | null
           personal_motivation?: string | null
+          points_total?: number
           quiet_end?: string
           quiet_start?: string
           reminder_frequency?: string
@@ -1299,6 +1301,7 @@ export type Database = {
           locale?: Database["public"]["Enums"]["app_locale"]
           onboarded_at?: string | null
           personal_motivation?: string | null
+          points_total?: number
           quiet_end?: string
           quiet_start?: string
           reminder_frequency?: string
@@ -1560,6 +1563,10 @@ export type Database = {
           p_include_internal?: boolean
         }
         Returns: Json
+      }
+      orphan_evidence_videos: {
+        Args: { p_limit?: number; p_older_than?: unknown }
+        Returns: { name: string }[]
       }
       admin_set_internal: {
         Args: { p_internal: boolean; p_user: string }

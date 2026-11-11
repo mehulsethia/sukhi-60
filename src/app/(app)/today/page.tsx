@@ -6,7 +6,8 @@ import { requireUser } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getToday, materializeOccurrences } from "@/server/core";
 import { assistantSuggestions } from "@/server/suggestions";
-import { activeDays, progressFromEvents, summarizeWeek } from "@/domain/rewards";
+import { activeDays, summarizeWeek } from "@/domain/rewards";
+import { pointsTotal } from "@/server/points";
 import { addDays, localDateOf, weekStart } from "@/domain/schedule";
 import { ActionCard } from "@/components/ActionCard";
 import { InstallPrompt } from "@/components/InstallPrompt";
@@ -50,9 +51,9 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
   const tz = profile?.timezone ?? "UTC";
   const ws = weekStart(localDateOf(new Date(), tz));
   const weekDates = Array.from({ length: 7 }, (_, i) => addDays(ws, i));
-  const [firstActions, { data: events }, { data: notices }, { data: weekOcc }, suggestions] = await Promise.all([
+  const [firstActions, points, { data: notices }, { data: weekOcc }, suggestions] = await Promise.all([
     getToday(supabase, user.id, tz),
-    supabase.from("reward_events").select("kind, points"),
+    pointsTotal(supabase, user.id),
     supabase.from("messages").select("id, content, created_at").eq("role", "notice").gte("created_at", hoursAgoIso(12)).order("created_at", { ascending: false }).limit(1),
     supabase.from("action_occurrences").select("local_date, status").gte("local_date", ws).lte("local_date", addDays(ws, 6)),
     assistantSuggestions(supabase, user.id, tz, t),
@@ -65,7 +66,7 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
   }
   const timed = actions.filter((a) => a.target_count === 1);
   const weekly = actions.filter((a) => a.target_count > 1);
-  const stats = progressFromEvents(events ?? []);
+  const stats = { points };
   const week = summarizeWeek(weekDates, weekOcc ?? []);
   const todayStr = localDateOf(new Date(), tz);
   const now = nowMs();

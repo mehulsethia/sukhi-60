@@ -5,6 +5,8 @@
 // verified user id.
 import { cookies } from "next/headers";
 import { revalidatePath } from "next/cache";
+import { after } from "next/server";
+import { markReading, readIntoPlan } from "@/server/plan-reading";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { requireUser } from "@/lib/supabase/server";
@@ -17,7 +19,6 @@ import { TEMPLATES } from "@/domain/templates";
 import type { DraftItem } from "@/domain/extraction";
 import { CONSENT_KINDS, writeConsentChoices } from "@/server/consents";
 import { validateUpload } from "@/server/files";
-import { extractPlanDraft } from "@/server/ai-tasks";
 import { sendWelcome } from "@/server/checkins";
 
 export type ActionState = { ok?: boolean; error?: string; data?: Record<string, unknown> } | null;
@@ -224,16 +225,21 @@ export async function completeOnboarding(_prev: ActionState, fd: FormData): Prom
         .single();
       if (planErr || !plan) throw new Error("plan_create_failed");
       const file = fd.get("plan_file");
-      let drafted = false;
+      let reading = false;
       if (file instanceof File && file.size > 0) {
         const docId = await storePlanSource(supabase, user.id, file);
         if (docId) {
           await supabase.from("care_plans").update({ source_document_id: docId }).eq("id", plan.id);
-          const ex = await extractPlanDraft(createAdminClient(), user.id, docId, { hint: String(fd.get("plan_hint") ?? "").slice(0, 600) });
-          if (ex.ok && ex.drafts.length) drafted = !(await insertDraftItems(supabase, user.id, plan.id, docId, ex.drafts))?.error;
+          // Read in the background: the person lands on their plan at once and sees progress there.
+          const admin = createAdminClient();
+          await markReading(admin, user.id, docId);
+          const hint = String(fd.get("plan_hint") ?? "").slice(0, 600);
+          const planId = plan.id;
+          after(() => readIntoPlan(createAdminClient(), user.id, planId, docId, hint).then(() => undefined, () => undefined));
+          reading = true;
         }
       }
-      redirect(`/plan/${plan.id}?from=onboarding${drafted ? "&drafted=1" : ""}`);
+      redirect(`/plan/${plan.id}?from=onboarding${reading ? "&reading=1" : ""}`);
     }
   } catch (e) {
     if (e && typeof e === "object" && "digest" in e) throw e; // let redirect() through
@@ -300,6 +306,18 @@ export async function pingActivity() {
 export async function markChatSeen() {
   await requireUser();
   (await cookies()).set("sukhi_chat_seen", new Date().toISOString(), { path: "/", sameSite: "lax", httpOnly: true, secure: process.env.NODE_ENV === "production", maxAge: 60 * 60 * 24 * 365 });
+}
+
+/** Read a plan's source document again (after a failure or a stalled read), in the background. */
+export async function retryPlanReading(fd: FormData) {
+  const { supabase, user } = await requireUser();
+  const planId = z.string().uuid().parse(fd.get("plan_id"));
+  const { data: plan } = await supabase.from("care_plans").select("id, source_document_id").eq("id", planId).maybeSingle();
+  if (!plan?.source_document_id) return;
+  const docId = plan.source_document_id;
+  await markReading(createAdminClient(), user.id, docId);
+  after(() => readIntoPlan(createAdminClient(), user.id, planId, docId).then(() => undefined, () => undefined));
+  revalidatePath(`/plan/${planId}`);
 }
 
 /** Mark in-app notifications as read on this device. */

@@ -7,6 +7,7 @@ import { generateText } from "ai";
 import type { AdminClient } from "@/lib/supabase/admin";
 import { getModel } from "./providers";
 import { getConsents, getToday } from "./core";
+import { pointsTotal } from "./points";
 import { addDays, inQuietHours, localDateOf, localTimeOf } from "@/domain/schedule";
 import { quoteUntrusted } from "@/domain/safety";
 import en from "../../messages/en.json";
@@ -78,7 +79,7 @@ async function buildContext(admin: AdminClient, p: Profile, date: string, now: D
   const [today, { data: hist }, { data: rewards }, { data: memory }, { count: drafts }] = await Promise.all([
     getToday(admin, p.id, p.timezone, now),
     admin.from("action_occurrences").select("local_date, status").eq("user_id", p.id).gte("local_date", since).lt("local_date", date),
-    admin.from("reward_events").select("kind, points, label, created_at").eq("user_id", p.id),
+    admin.from("reward_events").select("kind, label, created_at").eq("user_id", p.id).eq("kind", "milestone").gte("created_at", new Date(now.getTime() - 36 * 3600_000).toISOString()),
     admin.from("memory_facts").select("content").eq("user_id", p.id).eq("status", "confirmed").order("created_at", { ascending: false }).limit(5),
     admin.from("plan_items").select("id", { count: "exact", head: true }).eq("user_id", p.id).eq("status", "draft"),
   ]);
@@ -99,8 +100,8 @@ async function buildContext(admin: AdminClient, p: Profile, date: string, now: D
     yesterday: { scheduled: yest.length, done: yest.filter((h) => doneS.includes(h.status)).length, no_reply: yest.filter((h) => h.status === "no_response").length },
     last7: { scheduled: week.length, done: week.filter((h) => doneS.includes(h.status)).length },
     streak,
-    points: (rewards ?? []).reduce((a, r) => a + Math.max(0, r.points), 0),
-    newMilestones: (rewards ?? []).filter((r) => r.kind === "milestone" && new Date(r.created_at).getTime() > now.getTime() - 36 * 3600_000).map((r) => r.label),
+    points: await pointsTotal(admin, p.id),
+    newMilestones: (rewards ?? []).map((r) => r.label),
     memory: (memory ?? []).map((m) => m.content),
     drafts: drafts ?? 0,
   };

@@ -3,7 +3,8 @@ import type { Metadata } from "next";
 import { getLocale, getTranslations } from "next-intl/server";
 import { Award, CalendarCheck, Flame, Target, TrendingUp, Trophy } from "lucide-react";
 import { requireUser } from "@/lib/supabase/server";
-import { activeDays, goalProgress, progressFromEvents, summarizeWeek } from "@/domain/rewards";
+import { activeDays, goalProgress, summarizeWeek } from "@/domain/rewards";
+import { pointsTotal } from "@/server/points";
 import { addDays, localDateOf, weekStart } from "@/domain/schedule";
 import { GoalForm } from "@/components/GoalForm";
 import { removeRewardGoal } from "@/app/actions";
@@ -37,13 +38,14 @@ export default async function ProgressPage({ searchParams }: { searchParams: Pro
   const weekDates = Array.from({ length: 7 }, (_, i) => addDays(ws, i));
 
   const [{ data: events }, { data: occ }, { data: weekOcc }, { data: goal }] = await Promise.all([
-    supabase.from("reward_events").select("kind, points, label, local_date, created_at").order("created_at", { ascending: false }),
+    // Only milestones/returns are listed; the points total comes from the profile.
+    supabase.from("reward_events").select("kind, points, label, local_date, created_at").in("kind", ["milestone", "return"]).order("created_at", { ascending: false }).limit(100),
     supabase.from("action_occurrences").select("id, local_date, local_time, status, item_id, plan_items!inner(title, category)").gte("local_date", from).lte("local_date", today).order("due_at", { ascending: false }).limit(5000),
     supabase.from("action_occurrences").select("local_date, status").gte("local_date", ws).lte("local_date", addDays(ws, 6)),
     supabase.from("reward_goals").select("*").eq("active", true).maybeSingle(),
   ]);
   const rows = (occ ?? []).map((o) => ({ ...o, b: bucketOf(o.status), item: o.plan_items as unknown as { title: string; category: string } }));
-  const stats = progressFromEvents(events ?? []);
+  const stats = { points: await pointsTotal(supabase, user.id), milestones: (events ?? []).filter((e) => e.kind === "milestone").length };
   const week = summarizeWeek(weekDates, weekOcc ?? []);
   const gp = goalProgress(stats.points, goal ?? null);
   const milestones = (events ?? []).filter((e) => e.kind === "milestone" || e.kind === "return");

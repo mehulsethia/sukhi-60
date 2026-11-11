@@ -14,6 +14,7 @@ import { hashLinkCode, routeMessage, sha256Hex } from "@/domain/router";
 import { reply } from "@/domain/replies";
 import { inQuietHours, localTimeOf, reminderSendTime } from "@/domain/schedule";
 import { runCheckins } from "./checkins";
+import { cleanupOrphanVideos } from "./cleanup";
 
 type Job = Database["public"]["Tables"]["jobs"]["Row"];
 type Outcome = "done" | "retry" | "dead" | "cancelled";
@@ -22,11 +23,13 @@ class PermanentError extends Error {}
 class CancelJob extends Error {}
 
 export async function runWorkerTick(admin: AdminClient, workerId: string) {
-  const summary = { silence: 0, generation_enqueued: 0, claimed: 0, done: 0, retried: 0, dead: 0, cancelled: 0, checkins: 0 };
+  const summary = { silence: 0, generation_enqueued: 0, claimed: 0, done: 0, retried: 0, dead: 0, cancelled: 0, checkins: 0, videos_removed: 0 };
   const { data: silenced } = await admin.rpc("apply_silence_rule", { p_limit: 500 });
   summary.silence = Number(silenced ?? 0);
   // Proactive assistant check-ins due in this minute (bounded batch; next tick picks up the rest).
   summary.checkins = await runCheckins(admin).catch(() => 0);
+  // Housekeeping once an hour: remove video uploads that never became evidence.
+  if (new Date().getUTCMinutes() === 17) summary.videos_removed = await cleanupOrphanVideos(admin).catch(() => 0);
 
   // Daily occurrence generation per user with confirmed items (dedupe per UTC day).
   const { data: users } = await admin.from("plan_items").select("user_id").eq("status", "confirmed").limit(1000);

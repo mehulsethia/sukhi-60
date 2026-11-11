@@ -10,8 +10,12 @@ import { Alert, Section } from "@/components/ui";
 import { SubmitButton } from "@/components/SubmitButton";
 import { CategoryIcon } from "@/components/CategoryIcon";
 import { fmtDateTime } from "@/lib/format";
+import { readingState } from "@/server/plan-reading";
+import { ReadingStatus } from "@/components/ReadingStatus";
 
 export const metadata: Metadata = { title: "Plan" };
+// "Try again" reads the document in the background after this response.
+export const maxDuration = 130;
 
 export default async function PlanDetail({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ from?: string; drafted?: string }> }) {
   const { id } = await params;
@@ -29,8 +33,10 @@ export default async function PlanDetail({ params, searchParams }: { params: Pro
   ]);
   const clinical = plan.mode === "clinician_instructions";
   let sourceUrl: string | null = null;
+  let reading: ReturnType<typeof readingState> = "none";
   if (plan.source_document_id) {
-    const { data: doc } = await supabase.from("documents").select("bucket, storage_path").eq("id", plan.source_document_id).maybeSingle();
+    const { data: doc } = await supabase.from("documents").select("bucket, storage_path, extraction_status, extraction").eq("id", plan.source_document_id).maybeSingle();
+    if (doc) reading = readingState(doc.extraction_status, doc.extraction);
     if (doc) sourceUrl = (await supabase.storage.from(doc.bucket).createSignedUrl(doc.storage_path, 300)).data?.signedUrl ?? null; // short-lived
   }
   const tz = profile?.timezone ?? "UTC";
@@ -93,7 +99,8 @@ export default async function PlanDetail({ params, searchParams }: { params: Pro
           <SubmitButton className="btn btn-ghost" name="status" value="archived">{t("plan.archive")}</SubmitButton>
         </form>
       </header>
-      {sp.from === "onboarding" ? <div className="mb-5"><Alert tone={sp.drafted ? "warn" : "info"}>{sp.drafted ? t("onb.reviewDrafts") : t("onb.reviewNoDoc")}</Alert></div> : null}
+      {plan.source_document_id && (reading === "pending" || reading === "failed" || reading === "stale") ? <ReadingStatus planId={plan.id} docId={plan.source_document_id} state={reading} /> : null}
+      {sp.from === "onboarding" && reading !== "pending" ? <div className="mb-5"><Alert tone={drafts.length ? "warn" : "info"}>{drafts.length ? t("onb.reviewDrafts") : t("onb.reviewNoDoc")}</Alert></div> : null}
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
         <div className="min-w-0">

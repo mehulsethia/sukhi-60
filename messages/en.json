@@ -1,4 +1,14 @@
 {
+  "reading": {
+    "title": "Reading your prescription…",
+    "body": "This usually takes under a minute. You can leave this page — Sukhi will tell you in the chat when the items are ready to check.",
+    "failedTitle": "We couldn't read this document",
+    "failedBody": "Try again, retake the photo in good light, or add the items yourself below.",
+    "retry": "Try again",
+    "chatDone": "I've finished reading your document. {n} items are waiting for your check in My plan — compare each one with the original, then confirm it to start reminders.",
+    "chatNone": "I read your document but didn't find any instructions I could turn into items. You can add them yourself in My plan.",
+    "chatFailed": "I couldn't read your document this time. Open My plan to try again or add the items yourself."
+  },
   "common": {
     "appName": "Sukhi",
     "save": "Save",
