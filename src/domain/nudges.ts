@@ -62,7 +62,7 @@ const PROHIBITED: RegExp[] = [
   /इलाज|बीमारी|निदान|रोग|उपचार/,
   // shame, guilt, pressure, threats
   /\b(lazy|ashamed|shame|guilt\w*|disappoint\w*|failed|failure|must|should have|no excuses?|or else|streak (is )?(lost|broken|reset))\b/i,
-  /आलसी|शर्म|आळशी|लाज/,
+  /आलसी|आळशी|शर्मिंदा|शर्म\s*(करो|आनी|की\s*बात)|लाज\s*(वाट|वाटली|वाटायला)|लाजिरवाण/,
   // exercise substitutions and stretches are never improvised
   /\b(stretch\w*|exercise|yoga|push-?ups?|squats?|lift\w*)\b/i,
   // links, contacts and markup

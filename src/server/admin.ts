@@ -111,3 +111,28 @@ export async function getAdminMetrics(days: number, includeInternal: boolean): P
   if (error || !data) throw new Error(`admin_metrics:${error?.message ?? "empty"}`);
   return data as unknown as AdminMetrics;
 }
+
+type KeyCount = { key: string; n: number };
+/** Adaptive-support pilot metrics (aggregates only). Definitions: src/domain/learning.ts#METRIC_DEFINITIONS. */
+export interface BehaviourMetrics {
+  generated_at: string;
+  range: { from: string; to: string; days: number };
+  onboarding: { started: number; completed: number };
+  preferences: { answered: number; motivation_provided: number; styles: KeyCount[]; restart: KeyCount[]; confidence_n: number; confidence_avg: number | null; confidence: { key: number; n: number }[] };
+  completion: { done: number; known: number; unknown: number; rate: number | null };
+  weekly: { week: string; done: number; known: number; unknown: number; rate: number | null }[];
+  recovery: { users_with_lapse: number; users_recovered: number; rate: number | null };
+  barriers: KeyCount[];
+  nudges: { proactive_delivered: number; proactive_acknowledged: number; proactive_dismissed: number; engagement_rate: number | null; replies_to_user: number; llm_worded: number; by_strategy: KeyCount[]; by_style: { key: string; sent: number; ack: number }[] };
+  suggestions: { shown: number; accepted: number; declined: number; expired_or_stale: number; acceptance_rate: number | null; by_kind: { key: string; shown: number; accepted: number }[] };
+}
+
+export async function getBehaviourMetrics(days: number, includeInternal: boolean): Promise<BehaviourMetrics> {
+  const { data, error } = await createAdminClient().rpc("admin_behaviour_metrics", {
+    p_days: days,
+    p_include_internal: includeInternal,
+    p_exclude_emails: includeInternal ? [] : settings.adminEmails(),
+  });
+  if (error || !data) throw new Error(`admin_behaviour_metrics:${error?.message ?? "empty"}`);
+  return data as unknown as BehaviourMetrics;
+}

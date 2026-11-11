@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { getLocale, getTranslations } from "next-intl/server";
-import { Brain, Cpu, MessageCircle, ShieldCheck, Trash2, UserRound, Users } from "lucide-react";
+import { Brain, Cpu, HandHeart, MessageCircle, ShieldCheck, Trash2, UserRound, Users } from "lucide-react";
 import { requireUser } from "@/lib/supabase/server";
 import { features } from "@/lib/config";
 import { revokeFamily, setMemoryStatus, unlinkWhatsApp } from "@/app/actions";
@@ -11,6 +11,9 @@ import { DeleteAccount } from "@/components/DeleteAccount";
 import { summarizeWeek } from "@/domain/rewards";
 import { addDays, localDateOf, weekStart } from "@/domain/schedule";
 import { fmtDate, fmtDateTime } from "@/lib/format";
+import { ResetLearnedForm, SupportPrefsForm } from "@/components/SupportPrefsForm";
+import { getLearnedSummary } from "@/server/support";
+import { normalizeRestart, normalizeStyles } from "@/domain/behaviour";
 
 export const metadata: Metadata = { title: "Settings" };
 
@@ -30,10 +33,12 @@ export default async function SettingsPage() {
   const ws = weekStart(localDateOf(new Date(), tz));
   const { data: weekOcc } = await supabase.from("action_occurrences").select("local_date, status").gte("local_date", ws).lte("local_date", addDays(ws, 6));
   const preview = summarizeWeek(Array.from({ length: 7 }, (_, i) => addDays(ws, i)), weekOcc ?? []).map((d) => ({ date: d.date, responded: d.responded, completed: d.completed }));
+  const learned = await getLearnedSummary(supabase, user.id, profile?.learning_reset_at ?? null, tz);
   const exportHref = `data:application/json;charset=utf-8,${encodeURIComponent(JSON.stringify({ week_start: ws, days: preview, note: "Participation counts only; no plan details or messages." }, null, 2))}`;
 
   const nav = [
     ["prefs", t("settings.profile"), UserRound],
+    ["support", t("support.settingsTitle"), HandHeart],
     ["consents", t("settings.consents"), ShieldCheck],
     ["wa", t("settings.whatsapp"), MessageCircle],
     ["family", t("settings.family"), Users],
@@ -58,6 +63,23 @@ export default async function SettingsPage() {
       <div className="min-w-0 [&>section]:scroll-mt-24">
       <Section title={t("settings.profile")} id="prefs" icon={<UserRound size={20} aria-hidden="true" />} description={t("settingsUi.profileHelp")}>
         <PreferencesForm profile={{ display_name: profile?.display_name ?? "", locale: profile?.locale ?? "en", timezone: tz, checkin_times: profile?.checkin_times ?? [], quiet_start: profile?.quiet_start ?? "21:30", quiet_end: profile?.quiet_end ?? "07:30", reminder_frequency: profile?.reminder_frequency ?? "normal", accessibility: (profile?.accessibility as Record<string, boolean>) ?? {}, limitations: profile?.limitations ?? "", care_notes: profile?.care_notes ?? "" }} />
+      </Section>
+
+      <Section title={t("support.settingsTitle")} id="support" icon={<HandHeart size={20} aria-hidden="true" />} description={t("support.settingsHelp")}>
+        <SupportPrefsForm initial={{ styles: normalizeStyles(profile?.communication_styles), restart: normalizeRestart(profile?.restart_preference), motivation: profile?.personal_motivation ?? "" }} />
+        <div className="mt-6 rounded-2xl bg-surface-2 p-4">
+          <p className="font-bold">{t("support.learnedTitle")}</p>
+          <p className="hint mt-0.5">{t("support.learnedHelp")}</p>
+          {!learned.hasData ? <p className="mt-2">{t("support.learnedNone")}</p> : (
+            <ul className="mt-2 flex list-disc flex-col gap-1 pl-5">
+              {learned.topBarrier ? <li>{t("support.learnedBarrier", { reason: t(`support.barrier_${learned.topBarrier.code}`), n: learned.topBarrier.n })}</li> : null}
+              {learned.resumes > 0 ? <li>{t("support.learnedResumed", { n: learned.resumes })}</li> : null}
+              {learned.timing.map((x) => <li key={`${x.itemId}-${x.scheduled}`}>{t("support.learnedTiming", { title: x.title, time: x.suggested, scheduled: x.scheduled })}</li>)}
+              {learned.engagedStyle ? <li>{t("support.learnedStyle", { style: t(`support.style_${learned.engagedStyle}`) })}</li> : null}
+            </ul>
+          )}
+          <ResetLearnedForm />
+        </div>
       </Section>
 
       <Section title={t("settings.consents")} id="consents" icon={<ShieldCheck size={20} aria-hidden="true" />} description={t("settingsUi.consentsHelp")}>

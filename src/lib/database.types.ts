@@ -1556,6 +1556,14 @@ export type Database = {
         Returns: Json
       }
       accept_family_invite: { Args: { p_token: string }; Returns: Json }
+      admin_behaviour_metrics: {
+        Args: {
+          p_days?: number
+          p_exclude_emails?: string[]
+          p_include_internal?: boolean
+        }
+        Returns: Json
+      }
       admin_metrics: {
         Args: {
           p_days?: number

@@ -11,6 +11,8 @@ import { VCheckin, VComfort, VContext, VLanguages, VPrivacy, VProgress, VReminde
 import { TEMPLATES } from "@/domain/templates";
 import { setLocaleCookie } from "@/lib/client-prefs";
 import { DocPicker } from "@/components/DocPicker";
+import { RestartQuestion, StyleQuestion, SupportHiddenInputs } from "@/components/SupportChoices";
+import { MOTIVATION_MAX, type CommunicationStyle, type RestartPreference } from "@/domain/behaviour";
 
 const ZONES = ["Asia/Kolkata", "Asia/Dubai", "Asia/Singapore", "Europe/London", "Europe/Berlin", "America/New_York", "America/Los_Angeles", "Australia/Sydney", "UTC"];
 const PRESETS = [
@@ -63,6 +65,10 @@ export function OnboardingForm({ defaults }: { defaults: { timezone: string; loc
   const [consents, setConsents] = useState<Record<string, boolean>>(Object.fromEntries(CONSENTS.map((c) => [c.kind, c.def])));
   const [template, setTemplate] = useState<TemplateKey>("walk");
   const [hasFile, setHasFile] = useState(false);
+  // Behavioural preferences: both optional; defaults apply when skipped.
+  const [commStyles, setCommStyles] = useState<CommunicationStyle[]>([]);
+  const [restartPref, setRestartPref] = useState<RestartPreference | null>(null);
+  const [confidence, setConfidence] = useState<number | null>(null);
 
   const zones = ZONES.includes(tz) ? ZONES : [tz, ...ZONES];
   const Scene = SCENES[step];
@@ -114,6 +120,8 @@ export function OnboardingForm({ defaults }: { defaults: { timezone: string; loc
           {health === "diagnosed" ? conditions.map((c) => <input key={c} type="hidden" name="conditions" value={c} />) : null}
           <input type="hidden" name="reminder_frequency" value={style} />
           <input type="hidden" name="template" value={template} />
+          <SupportHiddenInputs styles={commStyles} restart={restartPref} />
+          {confidence !== null && template !== "none" ? <input type="hidden" name="habit_confidence" value={confidence} /> : null}
           {Object.entries(a11y).map(([k, v]) => (v ? <input key={k} type="hidden" name={k} value="on" /> : null))}
           {Object.entries(consents).map(([k, v]) => (v ? <input key={k} type="hidden" name={`consent_${k}`} value="on" /> : null))}
 
@@ -297,6 +305,12 @@ export function OnboardingForm({ defaults }: { defaults: { timezone: string; loc
                 </div>
               ) : null}
 
+              <div className="field mt-5">
+                <label htmlFor="personal_motivation">{t("onb.motivationLabel")} <span className="hint">({t("common.optional")})</span></label>
+                <textarea id="personal_motivation" name="personal_motivation" className="input" rows={2} maxLength={MOTIVATION_MAX} aria-describedby="motivation-hint" />
+                <span id="motivation-hint" className="hint text-xs">{t("onb.motivationHint")}</span>
+              </div>
+
               <details className="mt-4 rounded-xl border border-line bg-surface p-4">
                 <summary className="cursor-pointer font-semibold">{t("onb.detailsToggle")}</summary>
                 <div className="mt-3 grid gap-3 lg:grid-cols-2">
@@ -347,6 +361,10 @@ export function OnboardingForm({ defaults }: { defaults: { timezone: string; loc
                   ))}
                 </div>
               </fieldset>
+              <div className="mt-6 flex flex-col gap-6 border-t border-line pt-5">
+                <StyleQuestion value={commStyles} onChange={setCommStyles} id="onb-style-q" />
+                <RestartQuestion value={restartPref} onChange={setRestartPref} id="onb-restart-q" />
+              </div>
             </section>
 
             {/* 6 Permissions */}
@@ -409,6 +427,19 @@ export function OnboardingForm({ defaults }: { defaults: { timezone: string; loc
                 <p className="hint mt-3">{t("intake.wellnessNote")}</p>
               </div>
               )}
+              {template !== "none" ? (
+                <fieldset className="mt-4 rounded-xl border border-line bg-surface p-4" aria-describedby="conf-hint">
+                  <legend className="sr-only">{t("onb.confidenceTitle")}</legend>
+                  <p className="font-semibold" aria-hidden="true">{t("onb.confidenceTitle")} <span className="hint font-normal">({t("common.optional")})</span></p>
+                  <p id="conf-hint" className="hint mt-0.5">{t("onb.confidenceHint")}</p>
+                  <div role="radiogroup" aria-label={t("onb.confidenceTitle")} className="mt-3 grid grid-cols-5 gap-1.5 sm:grid-cols-10">
+                    {Array.from({ length: 10 }, (_, i) => i + 1).map((n) => (
+                      <button key={n} type="button" role="radio" aria-checked={confidence === n} aria-label={t("onb.confidenceValue", { n })} onClick={() => setConfidence(confidence === n ? null : n)} className={`flex min-h-12 items-center justify-center rounded-lg border text-lg font-semibold tabular-nums transition-colors ${confidence === n ? "border-primary bg-primary text-primary-ink" : "border-line bg-surface hover:border-ink-soft"}`}>{n}</button>
+                    ))}
+                  </div>
+                  {confidence !== null ? <button type="button" className="link mt-2 text-sm" onClick={() => setConfidence(null)}>{t("onb.clearChoice")}</button> : null}
+                </fieldset>
+              ) : null}
             </section>
           </div>
 

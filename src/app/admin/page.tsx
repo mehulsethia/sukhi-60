@@ -1,11 +1,12 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { currentAdmin, getAdminMetrics, type AdminMetrics } from "@/server/admin";
+import { currentAdmin, getAdminMetrics, getBehaviourMetrics, type AdminMetrics } from "@/server/admin";
+import { METRIC_DEFINITIONS } from "@/domain/learning";
 import { adminLogout, setInternal } from "./actions";
 import { AdminLogin } from "./AdminLogin";
 import { Logo } from "@/components/Logo";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { BarChart3, BookOpen, Bot, Clock, Download, Filter, LayoutDashboard, LogOut, Quote, RefreshCw, Scale, Users } from "lucide-react";
+import { BarChart3, BookOpen, HandHeart, Bot, Clock, Download, Filter, LayoutDashboard, LogOut, Quote, RefreshCw, Scale, Users } from "lucide-react";
 import { Card, DayBars, HBars, HeatCell, HourBars, Stat } from "./charts";
 
 export const metadata: Metadata = { title: "Admin", robots: { index: false, follow: false } };
@@ -53,9 +54,10 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
   const sp = await searchParams;
   const days = [7, 14, 30].includes(Number(sp.days)) ? Number(sp.days) : 14;
   const internal = sp.internal === "1";
-  const [m, checkinsSent] = await Promise.all([
+  const [m, checkinsSent, bm] = await Promise.all([
     getAdminMetrics(days, internal),
     createAdminClient().from("audit_events").select("id", { count: "exact", head: true }).eq("action", "assistant_checkin").then((r) => r.count ?? 0),
+    getBehaviourMetrics(days, internal).catch(() => null),
   ]);
   const o = m.overview;
   const q = (p: Record<string, string | number>) => `?${new URLSearchParams({ days: String(days), internal: internal ? "1" : "0", ...Object.fromEntries(Object.entries(p).map(([k, v]) => [k, String(v)])) })}`;
@@ -65,7 +67,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
 
   const sections = [
     ["overview", "Overview", LayoutDashboard], ["pitch", "Pitch lines", Quote], ["activity", "Daily activity", BarChart3], ["funnel", "Funnel & retention", Filter],
-    ["compare", "Comparisons", Scale], ["engagement", "Engagement", Clock], ["ai", "AI, reminders & safety", Bot], ["users", "Users & live feed", Users], ["defs", "Definitions", BookOpen],
+    ["compare", "Comparisons", Scale], ["engagement", "Engagement", Clock], ["ai", "AI, reminders & safety", Bot], ["support", "Adaptive support", HandHeart], ["users", "Users & live feed", Users], ["defs", "Definitions", BookOpen],
   ] as const;
   const navLink = "flex min-h-10 items-center gap-2.5 rounded-xl px-3 text-[0.93rem] font-semibold text-ink-soft hover:bg-surface-2 hover:text-ink";
   const chip = (on: boolean) => `rounded-lg border px-2.5 py-1 text-sm font-semibold ${on ? "border-primary bg-primary-soft text-primary" : "border-line text-ink-soft hover:text-ink"}`;
@@ -86,6 +88,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
           <p className="mb-1 mt-6 px-3 text-xs font-semibold text-ink-faint">Export</p>
           <a href={`/admin/export${q({ type: "daily", days: 30 })}`} className={navLink}><Download size={17} aria-hidden="true" />Daily CSV</a>
           <a href={`/admin/export${q({ type: "users" })}`} className={navLink}><Download size={17} aria-hidden="true" />Users CSV</a>
+          <a href={`/admin/export${q({ type: "support" })}`} className={navLink}><Download size={17} aria-hidden="true" />Support CSV</a>
         </nav>
         <div className="mt-4 rounded-2xl border border-line p-3">
           <p className="truncate text-sm font-semibold">{email}</p>
@@ -244,6 +247,48 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
           <Card title="What doctor's plans are for" sub="User-reported at onboarding">
             <HBars rows={m.segments.conditions.map((r) => ({ label: L(r.key), v: r.users }))} />
           </Card>
+        ) : null}
+
+        {bm ? (
+          <div id="support" className="flex flex-col gap-5">
+            <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+              <Stat label="Habit completion" value={pct(bm.completion.rate)} sub={`${bm.completion.done}/${bm.completion.known} known · ${bm.completion.unknown} no reply (excluded)`} tone="good" />
+              <Stat label="Recovery after lapse" value={pct(bm.recovery.rate)} sub={`${bm.recovery.users_recovered}/${bm.recovery.users_with_lapse} users, within 3 days`} />
+              <Stat label="Nudge engagement" value={pct(bm.nudges.engagement_rate)} sub={`${bm.nudges.proactive_acknowledged}/${bm.nudges.proactive_delivered} follow-ups acknowledged`} />
+              <Stat label="Suggestion acceptance" value={pct(bm.suggestions.acceptance_rate)} sub={`${bm.suggestions.accepted}/${bm.suggestions.shown} · ${bm.suggestions.declined} declined`} />
+            </div>
+            <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
+              <Card title="Reported barriers" sub="Voluntary, tapped reasons">
+                <HBars rows={bm.barriers.map((r) => ({ label: r.key.replace(/_/g, " "), v: r.n }))} />
+              </Card>
+              <Card title="Chosen styles" sub={`${bm.preferences.answered} answered · ${bm.preferences.motivation_provided} added a motivation`}>
+                <HBars rows={bm.preferences.styles.map((r) => ({ label: r.key.replace(/_/g, " "), v: r.n }))} />
+              </Card>
+              <Card title="Restart preference" sub="Not answered → encouragement">
+                <HBars rows={bm.preferences.restart.map((r) => ({ label: r.key.replace(/_/g, " "), v: r.n }))} />
+              </Card>
+              <Card title="Weekly consistency" sub="Completion rate per week, known statuses only">
+                <HBars suffix="%" max={100} rows={bm.weekly.map((w) => ({ label: w.week, v: w.rate, note: `${w.done}/${w.known} · ${w.unknown} unknown` }))} />
+              </Card>
+              <Card title="Support by strategy" sub={`${bm.nudges.replies_to_user} replies to user taps · ${bm.nudges.llm_worded} AI-worded`}>
+                <HBars rows={bm.nudges.by_strategy.map((r) => ({ label: r.key.replace(/_/g, " "), v: r.n }))} />
+              </Card>
+              <Card title="Follow-ups by style" sub="Acknowledged ÷ sent (engagement, not completion)">
+                <HBars suffix="%" max={100} rows={bm.nudges.by_style.map((r) => ({ label: r.key.replace(/_/g, " "), v: r.sent ? Math.round((100 * r.ack) / r.sent) : null, note: `${r.ack}/${r.sent}` }))} />
+              </Card>
+              <Card title="Habit confidence" sub={`${bm.preferences.confidence_n} answers · avg ${bm.preferences.confidence_avg ?? "—"}`}>
+                <HBars rows={bm.preferences.confidence.map((r) => ({ label: `${r.key}/10`, v: r.n }))} />
+              </Card>
+              <Card title="Onboarding" sub="Finished ÷ started">
+                <p className="text-3xl font-bold">{bm.onboarding.started ? Math.round((100 * bm.onboarding.completed) / bm.onboarding.started) : 0}%</p>
+                <p className="text-sm text-ink-soft">{bm.onboarding.completed}/{bm.onboarding.started}</p>
+              </Card>
+            </div>
+            <details className="rounded-xl border border-line bg-surface p-4 text-sm text-ink-soft">
+              <summary className="cursor-pointer font-semibold text-ink">Adaptive-support metric definitions (descriptive only; no causal claims)</summary>
+              <ul className="mt-2 flex list-disc flex-col gap-1 pl-5">{Object.entries(METRIC_DEFINITIONS).map(([k, v]) => <li key={k}><b>{k.replace(/_/g, " ")}</b>: {v}</li>)}</ul>
+            </details>
+          </div>
         ) : null}
 
         <div id="users" className="grid gap-5 xl:grid-cols-3">

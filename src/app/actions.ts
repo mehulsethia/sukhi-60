@@ -20,6 +20,8 @@ import type { DraftItem } from "@/domain/extraction";
 import { CONSENT_KINDS, writeConsentChoices } from "@/server/consents";
 import { validateUpload } from "@/server/files";
 import { sendWelcome } from "@/server/checkins";
+import { decideSuggestion, reportBarrier, respondToNudge, type SupportResult, type SuggestionOutcome } from "@/server/support";
+import { BARRIER_CODES, cleanMotivation, normalizeRestart, normalizeStyles, parseConfidence } from "@/domain/behaviour";
 
 export type ActionState = { ok?: boolean; error?: string; data?: Record<string, unknown> } | null;
 
@@ -144,9 +146,22 @@ async function createTemplatePlan(supabase: Awaited<ReturnType<typeof requireUse
   const tpl = TEMPLATES[key];
   const { data: plan, error } = await supabase.from("care_plans").insert({ user_id: userId, title: tpl.plan, mode: "personal_goal", status: "active", source_description: "Sukhi example routine (personal goal)" }).select("id").single();
   if (error || !plan) throw new Error("plan_create_failed");
-  const { error: itemErr } = await supabase.from("plan_items").insert(tpl.items.map((i) => ({ ...i, plan_id: plan.id, user_id: userId, status: "confirmed" as const, provenance: "template" as const })));
+  const { data: items, error: itemErr } = await supabase.from("plan_items").insert(tpl.items.map((i) => ({ ...i, plan_id: plan.id, user_id: userId, status: "confirmed" as const, provenance: "template" as const }))).select("id");
   if (itemErr) throw new Error("item_create_failed");
-  return plan.id;
+  return { planId: plan.id, itemId: items?.[0]?.id ?? null };
+}
+
+/**
+ * Stated behavioural preferences from a form (onboarding or settings). Both questions are
+ * optional; nothing stated means defaults apply at read time (warm_gentle, encouragement).
+ */
+function readBehaviour(fd: FormData) {
+  const styles = normalizeStyles(fd.getAll("communication_styles").map(String));
+  const restart = normalizeRestart(fd.get("restart_preference"));
+  const motivation = cleanMotivation(fd.get("personal_motivation"));
+  // More than two styles is a validation error, not something to silently trim.
+  const tooMany = new Set(fd.getAll("communication_styles").map(String)).size > 2;
+  return { styles, restart, motivation, tooMany };
 }
 
 const IntakeSchema = z.object({
@@ -203,9 +218,21 @@ export async function completeOnboarding(_prev: ActionState, fd: FormData): Prom
       const facts = intakeFacts(v);
       if (facts.length) await createAdminClient().from("memory_facts").insert(facts.map((content) => ({ user_id: user.id, kind: "context" as const, content, source_type: "onboarding" as const, status: "confirmed" as const })));
     }
+    // Behavioural preferences (step 6) and personal motivation (step 5): optional.
+    const b = readBehaviour(fd);
+    if (!b.tooMany && (b.styles.length || b.restart || b.motivation)) {
+      await supabase.from("profiles").update({
+        communication_styles: b.styles,
+        restart_preference: b.restart,
+        personal_motivation: b.motivation,
+        behaviour_prefs_updated_at: b.styles.length || b.restart ? new Date().toISOString() : null,
+      }).eq("id", user.id);
+    }
+    const confidence = parseConfidence(fd.get("habit_confidence"));
     const tpl = String(fd.get("template") ?? "none");
     if (tpl === "walk" || tpl === "water" || tpl === "stretch") {
-      await createTemplatePlan(supabase, user.id, tpl);
+      const created = await createTemplatePlan(supabase, user.id, tpl);
+      if (confidence !== null) await supabase.from("habit_confidence").insert({ user_id: user.id, plan_id: created.planId, item_id: created.itemId, confidence });
       await materializeOccurrences(createAdminClient(), user.id, 7);
     }
     // The assistant says hello first, so the chat is never empty.
@@ -224,6 +251,7 @@ export async function completeOnboarding(_prev: ActionState, fd: FormData): Prom
         .select("id")
         .single();
       if (planErr || !plan) throw new Error("plan_create_failed");
+      if (confidence !== null) await supabase.from("habit_confidence").insert({ user_id: user.id, plan_id: plan.id, confidence });
       const file = fd.get("plan_file");
       let reading = false;
       if (file instanceof File && file.size > 0) {
@@ -254,6 +282,76 @@ export async function savePreferences(_prev: ActionState, fd: FormData): Promise
   await materializeOccurrences(createAdminClient(), r.user.id, 7).catch(() => undefined);
   revalidatePath("/", "layout");
   return { ok: true };
+}
+
+/** Settings → Support style. Editable any time; never overwritten by learned signals. */
+export async function saveSupportPreferences(_prev: ActionState, fd: FormData): Promise<ActionState> {
+  const { supabase, user } = await requireUser();
+  const b = readBehaviour(fd);
+  if (b.tooMany) return { error: "too_many_styles" };
+  const { error } = await supabase
+    .from("profiles")
+    .update({ communication_styles: b.styles, restart_preference: b.restart, personal_motivation: b.motivation, behaviour_prefs_updated_at: new Date().toISOString() })
+    .eq("id", user.id);
+  if (error) return { error: "save_failed" };
+  revalidatePath("/settings");
+  revalidatePath("/today");
+  return { ok: true };
+}
+
+/** Forget learned observations (counted from now on). Stated preferences are kept. */
+export async function resetLearnedSignals(): Promise<ActionState> {
+  const { supabase, user } = await requireUser();
+  const { error } = await supabase.from("profiles").update({ learning_reset_at: new Date().toISOString() }).eq("id", user.id);
+  if (error) return { error: "save_failed" };
+  revalidatePath("/settings");
+  return { ok: true };
+}
+
+/** Hide the "choose how Sukhi talks to you" prompt on this device. */
+export async function dismissSupportPrompt() {
+  await requireUser();
+  (await cookies()).set("sukhi_support_prompt", "dismissed", { path: "/", sameSite: "lax", httpOnly: true, secure: process.env.NODE_ENV === "production", maxAge: 60 * 60 * 24 * 180 });
+  revalidatePath("/today");
+}
+
+const BarrierInput = z.object({
+  occurrence_id: z.string().uuid(),
+  code: z.enum(BARRIER_CODES),
+  key: z.string().min(8).max(120),
+  nudge_id: z.string().uuid().nullable().optional(),
+});
+
+/** A reason tapped under a missed habit or a restart follow-up. Never changes the plan. */
+export async function reportBarrierAction(input: { occurrence_id: string; code: string; key: string; nudge_id?: string | null }): Promise<{ ok: true; support: SupportResult } | { ok: false; error: string }> {
+  const { user } = await requireUser();
+  const v = BarrierInput.safeParse(input);
+  if (!v.success) return { ok: false, error: "invalid_input" };
+  try {
+    const support = await reportBarrier(createAdminClient(), user.id, { occurrenceId: v.data.occurrence_id, code: v.data.code, idempotencyKey: v.data.key, nudgeEventId: v.data.nudge_id ?? null });
+    return { ok: true, support };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error && e.message === "not_found" ? "not_found" : "save_failed" };
+  }
+}
+
+/** Accept or decline a suggestion. The only path by which a suggestion can change a plan. */
+export async function decideSuggestionAction(input: { suggestion_id: string; decision: "accept" | "decline"; time?: string | null }): Promise<SuggestionOutcome> {
+  const { supabase, user } = await requireUser();
+  const id = z.string().uuid().safeParse(input.suggestion_id);
+  if (!id.success || !["accept", "decline"].includes(input.decision)) return { ok: false, result: "invalid" };
+  const r = await decideSuggestion(createAdminClient(), supabase, user.id, { suggestionId: id.data, decision: input.decision, time: input.time ?? null });
+  if (r.ok && r.result === "accepted") {
+    revalidatePath("/today");
+    revalidatePath("/plan", "layout");
+  }
+  return r;
+}
+
+export async function respondToNudgeAction(nudgeId: string, response: "did_it" | "dismissed") {
+  const { user } = await requireUser();
+  if (!z.string().uuid().safeParse(nudgeId).success || !["did_it", "dismissed"].includes(response)) return;
+  await respondToNudge(createAdminClient(), user.id, nudgeId, response);
 }
 
 export async function saveConsents(_prev: ActionState, fd: FormData): Promise<ActionState> {
@@ -474,12 +572,19 @@ export async function checkIn(_prev: ActionState, fd: FormData): Promise<ActionS
   const key = z.string().min(8).max(120).safeParse(fd.get("idempotency_key"));
   if (!occurrence.success || !kind.success || !key.success) return { error: "invalid_input" };
   const reason = String(fd.get("reason") ?? "").slice(0, 300) || undefined;
+  const barrier = z.enum(BARRIER_CODES).safeParse(fd.get("barrier"));
   const { data, error } = await supabase.rpc("record_check_in", { p_occurrence: occurrence.data, p_kind: kind.data, p_idempotency_key: key.data, p_reason: reason });
   if (error) return { error: error.message.includes("not_yet_due") ? "not_yet_due" : error.message.includes("paused") ? "paused" : "save_failed" };
   if (kind.data === "later") await scheduleSnoozeReminder(createAdminClient(), user.id, occurrence.data);
+  let support: SupportResult | null = null;
+  // Optional reason chip on a skip: record it and offer safe, user-confirmed support.
+  if (barrier.success && (kind.data === "skipped" || kind.data === "missed")) {
+    const checkInId = (data as { check_in_id?: string } | null)?.check_in_id ?? null;
+    support = await reportBarrier(createAdminClient(), user.id, { occurrenceId: occurrence.data, code: barrier.data, idempotencyKey: `ci:${key.data}`.slice(0, 120), checkInId }).catch(() => null);
+  }
   revalidatePath("/today");
   revalidatePath("/progress");
-  return { ok: true, data: data as Record<string, unknown> };
+  return { ok: true, data: { ...(data as Record<string, unknown>), support } };
 }
 
 export async function requestReview(_prev: ActionState, fd: FormData): Promise<ActionState> {

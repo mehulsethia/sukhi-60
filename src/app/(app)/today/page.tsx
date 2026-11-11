@@ -1,7 +1,9 @@
 import Link from "next/link";
 import type { Metadata } from "next";
 import { getLocale, getTranslations } from "next-intl/server";
-import { Bell, ClipboardList, Flame, MessageCircle, Moon, PartyPopper, Sun, Sunrise, Sunset, CalendarRange } from "lucide-react";
+import { cookies } from "next/headers";
+import { Bell, ClipboardList, Flame, HandHeart, MessageCircle, Moon, PartyPopper, Sun, Sunrise, Sunset, CalendarRange } from "lucide-react";
+import { dismissSupportPrompt } from "@/app/actions";
 import { requireUser } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getToday, materializeOccurrences } from "@/server/core";
@@ -47,7 +49,9 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
   const { supabase, user } = await requireUser();
   const t = await getTranslations();
   const locale = await getLocale();
-  const { data: profile } = await supabase.from("profiles").select("display_name, timezone").eq("id", user.id).single();
+  const { data: profile } = await supabase.from("profiles").select("display_name, timezone, behaviour_prefs_updated_at").eq("id", user.id).single();
+  // Existing accounts: offer the new support-style questions without forcing anything.
+  const showSupportPrompt = !welcome && !profile?.behaviour_prefs_updated_at && (await cookies()).get("sukhi_support_prompt")?.value !== "dismissed";
   const tz = profile?.timezone ?? "UTC";
   const ws = weekStart(localDateOf(new Date(), tz));
   const weekDates = Array.from({ length: 7 }, (_, i) => addDays(ws, i));
@@ -100,6 +104,19 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
       </header>
 
       <InstallPrompt />
+      {showSupportPrompt ? (
+        <section aria-labelledby="support-prompt" className="mb-6 flex flex-col gap-3 rounded-[var(--r-lg)] border border-line bg-surface p-5 sm:flex-row sm:items-center">
+          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-primary-soft text-primary"><HandHeart size={22} aria-hidden="true" /></span>
+          <div className="flex-1">
+            <h2 id="support-prompt" className="text-lg">{t("support.promptTitle")}</h2>
+            <p className="text-ink-soft">{t("support.promptBody")}</p>
+          </div>
+          <div className="flex gap-2">
+            <Link href="/settings#support" className="btn btn-primary">{t("support.promptCta")}</Link>
+            <form action={dismissSupportPrompt}><button className="btn btn-ghost">{t("support.promptDismiss")}</button></form>
+          </div>
+        </section>
+      ) : null}
       {welcome ? (
         <section className="pop-in mb-6 rounded-[var(--r-lg)] border border-line bg-sky p-6">
           <h2 className="text-2xl">{first ? t("onb.welcomeTitle", { name: first }) : t("onb.welcomeTitleNoName")}</h2>

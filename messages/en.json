@@ -987,7 +987,7 @@
     "promptCta": "Choose",
     "promptDismiss": "Not now",
     "offer_encouragement": "Would a little help to restart be useful?",
-    "offer_simpler_alternative": "Want to find an easier way to fit it in?",
+    "offer_simpler_alternative": "Want to find an easier way to make room for it?",
     "offer_gentle_push": "Shall we pick it back up today?",
     "offer_give_space": "Whenever you're ready, I'm here.",
     "tpl": {
@@ -1037,7 +1037,7 @@
           "2": "No problem! Maybe “{title}” needs a better time slot. Want to try one?"
         },
         "motivating": {
-          "1": "Easy fix: pick a time for “{title}” that fits your day better.",
+          "1": "Easy fix: pick a time for “{title}” that suits your day better.",
           "2": "Let's make it stick. Would a different time for “{title}” work better?"
         },
         "simple_practical": {
@@ -1092,7 +1092,7 @@
         },
         "motivating": {
           "1": "Adapting is a strength. Pick the next good time for “{title}”.",
-          "2": "Let's keep going in your new routine. When could “{title}” fit?"
+          "2": "Let's keep going in your new routine. What time would suit “{title}” now?"
         },
         "simple_practical": {
           "1": "Your routine changed. Pick a new time for “{title}”?",

@@ -10,6 +10,7 @@ import { getConsents, getToday } from "./core";
 import { pointsTotal } from "./points";
 import { addDays, inQuietHours, localDateOf, localTimeOf } from "@/domain/schedule";
 import { quoteUntrusted } from "@/domain/safety";
+import { runRestartFollowup } from "./support";
 import en from "../../messages/en.json";
 import hi from "../../messages/hi.json";
 import mr from "../../messages/mr.json";
@@ -30,14 +31,14 @@ function clock(hhmm: string | null, locale: string) {
   return new Intl.DateTimeFormat(locale === "en" ? "en-IN" : `${locale}-IN`, { hour: "numeric", minute: "2-digit", timeZone: "UTC" }).format(new Date(Date.UTC(2026, 0, 1, h, m)));
 }
 
-type Profile = { id: string; display_name: string | null; locale: string; timezone: string; checkin_times: string[]; quiet_start: string; quiet_end: string; reminder_frequency: string; setup_for: string | null; care_recipient_name: string | null; created_at: string };
-type Slot = { profile: Profile; slot: string; kind: "morning" | "midday" | "evening" | "weekly"; date: string; key: string };
+type Profile = { id: string; display_name: string | null; locale: string; timezone: string; checkin_times: string[]; quiet_start: string; quiet_end: string; reminder_frequency: string; setup_for: string | null; care_recipient_name: string | null; created_at: string; communication_styles: string[] | null; restart_preference: string | null };
+type Slot = { profile: Profile; slot: string; kind: "morning" | "midday" | "evening" | "weekly"; date: string; key: string; first: boolean };
 
 /** Find users whose check-in slot is due now and write their messages. Returns the count sent. */
 export async function runCheckins(admin: AdminClient, now = new Date(), limit = 6): Promise<number> {
   const { data: profiles } = await admin
     .from("profiles")
-    .select("id, display_name, locale, timezone, checkin_times, quiet_start, quiet_end, reminder_frequency, setup_for, care_recipient_name, created_at")
+    .select("id, display_name, locale, timezone, checkin_times, quiet_start, quiet_end, reminder_frequency, setup_for, care_recipient_name, created_at, communication_styles, restart_preference")
     .not("onboarded_at", "is", null)
     .neq("reminder_frequency", "off")
     .limit(2000);
@@ -59,7 +60,7 @@ export async function runCheckins(admin: AdminClient, now = new Date(), limit = 
     const sunday = new Date(`${date}T12:00:00Z`).getUTCDay() === 0;
     const last = times.indexOf(slot) === times.length - 1;
     const kind = h < 12 ? "morning" : h < 17 ? "midday" : sunday && last ? "weekly" : "evening";
-    due.push({ profile: p, slot, kind, date, key: `checkin:${p.id}:${date}:${slot}` });
+    due.push({ profile: p, slot, kind, date, key: `checkin:${p.id}:${date}:${slot}`, first: slot === slots[0] });
     } catch { /* one bad profile (e.g. invalid time zone) must not stop everyone's check-ins */ }
   }
   if (!due.length) return 0;
@@ -70,7 +71,15 @@ export async function runCheckins(admin: AdminClient, now = new Date(), limit = 
   const { data: ok } = await admin.from("consents").select("user_id").eq("kind", "reminders").eq("granted", true).in("user_id", todo.map((d) => d.profile.id));
   const allowed = new Set((ok ?? []).map((c) => c.user_id));
   const batch = todo.filter((d) => allowed.has(d.profile.id)).slice(0, limit);
-  const results = await Promise.allSettled(batch.map((s) => sendCheckin(admin, s, now)));
+  const results = await Promise.allSettled(
+    batch.map(async (s) => {
+      const sent = await sendCheckin(admin, s, now);
+      // Gentle restart: at most one follow-up about yesterday, only in the day's first slot.
+      // Its own limits (daily cap, "give me space", one per lapse) are applied inside.
+      if (sent && s.first) await runRestartFollowup(admin, s.profile, s.date, now).catch(() => false);
+      return sent;
+    }),
+  );
   return results.filter((r) => r.status === "fulfilled" && r.value).length;
 }
 

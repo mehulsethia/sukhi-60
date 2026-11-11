@@ -7,6 +7,7 @@ import { Alert } from "@/components/ui";
 import { VoiceRecorder } from "@/components/VoiceRecorder";
 import { EvidenceCapture } from "@/components/EvidenceCapture";
 import { chatQuickAction, markChatSeen } from "@/app/actions";
+import { SupportFlow } from "@/components/SupportFlow";
 
 export interface ChatMessage {
   id: string;
@@ -21,7 +22,7 @@ export interface ChatMessage {
 export interface TodayRef { id: string; title: string; time: string | null; display: string }
 const OPEN = ["pending", "due", "awaiting_response", "later", "no_response"];
 // Internal references that drive cards/buttons; not shown as "based on" chips.
-const HIDDEN_REFS = ["checkin", "occurrence", "evidence"];
+const HIDDEN_REFS = ["checkin", "occurrence", "evidence", "restart", "nudge"];
 
 /** Minimal, safe formatting for assistant text: paragraphs, bullet/numbered lists, **bold**. */
 function inline(text: string): ReactNode[] {
@@ -74,7 +75,7 @@ function QuickActions({ occ, onMessages, onProof }: { occ: TodayRef; onMessages:
   );
 }
 
-export function ChatClient({ initial, voice, audioReplies, suggestions, name, autoSend, today }: { initial: ChatMessage[]; voice: { configured: boolean; consent: boolean }; audioReplies: boolean; suggestions: string[]; name: string | null; autoSend?: string; today: TodayRef[] }) {
+export function ChatClient({ initial, voice, audioReplies, suggestions, name, autoSend, today, openNudges = [] }: { initial: ChatMessage[]; voice: { configured: boolean; consent: boolean }; audioReplies: boolean; suggestions: string[]; name: string | null; autoSend?: string; today: TodayRef[]; openNudges?: string[] }) {
   const t = useTranslations("chat");
   const tc = useTranslations("common");
   const tr = useTranslations();
@@ -256,6 +257,12 @@ export function ChatClient({ initial, voice, audioReplies, suggestions, name, au
                     {m.safety === "escalation" ? <strong className="mb-1 block">{t("escalation")}</strong> : null}
                     {checkin ? <p className="mb-1 flex items-center gap-1.5 text-xs font-bold text-primary"><Sparkles size={13} aria-hidden="true" />{t("checkinLabel")}</p> : null}
                     <Rich text={shown} />
+                    {checkin && !isRevealing ? m.sources.filter((x) => x.type === "restart").slice(0, 1).map((x) => {
+                      const nudge = m.sources.find((y) => y.type === "nudge");
+                      if (!nudge || !openNudges.includes(nudge.id)) return null;
+                      // Unknown status (no reply) offers "I did it": silence is never treated as a miss.
+                      return <SupportFlow key={x.id} occurrenceId={x.id} title={x.label} nudgeId={nudge?.id ?? null} allowDidIt={nudge?.label === "no_response"} />;
+                    }) : null}
                     {checkin && !isRevealing ? m.sources.filter((x) => x.type === "occurrence").map((x) => today.find((o) => o.id === x.id)).filter((o): o is TodayRef => !!o && OPEN.includes(statusById[o.id] ?? o.display)).slice(0, 2).map((o) => (
                       <div key={o.id} className="mt-2 rounded-2xl border border-line bg-surface p-3">
                         <p className="text-sm font-semibold">{o.title}{o.time ? <span className="font-normal text-ink-soft"> · {o.time}</span> : null}</p>

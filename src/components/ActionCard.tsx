@@ -6,6 +6,9 @@ import { Camera, Check, Clock, Moon, SkipForward } from "lucide-react";
 import { checkIn } from "@/app/actions";
 import { Alert, StatusBadge } from "@/components/ui";
 import { bucketOf, BUCKET_COLOR } from "@/lib/status";
+import { SupportFlow } from "@/components/SupportFlow";
+import { BARRIER_CODES, type BarrierCode } from "@/domain/behaviour";
+import type { SupportResult } from "@/server/support";
 
 interface Props {
   action: { id: string; title: string; instructions: string | null; display: string; time: string | null; tz: string; weekly: { done: number; target: number } | null; planMode: string };
@@ -17,6 +20,7 @@ const OPEN = ["pending", "due", "awaiting_response", "later", "no_response", "ne
 export function ActionCard({ action, variant = "row" }: Props) {
   const t = useTranslations();
   const [skipOpen, setSkipOpen] = useState(false);
+  const [barrier, setBarrier] = useState<BarrierCode | null>(null);
   // A fresh idempotency key per intended submission; double-taps reuse the same key.
   const [key, setKey] = useState(() => crypto.randomUUID());
   const [state, formAction, pending] = useActionState(async (prev: Awaited<ReturnType<typeof checkIn>>, fd: FormData) => {
@@ -24,6 +28,7 @@ export function ActionCard({ action, variant = "row" }: Props) {
     if (r?.ok) {
       setKey(crypto.randomUUID());
       setSkipOpen(false);
+      setBarrier(null);
     }
     return r;
   }, null);
@@ -32,6 +37,7 @@ export function ActionCard({ action, variant = "row" }: Props) {
   const points = rewards.reduce((s, r) => s + r.points, 0);
   const result = state?.data?.result as string | undefined;
   const lastKind = state?.data ? (state.data.status as string) : null;
+  const support = (state?.data?.support as SupportResult | null | undefined) ?? null;
   const canAnswer = OPEN.includes(action.display) || (action.weekly && action.display !== "self_reported");
   const complete = action.display === "self_reported" || action.display === "evidence_supported";
   const color = BUCKET_COLOR[bucketOf(action.display)];
@@ -43,6 +49,7 @@ export function ActionCard({ action, variant = "row" }: Props) {
       {state?.ok && points > 0 ? <div className="pop-in"><Alert tone="ok">{t("today.pointsEarned", { points })}</Alert></div> : null}
       {state?.ok && (result === "already_recorded" || result === "already_counted") ? <Alert tone="info">{t("today.alreadyRecorded")}</Alert> : null}
       {state?.ok && lastKind === "unable" ? <Alert tone="info">{t("today.unwellNote")}</Alert> : null}
+      {state?.ok && support ? <SupportFlow key={support.reportId} occurrenceId={action.id} title={action.title} initial={support} /> : null}
     </div>
   );
 
@@ -57,7 +64,16 @@ export function ActionCard({ action, variant = "row" }: Props) {
         <button className={`pill-btn border-transparent bg-transparent text-ink-soft hover:!bg-sky ${hero ? "min-h-[52px]" : ""}`} name="kind" value="unable" disabled={pending}><Moon size={16} aria-hidden="true" />{t("today.unwell")}</button>
       </div>
       {skipOpen ? (
-        <div id={`skip-${action.id}`} className="flex flex-col gap-2 rounded-xl bg-sky p-3 sm:flex-row sm:items-end">
+        <div id={`skip-${action.id}`} className="flex flex-col gap-2 rounded-xl bg-sky p-3 sm:flex-row sm:flex-wrap sm:items-end">
+          <fieldset className="w-full">
+            <legend className="label mb-1 !text-sm">{t("support.barrierQ")} <span className="hint font-normal">({t("common.optional")})</span></legend>
+            <div className="flex flex-wrap gap-1.5" role="radiogroup">
+              {BARRIER_CODES.map((c) => (
+                <button key={c} type="button" role="radio" aria-checked={barrier === c} onClick={() => setBarrier(barrier === c ? null : c)} className={`pill-btn min-h-10 px-3 text-sm ${barrier === c ? "pill-btn-primary" : ""}`}>{t(`support.barrier_${c}`)}</button>
+              ))}
+            </div>
+            {barrier ? <input type="hidden" name="barrier" value={barrier} /> : null}
+          </fieldset>
           <div className="field flex-1">
             <label htmlFor={`reason-${action.id}`}>{t("today.skipReason")}</label>
             <input id={`reason-${action.id}`} name="reason" className="input" maxLength={300} />

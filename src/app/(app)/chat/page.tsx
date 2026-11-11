@@ -5,7 +5,7 @@ import { features } from "@/lib/config";
 import { ChatClient, type ChatMessage } from "@/components/ChatClient";
 import { assistantSuggestions } from "@/server/suggestions";
 import { getToday } from "@/server/core";
-import { fmtTime } from "@/lib/format";
+import { fmtTime, hoursAgoIso } from "@/lib/format";
 import { getLocale } from "next-intl/server";
 
 export const metadata: Metadata = { title: "Assistant" };
@@ -25,12 +25,17 @@ export default async function ChatPage({ searchParams }: { searchParams: Promise
   const voiceConsent = !!consents?.find((c) => c.kind === "voice_processing" && c.granted);
   const audioReplies = !!(profile?.accessibility as { audio_replies?: boolean } | null)?.audio_replies;
   const initial: ChatMessage[] = (msgs ?? []).reverse().map((m) => ({ id: m.id, role: m.role, channel: m.channel, content: m.content, sources: (m.source_refs as ChatMessage["sources"]) ?? [], safety: m.safety_flag }));
+  // Restart follow-ups stay answerable until answered, dismissed, or two days old.
+  const nudgeIds = initial.flatMap((m) => m.sources.filter((x) => x.type === "nudge").map((x) => x.id));
+  const { data: nudges } = nudgeIds.length ? await supabase.from("nudge_events").select("id").in("id", nudgeIds).is("acknowledged_at", null).is("outcome", null).gte("created_at", hoursAgoIso(48)) : { data: [] };
+  const openNudges = (nudges ?? []).map((n) => n.id);
   return (
     <ChatClient
       // Remount when the server has newer messages (proactive check-ins, proof results).
       key={initial.at(-1)?.id ?? "empty"}
       today={today}
       initial={initial}
+      openNudges={openNudges}
       voice={{ configured: features.speech(), consent: voiceConsent }}
       audioReplies={audioReplies}
       suggestions={suggestions}
