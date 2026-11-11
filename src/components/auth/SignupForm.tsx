@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { createClient } from "@/lib/supabase/browser";
-import { hardNavigate } from "@/lib/client-prefs";
+import { authCallbackUrl, hardNavigate } from "@/lib/client-prefs";
 import { Alert } from "@/components/ui";
 import { PasswordField } from "./PasswordField";
 import { authErrorKey } from "./authErrors";
@@ -24,7 +24,7 @@ export function SignupForm() {
     if (password.length < 8) return setError(t("weakPassword"));
     if (!agreed) return setError(t("agreeRequired"));
     setBusy(true);
-    const { data, error: err } = await createClient().auth.signUp({ email, password, options: { emailRedirectTo: `${window.location.origin}/auth/callback?next=/onboarding` } });
+    const { data, error: err } = await createClient().auth.signUp({ email, password, options: { emailRedirectTo: authCallbackUrl() } });
     if (err) {
       setBusy(false);
       return setError(t(authErrorKey(err)));

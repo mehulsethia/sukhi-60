@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { MailCheck } from "lucide-react";
 import { createClient } from "@/lib/supabase/browser";
+import { authCallbackUrl } from "@/lib/client-prefs";
 import { Alert } from "@/components/ui";
 import { authErrorKey } from "./authErrors";
 
@@ -12,7 +13,7 @@ export function ResendConfirmation({ email }: { email: string }) {
   const [state, setState] = useState<"idle" | "busy" | "sent" | string>("idle");
   async function resend() {
     setState("busy");
-    const { error } = await createClient().auth.resend({ type: "signup", email, options: { emailRedirectTo: `${window.location.origin}/auth/callback?next=/onboarding` } });
+    const { error } = await createClient().auth.resend({ type: "signup", email, options: { emailRedirectTo: authCallbackUrl() } });
     setState(error ? t(authErrorKey(error)) : "sent");
   }
   return (

@@ -3,7 +3,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { createClient } from "@/lib/supabase/browser";
-import { hardNavigate } from "@/lib/client-prefs";
+import { authCallbackUrl, hardNavigate } from "@/lib/client-prefs";
 import { Alert } from "@/components/ui";
 import { PasswordField } from "./PasswordField";
 import { authErrorKey } from "./authErrors";
@@ -38,7 +38,7 @@ export function LoginForm({ next, initialError }: { next: string; initialError: 
     if (!email) return;
     setBusy(true);
     setError(null);
-    const { error: err } = await createClient().auth.signInWithOtp({ email, options: { shouldCreateUser: false, emailRedirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(next)}` } });
+    const { error: err } = await createClient().auth.signInWithOtp({ email, options: { shouldCreateUser: false, emailRedirectTo: authCallbackUrl(next === "/today" ? undefined : next) } });
     setBusy(false);
     if (err) setError(t(authErrorKey(err)));
     else setInfo(t("magicSent", { email }));

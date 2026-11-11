@@ -3,6 +3,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { createClient } from "@/lib/supabase/browser";
+import { authCallbackUrl } from "@/lib/client-prefs";
 import { Alert } from "@/components/ui";
 import { authErrorKey } from "./authErrors";
 
@@ -16,7 +17,7 @@ export function ForgotForm() {
     e.preventDefault();
     setBusy(true);
     setError(null);
-    const { error: err } = await createClient().auth.resetPasswordForEmail(email, { redirectTo: `${window.location.origin}/auth/callback?next=/reset-password` });
+    const { error: err } = await createClient().auth.resetPasswordForEmail(email, { redirectTo: authCallbackUrl("/reset-password") });
     setBusy(false);
     // Same message whether or not the account exists (no account enumeration).
     if (err && authErrorKey(err) === "rateLimited") setError(t("rateLimited"));
