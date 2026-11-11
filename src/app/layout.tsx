@@ -1,28 +1,27 @@
 import type { Metadata, Viewport } from "next";
-import { Anek_Devanagari, Mukta } from "next/font/google";
+import { Inter, Noto_Sans_Devanagari } from "next/font/google";
 import { NextIntlClientProvider } from "next-intl";
 import { getLocale } from "next-intl/server";
 import { cookies } from "next/headers";
 import { SwRegister } from "@/components/SwRegister";
 import "./globals.css";
 
-// Both families cover Latin and Devanagari, so Hindi and Marathi render with the same care as English.
-const display = Anek_Devanagari({ subsets: ["latin", "devanagari"], variable: "--font-display-face", display: "swap", weight: ["500", "600", "700"] });
-const body = Mukta({ subsets: ["latin", "devanagari"], variable: "--font-body", display: "swap", weight: ["400", "500", "600", "700"] });
+// Inter for English; Noto Sans Devanagari for Hindi and Marathi (spec §2.3). The CSS stack
+// lists Inter first, so Devanagari glyphs fall through to Noto automatically.
+const inter = Inter({ subsets: ["latin"], variable: "--font-inter", display: "swap" });
+const deva = Noto_Sans_Devanagari({ subsets: ["devanagari"], variable: "--font-deva", display: "swap", weight: ["400", "500", "600", "700"] });
 
 export const metadata: Metadata = {
-  title: { default: "Sukhi — a gentle companion for your care routine", template: "%s · Sukhi" },
-  description: "A gentle companion for the care routine you agreed on.",
+  title: { default: "Sukhi — Your health in your own hands", template: "%s · Sukhi" },
+  description: "Sukhi is a voice-first wellbeing companion that helps you build small daily habits, stay consistent and gently restart when life gets in the way.",
   manifest: "/manifest.webmanifest",
   icons: { icon: [{ url: "/icon.svg", type: "image/svg+xml" }, { url: "/icons/192", type: "image/png", sizes: "192x192" }], apple: "/icons/180" },
   appleWebApp: { capable: true, title: "Sukhi", statusBarStyle: "default" },
 };
 
 export const viewport: Viewport = {
-  themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#f6f7f9" },
-    { media: "(prefers-color-scheme: dark)", color: "#0b1220" },
-  ],
+  themeColor: "#F7FBFF",
+  colorScheme: "light",
   width: "device-width",
   initialScale: 1,
 };
@@ -33,7 +32,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   return (
     <html
       lang={locale}
-      className={`${display.variable} ${body.variable}`}
+      className={`${inter.variable} ${deva.variable}`}
       data-text={a11y.includes("large") ? "large" : undefined}
       data-contrast={a11y.includes("contrast") ? "high" : undefined}
       data-motion={a11y.includes("motion") ? "reduce" : undefined}

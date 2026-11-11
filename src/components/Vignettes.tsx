@@ -109,7 +109,7 @@ export function VRhythm() {
           <span className="ml-auto text-sm tabular-nums text-ink-soft">{time}</span>
         </div>
       ))}
-      <div className="flex items-center gap-3 rounded-xl bg-ink px-3 py-2.5 text-surface">
+      <div className="flex items-center gap-3 rounded-xl bg-sky px-3 py-2.5 text-ink">
         <Moon size={18} />
         <span className="font-semibold">{t("onb.quietTitle")}</span>
         <span className="ml-auto text-sm tabular-nums opacity-80">21:30 – 07:30</span>
@@ -159,24 +159,5 @@ export function VPrivacy() {
         </div>
       ))}
     </Frame>
-  );
-}
-
-/** Phone mock-up showing a WhatsApp-style exchange (sample content passed in). */
-export function WhatsAppPhone({ messages, title }: { messages: { from: "sukhi" | "me"; text: string; lang?: string }[]; title: string }) {
-  return (
-    <div className="relative mx-auto w-[290px] rounded-[40px] border border-line-strong bg-ink p-2.5 shadow-[var(--shadow-lg)]" aria-hidden="true">
-      <div className="overflow-hidden rounded-[32px] bg-[#efeae2]">
-        <div className="flex items-center gap-3 bg-[#075e54] px-4 pb-3 pt-6 text-white">
-          <span className="flex h-9 w-9 items-center justify-center rounded-full bg-white/15"><LogoMark size={22} /></span>
-          <span className="font-semibold">{title}</span>
-        </div>
-        <div className="flex min-h-[370px] flex-col gap-2 p-3">
-          {messages.map((m, i) => (
-            <p key={i} lang={m.lang} className={`max-w-[84%] rounded-xl px-3 py-2 text-[0.88rem] leading-snug text-[#111b21] shadow-sm ${m.from === "me" ? "self-end rounded-tr-sm bg-[#d9fdd3]" : "self-start rounded-tl-sm bg-white"}`}>{m.text}</p>
-          ))}
-        </div>
-      </div>
-    </div>
   );
 }

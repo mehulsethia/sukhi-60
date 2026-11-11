@@ -209,13 +209,13 @@ export function OnboardingForm({ defaults }: { defaults: { timezone: string; loc
                   ))}
                 </div>
               </fieldset>
-              <fieldset className="mt-4 rounded-xl bg-ink px-4 py-3 text-surface">
+              <fieldset className="mt-4 rounded-xl border border-line bg-sky px-4 py-3 text-ink">
                 <legend className="sr-only">{t("onb.quietTitle")}</legend>
                 <p className="flex items-center gap-2 text-lg font-semibold"><Moon size={20} aria-hidden="true" />{t("onb.quietTitle")}</p>
-                <p className="mt-1 opacity-75">{t("onb.quietBody")}</p>
+                <p className="mt-1 text-ink-soft">{t("onb.quietBody")}</p>
                 <div className="mt-2 flex flex-wrap gap-4">
-                  <div className="field"><label htmlFor="quiet_start" className="!text-sm !text-surface opacity-80">{t("onboarding.quietStart")}</label><input id="quiet_start" type="time" className="input w-36" value={quiet.start} onChange={(e) => setQuiet((q) => ({ ...q, start: e.target.value }))} required /></div>
-                  <div className="field"><label htmlFor="quiet_end" className="!text-sm !text-surface opacity-80">{t("onboarding.quietEnd")}</label><input id="quiet_end" type="time" className="input w-36" value={quiet.end} onChange={(e) => setQuiet((q) => ({ ...q, end: e.target.value }))} required /></div>
+                  <div className="field"><label htmlFor="quiet_start" className="!text-sm">{t("onboarding.quietStart")}</label><input id="quiet_start" type="time" className="input w-36" value={quiet.start} onChange={(e) => setQuiet((q) => ({ ...q, start: e.target.value }))} required /></div>
+                  <div className="field"><label htmlFor="quiet_end" className="!text-sm">{t("onboarding.quietEnd")}</label><input id="quiet_end" type="time" className="input w-36" value={quiet.end} onChange={(e) => setQuiet((q) => ({ ...q, end: e.target.value }))} required /></div>
                 </div>
               </fieldset>
               <p className="mt-4 rounded-xl bg-primary-soft px-4 py-2.5 text-[0.95rem] text-ink" aria-live="polite">

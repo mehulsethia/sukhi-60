@@ -49,19 +49,19 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       <aside className="sticky top-0 hidden h-dvh flex-col border-r border-line bg-surface px-4 py-6 lg:flex">
         <div className="px-2"><Logo href="/today" /></div>
         <div className="mt-9 flex-1"><BottomNav variant="sidebar" badges={{ chat: unreadChat }} /></div>
-        <Link href="/chat" className="mb-4 block rounded-2xl bg-[linear-gradient(135deg,var(--hero-from),var(--hero-to))] p-4 text-white">
+        <Link href="/chat" className="mb-4 block rounded-[var(--r-lg)] bg-primary p-4 text-white transition-colors hover:bg-[var(--primary-hover)]">
           <span className="flex h-9 w-9 items-center justify-center rounded-full bg-white/15"><MessageCircle size={18} aria-hidden="true" /></span>
           <span className="mt-3 block font-semibold">{t("shell.askTitle")}</span>
-          <span className="mt-0.5 block text-sm text-white/80">{t("shell.askBody")}</span>
+          <span className="mt-0.5 block text-sm text-white/90">{t("shell.askBody")}</span>
         </Link>
-        <div className="flex items-center gap-3 rounded-2xl border border-line p-2.5">
+        <div className="flex items-center gap-3 rounded-[var(--r-lg)] border border-line p-2.5">
           <span aria-hidden="true" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary-soft text-sm font-bold text-primary">{initial}</span>
           <span className="min-w-0 flex-1">
             <span className="block truncate text-sm font-semibold">{name}</span>
             <Link href="/settings" className="block text-xs text-ink-soft hover:underline">{t("app.account")}</Link>
           </span>
           <form action="/auth/signout" method="post">
-            <button className="flex h-9 w-9 items-center justify-center rounded-lg text-ink-soft hover:bg-surface-2 hover:text-ink" aria-label={t("common.signOut")}><LogOut size={18} aria-hidden="true" /></button>
+            <button className="flex h-9 w-9 items-center justify-center rounded-lg text-ink-soft hover:bg-sky hover:text-ink" aria-label={t("common.signOut")}><LogOut size={18} aria-hidden="true" /></button>
           </form>
         </div>
       </aside>

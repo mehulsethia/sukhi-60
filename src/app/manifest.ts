@@ -2,13 +2,13 @@ import type { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "Sukhi — care routine companion",
+    name: "Sukhi — your everyday wellbeing companion",
     short_name: "Sukhi",
-    description: "A gentle companion for the care routine you agreed on.",
+    description: "Small steps today. A healthier tomorrow.",
     start_url: "/today",
     scope: "/",
     display: "standalone",
-    background_color: "#f6f7f9",
+    background_color: "#F7FBFF",
     theme_color: "#0b6e5f",
     icons: [
       { src: "/icons/192", sizes: "192x192", type: "image/png", purpose: "any" },

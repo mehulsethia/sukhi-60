@@ -202,7 +202,7 @@ export function ChatClient({ initial, voice, audioReplies, suggestions, name, au
         <div className="mx-auto w-full max-w-3xl px-4 pb-6 pt-6 sm:px-6">
           {empty ? (
             <div className="flex min-h-[52dvh] flex-col items-center justify-center text-center">
-              <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[linear-gradient(135deg,var(--hero-from),var(--hero-to))] text-white shadow-[var(--shadow-md)]"><Leaf size={26} aria-hidden="true" /></span>
+              <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-primary text-white shadow-[var(--shadow-md)]"><Leaf size={26} aria-hidden="true" /></span>
               <h1 className="mt-5 text-[1.9rem] sm:text-[2.3rem]">{name ? t("helloName", { name }) : t("hello")}</h1>
               <p className="mt-2 max-w-md text-ink-soft">{t("empty")}</p>
               <p className="hint mt-1">{t("whatsappNote")}</p>

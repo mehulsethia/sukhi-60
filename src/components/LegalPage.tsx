@@ -1,6 +1,7 @@
 import { getTranslations } from "next-intl/server";
 import { getUser } from "@/lib/supabase/server";
 import { SiteHeader } from "@/components/landing/SiteHeader";
+import { SiteFooter } from "@/components/landing/SiteFooter";
 
 export async function LegalPage({ titleKey, introKey, sections }: { titleKey: string; introKey: string; sections: [string, string][] }) {
   const t = await getTranslations("legal");
@@ -19,6 +20,7 @@ export async function LegalPage({ titleKey, introKey, sections }: { titleKey: st
           </section>
         ))}
       </main>
+      <SiteFooter />
     </>
   );
 }

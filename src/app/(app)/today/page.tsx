@@ -89,13 +89,14 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
     <>
       <header className="mb-7">
         <p className="text-sm font-semibold text-ink-soft">{dateLabel}</p>
-        <h1 className="mt-1 text-[2.1rem] leading-[1.05] sm:text-[2.9rem]">{greet}{first ? `, ${first}` : ""}</h1>
-        {summary ? <p className="mt-2 text-lg text-ink-soft">{summary}</p> : null}
+        <h1 className="mt-1 text-[2rem] leading-[1.1] sm:text-[2.5rem]">{greet}{first ? `, ${first}` : ""}.</h1>
+        <p className="mt-2 text-lg font-medium text-primary">{t("app.tagline")}</p>
+        {summary ? <p className="mt-1 text-lg text-ink-soft">{summary}</p> : null}
       </header>
 
       <InstallPrompt />
       {welcome ? (
-        <section className="pop-in mb-6 rounded-[24px] border border-line bg-surface p-6 shadow-[var(--shadow-md)]">
+        <section className="pop-in mb-6 rounded-[var(--r-lg)] border border-line bg-sky p-6">
           <h2 className="text-2xl">{first ? t("onb.welcomeTitle", { name: first }) : t("onb.welcomeTitleNoName")}</h2>
           <p className="mt-2 max-w-2xl text-ink-soft">{t("onb.welcomeBody")}</p>
           <Link href="/today" className="btn btn-primary mt-4">{t("onb.welcomeDismiss")}</Link>
@@ -106,7 +107,7 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
         <div className="flex min-w-0 flex-col gap-7">
           {actions.length === 0 ? (
             <div className="panel flex flex-col items-center px-6 py-14 text-center">
-              <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-primary-soft text-primary"><ClipboardList size={26} aria-hidden="true" /></span>
+              <span className="flex h-14 w-14 items-center justify-center rounded-[var(--r-lg)] bg-sky text-primary"><ClipboardList size={26} aria-hidden="true" /></span>
               <p className="mt-4 text-xl font-semibold">{t("today.empty")}</p>
               <p className="mt-1 max-w-sm text-ink-soft">{t("today.emptyBody")}</p>
               <Link href="/plan" className="btn btn-primary btn-lg mt-6">{t("today.emptyCta")}</Link>
@@ -114,9 +115,9 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
           ) : heroAction ? (
             <ActionCard variant="hero" action={card(heroAction)} />
           ) : done === actions.length ? (
-            <div className="flex items-center gap-4 rounded-[24px] bg-[linear-gradient(135deg,var(--hero-from),var(--hero-to))] p-6 text-white shadow-[var(--shadow-md)]">
-              <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-white/15"><PartyPopper size={24} aria-hidden="true" /></span>
-              <div><p className="text-xl font-semibold">{t("today.allDoneTitle")}</p><p className="text-white/85">{t("today.allDoneBody")}</p></div>
+            <div className="flex items-center gap-4 rounded-[var(--r-lg)] border border-line bg-surface p-6 shadow-[var(--shadow-sm)]">
+              <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-ok-bg text-[var(--sukhi-success)]"><PartyPopper size={24} aria-hidden="true" /></span>
+              <div><p className="text-xl font-bold">{t("today.allDoneTitle")}</p><p className="text-ink-soft">{t("today.allDoneBody")}</p></div>
             </div>
           ) : null}
 
@@ -182,7 +183,7 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
             <p className="flex items-center gap-2 font-bold"><MessageCircle size={18} className="text-primary" aria-hidden="true" />{t("shell.askTitle")}</p>
             <ul className="mt-3 flex flex-col gap-2">
               {suggestions.map((s) => (
-                <li key={s}><Link href={`/chat?q=${encodeURIComponent(s)}`} className="block rounded-xl border border-line px-3.5 py-2.5 text-[0.95rem] transition-colors hover:border-primary hover:bg-primary-soft">{s}</Link></li>
+                <li key={s}><Link href={`/chat?q=${encodeURIComponent(s)}`} className="flex min-h-12 items-center rounded-[var(--r-md)] border border-line px-3.5 py-2.5 text-[0.98rem] transition-colors hover:border-primary hover:bg-sky">{s}</Link></li>
               ))}
             </ul>
           </div>

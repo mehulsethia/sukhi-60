@@ -2,13 +2,13 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { CalendarCheck, MessageCircle, ClipboardList, Sprout, Settings } from "lucide-react";
+import { CalendarCheck, MessageCircle, ClipboardList, BarChart3, Settings } from "lucide-react";
 
 const ITEMS = [
   { href: "/today", key: "today", Icon: CalendarCheck },
   { href: "/chat", key: "chat", Icon: MessageCircle },
   { href: "/plan", key: "plan", Icon: ClipboardList },
-  { href: "/progress", key: "progress", Icon: Sprout },
+  { href: "/progress", key: "progress", Icon: BarChart3 },
   { href: "/settings", key: "settings", Icon: Settings },
 ] as const;
 
@@ -26,7 +26,7 @@ export function BottomNav({ variant = "tabs", badges = {} }: { variant?: "tabs" 
             const active = isActive(href);
             return (
               <li key={href}>
-                <Link href={href} aria-current={active ? "page" : undefined} className={`relative flex min-h-12 items-center gap-3 rounded-xl px-3.5 text-[0.98rem] font-semibold transition-colors ${active ? "bg-primary-soft text-primary" : "text-ink-soft hover:bg-surface-2 hover:text-ink"}`}>
+                <Link href={href} aria-current={active ? "page" : undefined} className={`relative flex min-h-12 items-center gap-3 rounded-xl px-3.5 text-[0.98rem] font-semibold transition-colors ${active ? "bg-sky text-primary" : "text-ink-soft hover:bg-sky/60 hover:text-ink"}`}>
                   {active ? <span aria-hidden="true" className="absolute -left-4 top-2 h-8 w-1 rounded-r-full bg-primary" /> : null}
                   <Icon aria-hidden="true" size={20} strokeWidth={active ? 2.3 : 1.8} />
                   {t(key)}
@@ -43,14 +43,14 @@ export function BottomNav({ variant = "tabs", badges = {} }: { variant?: "tabs" 
   return (
     <nav aria-label={t("main")} className="fixed inset-x-0 bottom-0 z-30 border-t border-line bg-surface/95 shadow-[0_-8px_24px_-16px_rgb(14_23_38/0.25)] backdrop-blur-md">
       <ul className="mx-auto flex max-w-2xl justify-between px-2 pb-[env(safe-area-inset-bottom)]">
-        {ITEMS.map(({ href, key, Icon }) => {
+        {ITEMS.filter((i) => i.key !== "settings").map(({ href, key, Icon }) => {
           const active = isActive(href);
           return (
             <li key={href} className="flex-1">
-              <Link href={href} aria-current={active ? "page" : undefined} className={`flex min-h-[62px] flex-col items-center justify-center gap-1 text-[0.72rem] font-semibold ${active ? "text-primary" : "text-ink-soft"}`}>
-                <span className={`relative flex h-8 w-14 items-center justify-center rounded-full transition-colors ${active ? "bg-primary-soft" : ""}`}>
+              <Link href={href} aria-current={active ? "page" : undefined} className={`flex min-h-[62px] flex-col items-center justify-center gap-1 text-[0.8rem] font-semibold ${active ? "text-primary" : "text-ink-soft"}`}>
+                <span className={`relative flex h-8 w-14 items-center justify-center rounded-full transition-colors ${active ? "bg-sky" : ""}`}>
                   <Icon aria-hidden="true" size={20} strokeWidth={active ? 2.2 : 1.8} />
-                  {badges[key] && !active ? <span className="absolute right-2 top-0 h-2.5 w-2.5 rounded-full bg-st-missed ring-2 ring-surface" aria-label={`${badges[key]} new`} /> : null}
+                  {badges[key] && !active ? <span className="absolute right-2 top-0 h-2.5 w-2.5 rounded-full bg-primary ring-2 ring-surface" aria-label={`${badges[key]} new`} /> : null}
                 </span>
                 <span>{t(key)}</span>
               </Link>

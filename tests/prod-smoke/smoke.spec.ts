@@ -105,7 +105,7 @@ test("full patient journey on production", async ({ page, request }) => {
   await expect(page.getByText("Waiting for your reply")).toBeVisible();
 
   // Evidence + assessment: never shown as verified; a blank photo can't support the action.
-  await page.getByRole("link", { name: "Add photo or note" }).click();
+  await page.getByRole("link", { name: "Share a photo or note" }).click();
   await page.getByLabel("Take or choose a photo").setInputFiles(path.resolve(__dirname, "../fixtures/tiny.png"));
   await page.getByLabel("Also mark this as done").check();
   await page.getByRole("button", { name: "Submit" }).click();

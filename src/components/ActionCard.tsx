@@ -51,15 +51,15 @@ export function ActionCard({ action, variant = "row" }: Props) {
       <input type="hidden" name="occurrence_id" value={action.id} />
       <input type="hidden" name="idempotency_key" value={key} />
       <div className="flex flex-wrap gap-2">
-        <button className={`pill-btn ${hero ? "border-white bg-white text-[var(--hero-from)] hover:!bg-white/90" : "pill-btn-primary"} px-5`} name="kind" value="done" disabled={pending}><Check size={17} aria-hidden="true" />{t("today.done")}</button>
-        <button className={`pill-btn ${hero ? "border-white/30 bg-white/10 text-white hover:!bg-white/20" : ""}`} name="kind" value="later" disabled={pending}><Clock size={16} aria-hidden="true" />{t("today.later")}</button>
-        <button type="button" className={`pill-btn ${hero ? "border-white/30 bg-white/10 text-white hover:!bg-white/20" : ""}`} aria-expanded={skipOpen} aria-controls={`skip-${action.id}`} onClick={() => setSkipOpen((v) => !v)}><SkipForward size={16} aria-hidden="true" />{t("today.skip")}</button>
-        <button className={`pill-btn ${hero ? "border-white/30 bg-white/10 text-white hover:!bg-white/20" : ""}`} name="kind" value="unable" disabled={pending}><Moon size={16} aria-hidden="true" />{t("today.unwell")}</button>
+        <button className={`pill-btn pill-btn-primary ${hero ? "min-h-[52px] px-7 text-[1.05rem]" : "px-5"}`} name="kind" value="done" disabled={pending}><Check size={hero ? 19 : 17} aria-hidden="true" />{t("today.done")}</button>
+        <button className={`pill-btn ${hero ? "min-h-[52px] px-5" : ""}`} name="kind" value="later" disabled={pending}><Clock size={16} aria-hidden="true" />{t("today.later")}</button>
+        <button type="button" className={`pill-btn ${hero ? "min-h-[52px] px-5" : ""}`} aria-expanded={skipOpen} aria-controls={`skip-${action.id}`} onClick={() => setSkipOpen((v) => !v)}><SkipForward size={16} aria-hidden="true" />{t("today.skip")}</button>
+        <button className={`pill-btn border-transparent bg-transparent text-ink-soft hover:!bg-sky ${hero ? "min-h-[52px]" : ""}`} name="kind" value="unable" disabled={pending}><Moon size={16} aria-hidden="true" />{t("today.unwell")}</button>
       </div>
       {skipOpen ? (
-        <div id={`skip-${action.id}`} className={`flex flex-col gap-2 rounded-xl p-3 sm:flex-row sm:items-end ${hero ? "bg-white/10" : "bg-surface-2"}`}>
+        <div id={`skip-${action.id}`} className="flex flex-col gap-2 rounded-xl bg-sky p-3 sm:flex-row sm:items-end">
           <div className="field flex-1">
-            <label className={hero ? "!text-white" : ""} htmlFor={`reason-${action.id}`}>{t("today.skipReason")}</label>
+            <label htmlFor={`reason-${action.id}`}>{t("today.skipReason")}</label>
             <input id={`reason-${action.id}`} name="reason" className="input" maxLength={300} />
           </div>
           <button className="pill-btn" name="kind" value="skipped" disabled={pending}>{t("today.confirmSkip")}</button>
@@ -70,15 +70,20 @@ export function ActionCard({ action, variant = "row" }: Props) {
 
   if (hero) {
     return (
-      <article className="relative overflow-hidden rounded-[24px] bg-[linear-gradient(135deg,var(--hero-from),var(--hero-to))] p-6 text-white shadow-[var(--shadow-md)] sm:p-7" aria-labelledby={`t-${action.id}`}>
-        <svg aria-hidden="true" className="pointer-events-none absolute -right-10 -top-10 h-56 w-56 opacity-[0.12]" viewBox="0 0 200 200"><circle cx="100" cy="100" r="90" fill="none" stroke="white" strokeWidth="18" /><circle cx="100" cy="100" r="50" fill="none" stroke="white" strokeWidth="10" /></svg>
-        <p className="flex items-center gap-2 text-sm font-semibold text-white/80"><Clock size={15} aria-hidden="true" />{t("today.upNext")}{action.time ? ` · ${action.time}` : ""}</p>
-        <h2 id={`t-${action.id}`} className="mt-2 text-[1.7rem] text-white sm:text-[2rem]">{action.title}</h2>
-        {action.instructions ? <p className="mt-1 max-w-xl text-white/85">{action.instructions}</p> : null}
-        <div className="mt-3"><span className="chip bg-white/15 text-white">{t(`status.${action.display}`)}</span></div>
-        {buttons}
-        <div className="[&_[role=status]]:bg-white [&_[role=status]]:text-ink">{feedback}</div>
-        <Link href={`/actions/${action.id}`} className="mt-4 inline-flex items-center gap-1.5 text-sm font-semibold text-white/90 underline-offset-4 hover:underline"><Camera size={15} aria-hidden="true" />{t("today.addEvidence")}</Link>
+      <article className="relative overflow-hidden rounded-[var(--r-lg)] border border-line bg-surface shadow-[var(--shadow-md)]" aria-labelledby={`t-${action.id}`}>
+        <div className="border-b border-line bg-sky px-6 py-3 sm:px-7">
+          <p className="flex items-center gap-2 text-[0.95rem] font-semibold text-primary"><Clock size={16} aria-hidden="true" />{t("today.upNext")}{action.time ? ` · ${action.time}` : ""}</p>
+        </div>
+        <div className="p-6 sm:p-7">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <h2 id={`t-${action.id}`} className="text-[1.6rem] sm:text-[1.9rem]">{action.title}</h2>
+            <StatusBadge status={action.display} label={t(`status.${action.display}`)} />
+          </div>
+          {action.instructions ? <p className="mt-1.5 max-w-xl text-lg text-ink-soft">{action.instructions}</p> : null}
+          {buttons}
+          {feedback}
+          <Link href={`/actions/${action.id}`} className="mt-5 inline-flex min-h-11 items-center gap-2 rounded-[var(--r-md)] border border-line px-4 text-[0.95rem] font-semibold text-primary hover:bg-sky"><Camera size={17} aria-hidden="true" />{t("today.addEvidence")}</Link>
+        </div>
       </article>
     );
   }

@@ -34,7 +34,7 @@ try {
     await page.getByRole("button", { name: "Log in", exact: true }).click();
     await page.waitForURL(/today/, { timeout: 30000 });
     // complete one action for a realistic state
-    if (name === "desktop") { const b = page.getByRole("button", { name: /Done/ }).first(); if (await b.count()) { await b.click(); await page.waitForTimeout(2500); await page.reload(); } }
+    if (name === "desktop") { const b = page.getByRole("button", { name: /I did it/ }).first(); if (await b.count()) { await b.click(); await page.waitForTimeout(2500); await page.reload(); } }
     await page.screenshot({ path: `${out}/${name}-today.png`, fullPage: true });
     for (const p of ["progress", "plan", "chat"]) { await page.goto(`${base}/${p}`, { waitUntil: "networkidle" }); await page.screenshot({ path: `${out}/${name}-${p}.png`, fullPage: name === "desktop" }); }
     await ctx.close();
