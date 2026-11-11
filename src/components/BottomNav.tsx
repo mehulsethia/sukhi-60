@@ -13,7 +13,7 @@ const ITEMS = [
 ] as const;
 
 /** Bottom tab bar on mobile; vertical list in the desktop sidebar. */
-export function BottomNav({ variant = "tabs" }: { variant?: "tabs" | "sidebar" }) {
+export function BottomNav({ variant = "tabs", badges = {} }: { variant?: "tabs" | "sidebar"; badges?: Partial<Record<string, number>> }) {
   const t = useTranslations("nav");
   const path = usePathname();
   const isActive = (href: string) => path === href || path.startsWith(`${href}/`) || (href === "/today" && path.startsWith("/actions"));
@@ -30,6 +30,7 @@ export function BottomNav({ variant = "tabs" }: { variant?: "tabs" | "sidebar" }
                   {active ? <span aria-hidden="true" className="absolute -left-4 top-2 h-8 w-1 rounded-r-full bg-primary" /> : null}
                   <Icon aria-hidden="true" size={20} strokeWidth={active ? 2.3 : 1.8} />
                   {t(key)}
+                  {badges[key] && !active ? <span className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-[0.7rem] font-bold text-primary-ink" aria-label={`${badges[key]} new`}>{badges[key]! > 9 ? "9+" : badges[key]}</span> : null}
                 </Link>
               </li>
             );
@@ -47,8 +48,9 @@ export function BottomNav({ variant = "tabs" }: { variant?: "tabs" | "sidebar" }
           return (
             <li key={href} className="flex-1">
               <Link href={href} aria-current={active ? "page" : undefined} className={`flex min-h-[62px] flex-col items-center justify-center gap-1 text-[0.72rem] font-semibold ${active ? "text-primary" : "text-ink-soft"}`}>
-                <span className={`flex h-8 w-14 items-center justify-center rounded-full transition-colors ${active ? "bg-primary-soft" : ""}`}>
+                <span className={`relative flex h-8 w-14 items-center justify-center rounded-full transition-colors ${active ? "bg-primary-soft" : ""}`}>
                   <Icon aria-hidden="true" size={20} strokeWidth={active ? 2.2 : 1.8} />
+                  {badges[key] && !active ? <span className="absolute right-2 top-0 h-2.5 w-2.5 rounded-full bg-st-missed ring-2 ring-surface" aria-label={`${badges[key]} new`} /> : null}
                 </span>
                 <span>{t(key)}</span>
               </Link>

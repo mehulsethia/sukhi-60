@@ -32,6 +32,15 @@ describe("constrainEvaluation", () => {
     expect(r.outcome).toBe("unclear");
     expect(r.needs_review).toBe(true);
   });
+  it("a video that shows the pill being swallowed can fully support", () => {
+    const r = constrainEvaluation("medication", "video", a({ observed: ["person places tablet in mouth", "drinks water"], action_observed: true }));
+    expect(r.outcome).toBe("supports");
+    expect(r.cannot_confirm).not.toContain("Whether the medicine was actually swallowed");
+  });
+  it("a video that only shows the items stays partial", () => {
+    const r = constrainEvaluation("medication", "video", a({ observed: ["blister pack on table"], action_observed: false }));
+    expect(r.outcome).toBe("partially_supports");
+  });
   it("fallback never invents support", () => expect(fallbackEvaluation("medication", "unconfigured").outcome).toBe("unclear"));
 });
 

@@ -9,6 +9,7 @@ import { NotificationBell, type BellItem } from "@/components/NotificationBell";
 import { TopTitle } from "@/components/TopTitle";
 import { getNotifications } from "@/server/notifications";
 import { nowMs } from "@/lib/format";
+import { cookies } from "next/headers";
 
 export const dynamic = "force-dynamic";
 
@@ -27,10 +28,13 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const { data: profile } = await supabase.from("profiles").select("onboarded_at, display_name, timezone").eq("id", user.id).single();
   if (!profile?.onboarded_at) redirect("/onboarding");
   // One row per user per day for engagement metrics; never blocks rendering.
-  const [t, locale, notifs] = await Promise.all([
+  const chatSeen = (await cookies()).get("sukhi_chat_seen")?.value ?? profile.onboarded_at;
+  const [t, locale, notifs, unreadChat] = await Promise.all([
     getTranslations(),
     getLocale(),
     getNotifications(supabase, user.id, profile.timezone ?? "Asia/Kolkata").catch(() => []),
+    // Messages Sukhi started (reminders, check-ins) since the chat was last opened.
+    supabase.from("messages").select("id", { count: "exact", head: true }).gt("created_at", chatSeen).or("role.eq.notice,channel.eq.system").then((r) => r.count ?? 0, () => 0),
     supabase.rpc("touch_activity").then(() => undefined, () => undefined),
   ]);
   const now = nowMs();
@@ -44,7 +48,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       {/* Desktop sidebar */}
       <aside className="sticky top-0 hidden h-dvh flex-col border-r border-line bg-surface px-4 py-6 lg:flex">
         <div className="px-2"><Logo href="/today" /></div>
-        <div className="mt-9 flex-1"><BottomNav variant="sidebar" /></div>
+        <div className="mt-9 flex-1"><BottomNav variant="sidebar" badges={{ chat: unreadChat }} /></div>
         <Link href="/chat" className="mb-4 block rounded-2xl bg-[linear-gradient(135deg,var(--hero-from),var(--hero-to))] p-4 text-white">
           <span className="flex h-9 w-9 items-center justify-center rounded-full bg-white/15"><MessageCircle size={18} aria-hidden="true" /></span>
           <span className="mt-3 block font-semibold">{t("shell.askTitle")}</span>
@@ -75,7 +79,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         </header>
         <main id="main" className="mx-auto w-full max-w-6xl flex-1 px-4 pb-32 pt-6 sm:px-6 lg:px-10 lg:pb-14 lg:pt-8">{children}</main>
       </div>
-      <div className="lg:hidden"><BottomNav /></div>
+      <div className="lg:hidden"><BottomNav badges={{ chat: unreadChat }} /></div>
     </div>
   );
 }

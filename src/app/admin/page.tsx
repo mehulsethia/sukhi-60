@@ -3,6 +3,9 @@ import Link from "next/link";
 import { currentAdmin, getAdminMetrics, type AdminMetrics } from "@/server/admin";
 import { adminLogout, setInternal } from "./actions";
 import { AdminLogin } from "./AdminLogin";
+import { Logo } from "@/components/Logo";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { BarChart3, BookOpen, Bot, Clock, Download, Filter, LayoutDashboard, LogOut, Quote, RefreshCw, Scale, Users } from "lucide-react";
 import { Card, DayBars, HBars, HeatCell, HourBars, Stat } from "./charts";
 
 export const metadata: Metadata = { title: "Admin", robots: { index: false, follow: false } };
@@ -17,7 +20,7 @@ const LABELS: Record<string, string> = {
   done: "Done", later: "Later", skipped: "Skipped", unable: "Unable", missed: "Missed", note: "Note",
   diabetes: "Diabetes", bp: "Blood pressure", heart: "Heart", thyroid: "Thyroid", skin_hair: "Skin / hair", post_surgery: "After surgery",
   respiratory: "Breathing", joints: "Joints", kidney: "Kidney", mental: "Mental health", pregnancy: "Pregnancy", other: "Other",
-  photo: "Photo", audio: "Voice note", text: "Text note", document: "Document",
+  photo: "Photo", video: "Video", audio: "Voice note", text: "Text note", document: "Document",
   model: "AI answer", fallback: "Fallback", quick_action: "Quick action", blocked: "Blocked", confirmation: "Confirmation", escalation: "Escalation",
   supports: "Supports", partially_supports: "Partly supports", does_not_support: "Doesn't support", unclear: "Unclear", not_applicable: "N/A",
 };
@@ -50,35 +53,68 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
   const sp = await searchParams;
   const days = [7, 14, 30].includes(Number(sp.days)) ? Number(sp.days) : 14;
   const internal = sp.internal === "1";
-  const m = await getAdminMetrics(days, internal);
+  const [m, checkinsSent] = await Promise.all([
+    getAdminMetrics(days, internal),
+    createAdminClient().from("audit_events").select("id", { count: "exact", head: true }).eq("action", "assistant_checkin").then((r) => r.count ?? 0),
+  ]);
   const o = m.overview;
   const q = (p: Record<string, string | number>) => `?${new URLSearchParams({ days: String(days), internal: internal ? "1" : "0", ...Object.fromEntries(Object.entries(p).map(([k, v]) => [k, String(v)])) })}`;
   const funnelTop = m.funnel[0]?.n ?? 0;
   const today = m.range.to;
   const segRows = (rows: AdminMetrics["segments"]["setup_for"]) => rows.filter((r) => r.due > 0 || (r.users ?? 0) > 0).map((r) => ({ label: L(r.key), v: r.rate, note: `${r.users !== undefined ? `${r.users} users · ` : ""}${r.done}/${r.due}` }));
 
+  const sections = [
+    ["overview", "Overview", LayoutDashboard], ["pitch", "Pitch lines", Quote], ["activity", "Daily activity", BarChart3], ["funnel", "Funnel & retention", Filter],
+    ["compare", "Comparisons", Scale], ["engagement", "Engagement", Clock], ["ai", "AI, reminders & safety", Bot], ["users", "Users & live feed", Users], ["defs", "Definitions", BookOpen],
+  ] as const;
+  const navLink = "flex min-h-10 items-center gap-2.5 rounded-xl px-3 text-[0.93rem] font-semibold text-ink-soft hover:bg-surface-2 hover:text-ink";
+  const chip = (on: boolean) => `rounded-lg border px-2.5 py-1 text-sm font-semibold ${on ? "border-primary bg-primary-soft text-primary" : "border-line text-ink-soft hover:text-ink"}`;
   return (
-    <div className="min-h-dvh bg-bg">
-      <header className="sticky top-0 z-10 border-b border-line bg-surface/95 backdrop-blur">
-        <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3 px-4 py-3">
-          <div>
-            <h1 className="text-xl font-bold">Sukhi pilot dashboard</h1>
-            <p className="text-xs text-ink-soft">Updated {new Date(m.generated_at).toLocaleString("en-IN", { timeZone: "Asia/Kolkata" })} IST · {m.range.from} → {m.range.to} · signed in as {email}</p>
+    <div className="min-h-dvh bg-bg lg:grid lg:grid-cols-[256px_minmax(0,1fr)]">
+      <aside className="sticky top-0 hidden h-dvh flex-col border-r border-line bg-surface px-4 py-6 lg:flex">
+        <div className="px-2"><Logo href="/admin" /></div>
+        <p className="mt-2 px-2 text-xs font-semibold text-ink-soft">Pilot dashboard</p>
+        <nav aria-label="Dashboard sections" className="mt-6 flex-1 overflow-y-auto">
+          <ul className="flex flex-col gap-0.5">
+            {sections.map(([id, label, Icon]) => <li key={id}><a href={`#${id}`} className={navLink}><Icon size={17} aria-hidden="true" />{label}</a></li>)}
+          </ul>
+          <p className="mb-2 mt-6 px-3 text-xs font-semibold text-ink-faint">Range</p>
+          <div className="flex flex-wrap gap-1.5 px-3">
+            {[7, 14, 30].map((d) => <Link key={d} href={`?days=${d}&internal=${internal ? 1 : 0}`} className={chip(d === days)}>{d}d</Link>)}
           </div>
-          <nav className="flex flex-wrap items-center gap-2 text-sm">
-            {[7, 14, 30].map((d) => <Link key={d} href={`?days=${d}&internal=${internal ? 1 : 0}`} className={`rounded-lg border px-3 py-1.5 font-semibold ${d === days ? "border-primary bg-primary-soft text-primary" : "border-line"}`}>{d} days</Link>)}
-            <Link href={`?days=${days}&internal=${internal ? 0 : 1}`} className="rounded-lg border border-line px-3 py-1.5">{internal ? "Including team accounts" : "Excluding team accounts"}</Link>
-            <Link href={q({})} className="rounded-lg border border-line px-3 py-1.5">Refresh</Link>
-            <a href={`/admin/export${q({ type: "daily", days: 30 })}`} className="rounded-lg border border-line px-3 py-1.5">Daily CSV</a>
-            <a href={`/admin/export${q({ type: "users" })}`} className="rounded-lg border border-line px-3 py-1.5">Users CSV</a>
-            <form action={adminLogout}><button className="rounded-lg border border-line px-3 py-1.5">Sign out</button></form>
-          </nav>
+          <div className="mt-3 px-3"><Link href={`?days=${days}&internal=${internal ? 0 : 1}`} className={chip(internal)}>{internal ? "Team included" : "Team excluded"}</Link></div>
+          <p className="mb-1 mt-6 px-3 text-xs font-semibold text-ink-faint">Export</p>
+          <a href={`/admin/export${q({ type: "daily", days: 30 })}`} className={navLink}><Download size={17} aria-hidden="true" />Daily CSV</a>
+          <a href={`/admin/export${q({ type: "users" })}`} className={navLink}><Download size={17} aria-hidden="true" />Users CSV</a>
+        </nav>
+        <div className="mt-4 rounded-2xl border border-line p-3">
+          <p className="truncate text-sm font-semibold">{email}</p>
+          <p className="text-xs text-ink-soft">Operator</p>
+          <form action={adminLogout} className="mt-2"><button className="btn btn-secondary w-full"><LogOut size={16} aria-hidden="true" />Log out</button></form>
         </div>
+      </aside>
+
+      <div className="min-w-0">
+      <header className="sticky top-0 z-10 border-b border-line bg-surface/95 backdrop-blur">
+        <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-6 lg:px-8">
+          <div className="min-w-0">
+            <h1 className="text-xl font-bold">Sukhi pilot dashboard</h1>
+            <p className="text-xs text-ink-soft">Updated {new Date(m.generated_at).toLocaleString("en-IN", { timeZone: "Asia/Kolkata" })} IST · {m.range.from} → {m.range.to}</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <Link href={q({})} className="btn btn-secondary min-h-10"><RefreshCw size={16} aria-hidden="true" />Refresh</Link>
+            <form action={adminLogout} className="lg:hidden"><button className="btn btn-secondary min-h-10" aria-label="Log out"><LogOut size={16} aria-hidden="true" /></button></form>
+          </div>
+        </div>
+        <nav aria-label="Dashboard sections" className="no-scrollbar flex gap-2 overflow-x-auto px-4 pb-3 lg:hidden">
+          {[7, 14, 30].map((d) => <Link key={d} href={`?days=${d}&internal=${internal ? 1 : 0}`} className={`shrink-0 ${chip(d === days)}`}>{d}d</Link>)}
+          {sections.map(([id, label]) => <a key={id} href={`#${id}`} className="shrink-0 whitespace-nowrap rounded-lg border border-line px-2.5 py-1 text-sm font-semibold text-ink-soft">{label}</a>)}
+        </nav>
       </header>
 
-      <main className="mx-auto flex max-w-7xl flex-col gap-5 px-4 py-6">
+      <main className="mx-auto flex max-w-7xl flex-col gap-5 px-4 py-6 sm:px-6 lg:px-8 [&_[id]]:scroll-mt-28">
         {/* Headline numbers */}
-        <div className="grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-8">
+        <div id="overview" className="grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-8">
           <Stat label="Users" value={o.users} sub={`${o.onboarded} onboarded · ${o.activated} with a plan`} />
           <Stat label="Active today" value={o.dau_today} sub={`avg ${o.avg_dau_7d ?? 0}/day over 7 days`} />
           <Stat label="Active this week" value={o.wau} sub={`stickiness ${o.wau ? Math.round((100 * (o.avg_dau_7d ?? 0)) / o.wau) : 0}% (avg daily ÷ weekly)`} />
@@ -90,13 +126,14 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
         </div>
 
         {/* Pitch lines */}
+        <div id="pitch" />
         <Card title="Lines for the pitch" sub="Generated from the live numbers above. Copy them into the deck once the numbers settle.">
           {pitchLines(m).length ? (
             <ul className="flex list-disc flex-col gap-1.5 pl-5 text-[0.95rem]">{pitchLines(m).map((l) => <li key={l}>{l}</li>)}</ul>
           ) : <p className="text-sm text-ink-faint">Lines appear once users start checking in.</p>}
         </Card>
 
-        <div className="grid gap-5 lg:grid-cols-2">
+        <div id="activity" className="grid gap-5 lg:grid-cols-2">
           <Card title="Daily active users" sub="Opened the app, checked in, sent a message or evidence (web or WhatsApp)">
             <DayBars data={m.daily.map((d) => ({ day: d.day, v: d.dau }))} />
           </Card>
@@ -111,7 +148,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
           </Card>
         </div>
 
-        <div className="grid gap-5 lg:grid-cols-3">
+        <div id="funnel" className="grid gap-5 lg:grid-cols-3">
           <Card title="Activation funnel" sub="Share of everyone who signed up">
             <HBars rows={m.funnel.map((f) => ({ label: f.step, v: f.n, note: `${share(f.n, funnelTop)}%` }))} max={Math.max(1, funnelTop)} />
           </Card>
@@ -135,7 +172,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
           </Card>
         </div>
 
-        <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
+        <div id="compare" className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
           <Card title="Adherence: doctor's plan vs wellness" sub="By plan type, %">
             <HBars rows={m.segments.plan_mode.map((r) => ({ label: L(r.key), v: r.rate, note: `${r.done}/${r.due}` }))} max={100} suffix="%" />
           </Card>
@@ -150,7 +187,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
           </Card>
         </div>
 
-        <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
+        <div id="engagement" className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
           <Card title="When people check in" sub="Hour of day, IST" className="xl:col-span-2">
             <HourBars data={m.segments.checkin_hour} />
           </Card>
@@ -162,7 +199,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
           </Card>
         </div>
 
-        <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
+        <div id="ai" className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
           <Card title="Prescription reading (AI)">
             <dl className="grid grid-cols-2 gap-x-3 gap-y-2 text-sm">
               <dt className="text-ink-soft">Documents uploaded</dt><dd className="text-right font-semibold tabular-nums">{m.ai.documents}</dd>
@@ -176,6 +213,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
           </Card>
           <Card title="Assistant">
             <dl className="grid grid-cols-2 gap-x-3 gap-y-2 text-sm">
+              <dt className="text-ink-soft">Proactive check-ins sent</dt><dd className="text-right font-semibold tabular-nums">{checkinsSent}</dd>
               <dt className="text-ink-soft">Conversations</dt><dd className="text-right font-semibold tabular-nums">{m.ai.assistant_runs}</dd>
               <dt className="text-ink-soft">Users who chatted</dt><dd className="text-right font-semibold tabular-nums">{m.ai.assistant_users} <span className="text-ink-faint">({share(m.ai.assistant_users, o.users)}%)</span></dd>
               <dt className="text-ink-soft">Response time p50</dt><dd className="text-right font-semibold tabular-nums">{m.ai.assistant_p50_ms !== null ? `${(m.ai.assistant_p50_ms / 1000).toFixed(1)} s` : "—"}</dd>
@@ -208,7 +246,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
           </Card>
         ) : null}
 
-        <div className="grid gap-5 xl:grid-cols-3">
+        <div id="users" className="grid gap-5 xl:grid-cols-3">
           <Card title={`Users (${m.users.length})`} sub="Sorted by last active. Amber = no activity for 2+ days: worth a nudge. Mark team/test accounts as internal to exclude them." className="xl:col-span-2">
             <div className="max-h-[560px] overflow-auto">
               <table className="w-full min-w-[820px] text-left text-sm">
@@ -257,7 +295,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
           </Card>
         </div>
 
-        <details className="rounded-xl border border-line bg-surface p-4 text-sm text-ink-soft">
+        <details id="defs" className="rounded-xl border border-line bg-surface p-4 text-sm text-ink-soft">
           <summary className="cursor-pointer font-semibold text-ink">How these numbers are defined</summary>
           <ul className="mt-2 flex list-disc flex-col gap-1 pl-5">
             <li><b>Active</b>: opened the app, checked in (web or WhatsApp), messaged the assistant or shared evidence that day.</li>
@@ -269,6 +307,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
           </ul>
         </details>
       </main>
+      </div>
     </div>
   );
 }

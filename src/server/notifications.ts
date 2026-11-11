@@ -5,7 +5,7 @@ import { addDays, localDateOf } from "@/domain/schedule";
 
 export const NOTIF_COOKIE = "sukhi_notif_seen";
 
-export type NotifKind = "due" | "reminder" | "drafts" | "assessment" | "milestone" | "proposal" | "missed" | "whatsapp" | "family";
+export type NotifKind = "checkin" | "due" | "reminder" | "drafts" | "assessment" | "milestone" | "proposal" | "missed" | "whatsapp" | "family";
 export interface Notif {
   id: string;
   kind: NotifKind;
@@ -29,7 +29,8 @@ export async function getNotifications(db: AdminClient, userId: string, tz: stri
   const since7d = new Date(now.getTime() - 7 * 86_400_000).toISOString();
   const seen = (await cookies()).get(NOTIF_COOKIE)?.value ?? "1970-01-01T00:00:00Z";
 
-  const [due, missedY, drafts, evals, rewards, proposals, family, binding, consent] = await Promise.all([
+  const [checkins, due, missedY, drafts, evals, rewards, proposals, family, binding, consent] = await Promise.all([
+    db.from("messages").select("id, content, created_at").eq("user_id", userId).eq("role", "assistant").eq("channel", "system").gte("created_at", since3d).order("created_at", { ascending: false }).limit(2),
     // Due now: inside its window and still unanswered (DB status may lag the scheduler).
     db.from("action_occurrences").select("id, due_at, status, plan_items!inner(title)").eq("user_id", userId).eq("local_date", today).in("status", ["pending", "due", "awaiting_response", "later"]).lte("due_at", now.toISOString()).gt("window_end_at", now.toISOString()).order("due_at"),
     db.from("action_occurrences").select("id", { count: "exact", head: true }).eq("user_id", userId).eq("local_date", yesterday).eq("status", "no_response"),
@@ -43,6 +44,10 @@ export async function getNotifications(db: AdminClient, userId: string, tz: stri
   ]);
 
   const out: Omit<Notif, "unread">[] = [];
+  for (const c of checkins.data ?? []) {
+    const preview = c.content.length > 90 ? `${c.content.slice(0, 88)}…` : c.content;
+    out.push({ id: `ci-${c.id}`, kind: "checkin", key: "checkin", values: { preview }, href: "/chat", at: c.created_at });
+  }
   for (const o of due.data ?? []) {
     out.push({ id: `due-${o.id}`, kind: "due", key: "due", values: { title: (o.plan_items as unknown as { title: string }).title }, href: "/today", at: o.due_at });
   }

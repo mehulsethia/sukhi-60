@@ -2,9 +2,11 @@
 import { Fragment, useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { ArrowUp, Check, Copy, Leaf, Volume2 } from "lucide-react";
+import { ArrowUp, Bell, Camera, Check, Clock, Copy, Leaf, Moon, Plus, SkipForward, Sparkles, Volume2, X } from "lucide-react";
 import { Alert } from "@/components/ui";
 import { VoiceRecorder } from "@/components/VoiceRecorder";
+import { EvidenceCapture } from "@/components/EvidenceCapture";
+import { chatQuickAction, markChatSeen } from "@/app/actions";
 
 export interface ChatMessage {
   id: string;
@@ -15,6 +17,11 @@ export interface ChatMessage {
   safety?: string | null;
   pending?: boolean;
 }
+
+export interface TodayRef { id: string; title: string; time: string | null; display: string }
+const OPEN = ["pending", "due", "awaiting_response", "later", "no_response"];
+// Internal references that drive cards/buttons; not shown as "based on" chips.
+const HIDDEN_REFS = ["checkin", "occurrence", "evidence"];
 
 /** Minimal, safe formatting for assistant text: paragraphs, bullet/numbered lists, **bold**. */
 function inline(text: string): ReactNode[] {
@@ -37,9 +44,40 @@ function Rich({ text }: { text: string }) {
   );
 }
 
-export function ChatClient({ initial, voice, audioReplies, suggestions, name, autoSend }: { initial: ChatMessage[]; voice: { configured: boolean; consent: boolean }; audioReplies: boolean; suggestions: string[]; name: string | null; autoSend?: string }) {
+/** Done / Later / Skip / Not well / Proof under a reminder or check-in, like WhatsApp quick replies. */
+function QuickActions({ occ, onMessages, onProof }: { occ: TodayRef; onMessages: (m: ChatMessage[], status: string) => void; onProof: (id: string) => void }) {
+  const t = useTranslations();
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const keyRef = useRef(crypto.randomUUID());
+  async function go(kind: "done" | "later" | "skipped" | "unable") {
+    setBusy(true);
+    setErr(null);
+    const r = await chatQuickAction(occ.id, kind, keyRef.current);
+    setBusy(false);
+    if (!r.ok) return setErr(r.error === "not_yet_due" ? t("chatUi.notYetDue") : t("common.error"));
+    keyRef.current = crypto.randomUUID();
+    onMessages((r.messages ?? []).map((m) => ({ ...m, channel: "web", sources: [] })), kind === "done" ? "self_reported" : kind === "later" ? "later" : kind);
+  }
+  const btn = "pill-btn min-h-9 px-3 text-sm";
+  return (
+    <div className="mt-2.5">
+      <div className="flex flex-wrap gap-1.5">
+        <button type="button" disabled={busy} onClick={() => go("done")} className={`${btn} pill-btn-primary`}><Check size={15} aria-hidden="true" />{t("today.done")}</button>
+        <button type="button" disabled={busy} onClick={() => go("later")} className={btn}><Clock size={14} aria-hidden="true" />{t("today.later")}</button>
+        <button type="button" disabled={busy} onClick={() => go("skipped")} className={btn}><SkipForward size={14} aria-hidden="true" />{t("today.skip")}</button>
+        <button type="button" disabled={busy} onClick={() => go("unable")} className={btn}><Moon size={14} aria-hidden="true" />{t("chatUi.unwellShort")}</button>
+        <button type="button" onClick={() => onProof(occ.id)} className={btn}><Camera size={14} aria-hidden="true" />{t("chatUi.proof")}</button>
+      </div>
+      {err ? <p className="mt-1.5 text-sm text-danger-ink">{err}</p> : null}
+    </div>
+  );
+}
+
+export function ChatClient({ initial, voice, audioReplies, suggestions, name, autoSend, today }: { initial: ChatMessage[]; voice: { configured: boolean; consent: boolean }; audioReplies: boolean; suggestions: string[]; name: string | null; autoSend?: string; today: TodayRef[] }) {
   const t = useTranslations("chat");
   const tc = useTranslations("common");
+  const tr = useTranslations();
   const router = useRouter();
   const [messages, setMessages] = useState(initial);
   const [text, setText] = useState("");
@@ -51,6 +89,22 @@ export function ChatClient({ initial, voice, audioReplies, suggestions, name, au
   const scroller = useRef<HTMLDivElement>(null);
   const input = useRef<HTMLTextAreaElement>(null);
   const sentAuto = useRef(false);
+  const [statusById, setStatusById] = useState<Record<string, string>>(() => Object.fromEntries(today.map((o) => [o.id, o.display])));
+  const [attachFor, setAttachFor] = useState<string | null>(null);
+  const openToday = today.filter((o) => OPEN.includes(statusById[o.id] ?? o.display));
+
+  // Opening the chat clears its unread badge; new proactive messages arrive by refresh.
+  useEffect(() => { void markChatSeen(); }, []);
+  useEffect(() => {
+    const h = setInterval(() => {
+      if (document.visibilityState === "visible" && !input.current?.value && !document.querySelector("[data-attach-open]")) router.refresh();
+    }, 45_000);
+    return () => clearInterval(h);
+  }, [router]);
+  const addMessages = useCallback((m: ChatMessage[], occId?: string, status?: string) => {
+    setMessages((cur) => [...cur, ...m]);
+    if (occId && status) setStatusById((s) => ({ ...s, [occId]: status }));
+  }, []);
 
   const toBottom = useCallback((smooth = true) => {
     const el = scroller.current;
@@ -166,10 +220,19 @@ export function ChatClient({ initial, voice, audioReplies, suggestions, name, au
                   </li>
                 );
               }
+              const occRef = m.sources.find((x) => x.type === "occurrence");
+              const occ = occRef ? today.find((o) => o.id === occRef.id) : undefined;
+              const actionable = !!occ && OPEN.includes(statusById[occ.id] ?? occ.display);
+              const checkin = m.role === "assistant" && m.channel === "system";
               if (m.role === "notice") {
                 return (
-                  <li key={m.id} className="mx-auto max-w-[90%] rounded-full border border-line bg-surface px-4 py-1.5 text-center text-sm text-ink-soft">
-                    <span className="font-semibold text-ink">{t("notice")}: </span>{m.content}
+                  <li key={m.id} className="flex gap-3">
+                    <span aria-hidden="true" className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-haldi-soft text-haldi-ink"><Bell size={15} /></span>
+                    <div className="min-w-0 flex-1 rounded-2xl border border-[color-mix(in_srgb,var(--haldi)_40%,var(--line))] bg-surface px-4 py-3">
+                      <p className="text-xs font-bold text-haldi-ink">{t("notice")}</p>
+                      <p className="mt-0.5 text-[1.02rem]">{m.content}</p>
+                      {occ && actionable ? <QuickActions occ={occ} onProof={setAttachFor} onMessages={(ms, st) => addMessages(ms, occ.id, st)} /> : occ ? <p className="mt-1 text-sm font-semibold text-st-done">{tr(`status.${statusById[occ.id] ?? occ.display}`)}</p> : null}
+                    </div>
                   </li>
                 );
               }
@@ -178,9 +241,16 @@ export function ChatClient({ initial, voice, audioReplies, suggestions, name, au
                   <span aria-hidden="true" className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary-soft text-primary"><Leaf size={16} /></span>
                   <div className={`min-w-0 flex-1 text-[1.02rem] leading-relaxed ${m.safety === "escalation" ? "rounded-2xl border-2 border-danger-ink bg-danger-bg p-4 text-danger-ink" : ""}`}>
                     {m.safety === "escalation" ? <strong className="mb-1 block">{t("escalation")}</strong> : null}
+                    {checkin ? <p className="mb-1 flex items-center gap-1.5 text-xs font-bold text-primary"><Sparkles size={13} aria-hidden="true" />{t("checkinLabel")}</p> : null}
                     <Rich text={shown} />
+                    {checkin && !isRevealing ? m.sources.filter((x) => x.type === "occurrence").map((x) => today.find((o) => o.id === x.id)).filter((o): o is TodayRef => !!o && OPEN.includes(statusById[o.id] ?? o.display)).slice(0, 2).map((o) => (
+                      <div key={o.id} className="mt-2 rounded-2xl border border-line bg-surface p-3">
+                        <p className="text-sm font-semibold">{o.title}{o.time ? <span className="font-normal text-ink-soft"> · {o.time}</span> : null}</p>
+                        <QuickActions occ={o} onProof={setAttachFor} onMessages={(ms, st) => addMessages(ms, o.id, st)} />
+                      </div>
+                    )) : null}
                     {m.channel === "whatsapp" ? <p className="mt-1 text-xs text-ink-faint">{t("fromWhatsapp")}</p> : null}
-                    {m.sources.length && !isRevealing ? <p className="mt-2 flex flex-wrap gap-1.5">{m.sources.map((s) => <span key={`${s.type}-${s.id}`} className="chip">{s.label}</span>)}</p> : null}
+                    {!isRevealing && m.sources.some((x) => !HIDDEN_REFS.includes(x.type)) ? <p className="mt-2 flex flex-wrap gap-1.5">{m.sources.filter((x) => !HIDDEN_REFS.includes(x.type)).map((s) => <span key={`${s.type}-${s.id}`} className="chip">{s.label}</span>)}</p> : null}
                     {!isRevealing ? (
                       <div className="mt-1.5 flex gap-1 text-ink-faint opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100 sm:focus-within:opacity-100">
                         <button type="button" onClick={() => copy(m)} className="flex h-8 w-8 items-center justify-center rounded-lg hover:bg-surface-2 hover:text-ink" aria-label={t("copy")}>{copied === m.id ? <Check size={15} /> : <Copy size={15} />}</button>
@@ -205,16 +275,29 @@ export function ChatClient({ initial, voice, audioReplies, suggestions, name, au
         <div className="mx-auto w-full max-w-3xl px-4 pb-3 pt-3 sm:px-6 lg:pb-6">
           {error ? <div className="mb-2"><Alert tone="danger">{error}</Alert></div> : null}
           {transcriptNote ? <div className="mb-2"><Alert tone="warn">{transcriptNote}</Alert></div> : null}
-          {suggestions.length && !busy ? (
+          {attachFor ? (
+            <div data-attach-open className="pop-in mb-3 rounded-2xl border border-line bg-surface p-3 shadow-[var(--shadow-md)]">
+              <div className="mb-3 flex items-center gap-2">
+                <label htmlFor="attach-for" className="shrink-0 text-sm font-semibold">{t("proofFor")}</label>
+                <select id="attach-for" className="input min-h-10 py-1.5" value={attachFor} onChange={(e) => setAttachFor(e.target.value)}>
+                  {today.map((o) => <option key={o.id} value={o.id}>{o.title}{o.time ? ` · ${o.time}` : ""}</option>)}
+                </select>
+                <button type="button" onClick={() => setAttachFor(null)} aria-label={tc("close")} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full hover:bg-surface-2"><X size={18} aria-hidden="true" /></button>
+              </div>
+              <EvidenceCapture key={attachFor} compact via="chat" occurrenceId={attachFor} canMarkDone={OPEN.includes(statusById[attachFor] ?? "")} onDone={(r) => { if (r.ok) { setStatusById((s) => ({ ...s, [attachFor]: "self_reported" })); setAttachFor(null); router.refresh(); } }} />
+            </div>
+          ) : null}
+          {suggestions.length && !busy && !attachFor ? (
             <div className={`no-scrollbar mb-3 ${empty ? "grid gap-2 sm:grid-cols-2" : "flex gap-2 overflow-x-auto"}`}>
               {suggestions.map((s) => (
                 <button key={s} type="button" onClick={() => send(s)} className={`rounded-2xl border border-line bg-surface text-left transition-colors hover:border-primary hover:bg-primary-soft ${empty ? "px-4 py-3 text-[0.96rem]" : "shrink-0 whitespace-nowrap px-3.5 py-2 text-sm"}`}>{s}</button>
               ))}
             </div>
           ) : null}
-          <form onSubmit={(e) => { e.preventDefault(); send(); }} className="flex items-end gap-2 rounded-[26px] border border-line-strong bg-surface p-2 pl-4 shadow-[var(--shadow-md)] focus-within:border-primary">
+          <form onSubmit={(e) => { e.preventDefault(); send(); }} className="flex items-end gap-1.5 rounded-[26px] border border-line-strong bg-surface p-2 shadow-[var(--shadow-md)] focus-within:border-primary">
+            <button type="button" disabled={today.length === 0} title={today.length === 0 ? t("noActionsForProof") : undefined} onClick={() => setAttachFor((a) => (a ? null : (openToday[0] ?? today[0])?.id ?? null))} aria-label={t("attachProof")} aria-expanded={!!attachFor} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-ink-soft transition-colors hover:bg-surface-2 hover:text-ink disabled:opacity-30"><Plus size={22} aria-hidden="true" /></button>
             <label htmlFor="chat-input" className="sr-only">{t("placeholder")}</label>
-            <textarea ref={input} id="chat-input" rows={1} maxLength={2000} placeholder={t("placeholder")} value={text} onChange={(e) => setText(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); send(); } }} className="max-h-[200px] min-h-[44px] flex-1 resize-none bg-transparent py-2.5 text-[1.02rem] outline-none placeholder:text-ink-faint" />
+            <textarea ref={input} id="chat-input" rows={1} maxLength={2000} placeholder={t("placeholder")} value={text} onChange={(e) => setText(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); send(); } }} className="max-h-[200px] min-h-[44px] flex-1 resize-none bg-transparent px-1 py-2.5 text-[1.02rem] outline-none placeholder:text-ink-faint" />
             <VoiceRecorder
               compact
               enabled={voice.configured && voice.consent}

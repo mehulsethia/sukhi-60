@@ -1417,7 +1417,7 @@ export type Database = {
         | "unclear"
         | "not_applicable"
       evidence_hint: "none" | "photo" | "text" | "any"
-      evidence_kind: "photo" | "audio" | "text" | "document"
+      evidence_kind: "photo" | "audio" | "text" | "document" | "video"
       family_status: "invited" | "active" | "revoked" | "expired"
       item_category:
         | "medication"
@@ -1633,7 +1633,7 @@ export const Constants = {
         "not_applicable",
       ],
       evidence_hint: ["none", "photo", "text", "any"],
-      evidence_kind: ["photo", "audio", "text", "document"],
+      evidence_kind: ["photo", "audio", "text", "document", "video"],
       family_status: ["invited", "active", "revoked", "expired"],
       item_category: [
         "medication",

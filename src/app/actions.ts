@@ -18,6 +18,7 @@ import type { DraftItem } from "@/domain/extraction";
 import { CONSENT_KINDS, writeConsentChoices } from "@/server/consents";
 import { validateUpload } from "@/server/files";
 import { extractPlanDraft } from "@/server/ai-tasks";
+import { sendWelcome } from "@/server/checkins";
 
 export type ActionState = { ok?: boolean; error?: string; data?: Record<string, unknown> } | null;
 
@@ -206,6 +207,8 @@ export async function completeOnboarding(_prev: ActionState, fd: FormData): Prom
       await createTemplatePlan(supabase, user.id, tpl);
       await materializeOccurrences(createAdminClient(), user.id, 7);
     }
+    // The assistant says hello first, so the chat is never empty.
+    await sendWelcome(createAdminClient(), user.id).catch(() => undefined);
     if (tpl === "clinician") {
       const { data: plan, error: planErr } = await supabase
         .from("care_plans")
@@ -256,6 +259,41 @@ export async function saveConsents(_prev: ActionState, fd: FormData): Promise<Ac
   }
   revalidatePath("/settings");
   return { ok: true };
+}
+
+/**
+ * A quick reply tapped on a reminder or check-in in the chat. Records the check-in exactly
+ * like a WhatsApp reply would, and writes both sides into the conversation.
+ */
+export async function chatQuickAction(occurrenceId: string, kind: "done" | "later" | "skipped" | "unable", key: string): Promise<{ ok: boolean; messages?: { id: string; role: "user" | "assistant"; content: string }[]; error?: string }> {
+  const { supabase, user } = await requireUser();
+  if (!z.string().uuid().safeParse(occurrenceId).success || !["done", "later", "skipped", "unable"].includes(kind) || key.length < 8) return { ok: false, error: "invalid_input" };
+  const { data: occ } = await supabase.from("action_occurrences").select("id, plan_items!inner(title)").eq("id", occurrenceId).maybeSingle();
+  if (!occ) return { ok: false, error: "not_found" };
+  const title = (occ.plan_items as unknown as { title: string }).title;
+  const { data, error } = await supabase.rpc("record_check_in", { p_occurrence: occurrenceId, p_kind: kind, p_idempotency_key: key });
+  if (error) return { ok: false, error: error.message.includes("not_yet_due") ? "not_yet_due" : "save_failed" };
+  if (kind === "later") await scheduleSnoozeReminder(createAdminClient(), user.id, occurrenceId);
+  const r = (data ?? {}) as { result?: string; rewards?: { points: number; label: string }[] };
+  const { data: profile } = await supabase.from("profiles").select("locale").eq("id", user.id).single();
+  const locale = profile?.locale ?? "en";
+  const { reply, rewardLine } = await import("@/domain/replies");
+  const t = await (await import("next-intl/server")).getTranslations();
+  const ack = r.result === "already_recorded" || r.result === "already_counted" ? reply(locale, r.result, { title }) : reply(locale, `recorded_${kind}` as "recorded_done", { title });
+  const pts = rewardLine(locale, r.rewards ?? []);
+  const admin = createAdminClient();
+  const ref = [{ type: "occurrence", id: occurrenceId, label: title }];
+  const u = await admin.from("messages").insert({ user_id: user.id, role: "user", channel: "web", content: t(`chatUi.quick_${kind}`, { title }), source_refs: ref as never }).select("id, content").single();
+  const a = await admin.from("messages").insert({ user_id: user.id, role: "assistant", channel: "web", content: [ack, pts].filter(Boolean).join(" "), source_refs: ref as never }).select("id, content").single();
+  revalidatePath("/today");
+  revalidatePath("/progress");
+  return { ok: true, messages: [u.data && { id: u.data.id, role: "user" as const, content: u.data.content }, a.data && { id: a.data.id, role: "assistant" as const, content: a.data.content }].filter(Boolean) as { id: string; role: "user" | "assistant"; content: string }[] };
+}
+
+/** The chat was opened: clears the unread badge on this device. */
+export async function markChatSeen() {
+  await requireUser();
+  (await cookies()).set("sukhi_chat_seen", new Date().toISOString(), { path: "/", sameSite: "lax", httpOnly: true, secure: process.env.NODE_ENV === "production", maxAge: 60 * 60 * 24 * 365 });
 }
 
 /** Mark in-app notifications as read on this device. */

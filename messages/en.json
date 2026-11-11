@@ -267,7 +267,11 @@
     "hello": "How can I help today?",
     "helloName": "How can I help today, {name}?",
     "copy": "Copy reply",
-    "disclaimer": "Sukhi helps you follow your plan. It doesn't give medical advice."
+    "disclaimer": "Sukhi helps you follow your plan. It doesn't give medical advice.",
+    "checkinLabel": "Check-in from Sukhi",
+    "proofFor": "Proof for",
+    "attachProof": "Attach photo or video proof",
+    "noActionsForProof": "No actions today to attach proof to"
   },
   "plan": {
     "title": "My plan",
@@ -754,7 +758,8 @@
     "welcomeBack": "Welcome back! {label}",
     "proposal": "Sukhi suggested a change for you to confirm: {summary}",
     "familyJoined": "{name} accepted your family invite.",
-    "whatsappSetup": "Link WhatsApp to get reminders and reply from your chat."
+    "whatsappSetup": "Link WhatsApp to get reminders and reply from your chat.",
+    "checkin": "Sukhi: {preview}"
   },
   "suggest": {
     "markDone": "I've finished {title}",
@@ -821,5 +826,62 @@
     "profileHelp": "Your name, language, reminder times and comfort settings.",
     "consentsHelp": "What Sukhi may do. Change any of these at any time.",
     "reminders": "Reminders"
+  },
+  "checkin": {
+    "morning": "Good morning!",
+    "morningName": "Good morning, {name}!",
+    "freshStart": "Yesterday was quiet, and that's okay — today is a fresh start.",
+    "streak": "You've checked in {n} days in a row. Lovely.",
+    "todayCount": "Planned for today: {n}.",
+    "noPlan": "There's nothing scheduled today yet — add a small goal or your doctor's plan in My plan.",
+    "next": "Next up: {title} at {time}.",
+    "weekly": "This week you completed {done} of {total} planned actions.",
+    "weeklyClose": "Every honest reply counted. Ready for next week?",
+    "allDone": "Everything for today is done{name}. Well done!",
+    "progress": "So far today: {done} of {total} done.",
+    "stillOpen": "Still open: {title}. Reply done when it's finished, or send a photo.",
+    "drafts": "Items from your document waiting for your check in My plan: {n}.",
+    "welcome": "Hi! I'm Sukhi.",
+    "welcomeName": "Hi {name}! I'm Sukhi.",
+    "welcomeCaregiver": "I'll help you keep track of {name}'s routine.",
+    "them": "them",
+    "welcomeNoPlan": "Let's add your first routine in My plan.",
+    "welcomeHow": "I'll check in at your chosen times. Reply here any time — say done, later, skip, or send a photo or video as proof."
+  },
+  "chatUi": {
+    "sent_photo": "📷 Photo for “{title}”",
+    "sent_video": "🎥 Video for “{title}”",
+    "sent_document": "📄 Document for “{title}”",
+    "sent_audio": "🎙 Voice note for “{title}”",
+    "sent_text": "📝 Note for “{title}”",
+    "markedDone": "“{title}” is marked as done.",
+    "savedNote": "Saved as your own note.",
+    "quick_done": "Done ✓ — {title}",
+    "quick_later": "Later — {title}",
+    "quick_skipped": "Skip — {title}",
+    "quick_unable": "Not well today — {title}",
+    "notYetDue": "This one isn't due yet.",
+    "unwellShort": "Not well",
+    "proof": "Send proof"
+  },
+  "evidenceUi": {
+    "camera": "Camera",
+    "video": "Video",
+    "gallery": "Gallery",
+    "help": "Take a photo or a short video (up to 60 seconds) showing the action. Videos can show the action itself, so they can count as stronger proof.",
+    "previewAlt": "Preview of your proof",
+    "remove": "Remove",
+    "uploadingVideo": "Uploading video…",
+    "err_video_too_large": "That video is over 50 MB. Please record a shorter clip.",
+    "err_video_too_long": "Please keep videos under 60 seconds.",
+    "err_upload_failed": "The upload didn't finish. Check your connection and try again.",
+    "err_rate_limited": "You've shared a lot of proof in the last hour. Please try again a bit later."
+  },
+  "install": {
+    "title": "Add Sukhi to your home screen",
+    "body": "Open it like an app, full screen, with one tap.",
+    "button": "Install",
+    "iosSteps": "In Safari, tap Share, then “Add to Home Screen”.",
+    "dismiss": "Not now"
   }
 }

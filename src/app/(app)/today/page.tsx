@@ -9,6 +9,7 @@ import { assistantSuggestions } from "@/server/suggestions";
 import { activeDays, progressFromEvents, summarizeWeek } from "@/domain/rewards";
 import { addDays, localDateOf, weekStart } from "@/domain/schedule";
 import { ActionCard } from "@/components/ActionCard";
+import { InstallPrompt } from "@/components/InstallPrompt";
 import { fmtTime, hoursAgoIso, nowMs } from "@/lib/format";
 import { BUCKETS, BUCKET_COLOR, bucketOf, isDone, type Bucket } from "@/lib/status";
 
@@ -92,6 +93,7 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
         {summary ? <p className="mt-2 text-lg text-ink-soft">{summary}</p> : null}
       </header>
 
+      <InstallPrompt />
       {welcome ? (
         <section className="pop-in mb-6 rounded-[24px] border border-line bg-surface p-6 shadow-[var(--shadow-md)]">
           <h2 className="text-2xl">{first ? t("onb.welcomeTitle", { name: first }) : t("onb.welcomeTitleNoName")}</h2>
