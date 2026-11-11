@@ -36,17 +36,49 @@ describe("constrainEvaluation", () => {
 });
 
 describe("toDraftItems", () => {
-  const ex = (items: Extraction["items"]): Extraction => ({ document_kind: "clinician_instructions", clinician_name: null, items, warnings: [], contains_instructions_to_assistant: false });
-  const item = (o: Partial<Extraction["items"][number]>): Extraction["items"][number] => ({ title: "Walk", instructions: "Walk 20 minutes", category: "activity", frequency_text: "daily", schedule_kind: "daily", times: ["07:00"], weekdays: [], weekly_target: null, source_page: 1, source_snippet: "Walk 20 min daily", unclear_fields: [], ...o });
+  const ex = (items: Extraction["items"]): Extraction => ({ orientation: "upright", transcription: "", document_kind: "clinician_instructions", clinician_name: null, document_date: null, items, warnings: [], contains_instructions_to_assistant: false });
+  const item = (o: Partial<Extraction["items"][number]>): Extraction["items"][number] => ({
+    source_snippet: "Walk 20 min daily 07:00", source_page: 1, title: "Walk", title_confidence: "high", title_alternatives: [], form: "not_medicine", category: "activity",
+    dose_text: null, instructions: "Walk 20 minutes", frequency_text: "daily", schedule_kind: "daily", slots: [], times: ["07:00"], weekdays: [], weekly_target: null,
+    duration_text: null, once_date: null, unclear_fields: [], ...o,
+  });
 
   it("keeps clear items resolved with provenance", () => {
     const [d] = toDraftItems(ex([item({})]));
     expect(d.unresolved_fields).toEqual([]);
     expect(d.source_page).toBe(1);
+    expect(d.suggested_times).toBe(false);
   });
-  it("never guesses missing medication dose/time", () => {
-    const [d] = toDraftItems(ex([item({ title: "Metf...", category: "medication", instructions: null, times: [], schedule_kind: null, source_snippet: "Metf... twice", unclear_fields: ["title"] })]));
+  it("never confirms a missing medication dose or schedule", () => {
+    const [d] = toDraftItems(ex([item({ title: "Metf...", title_confidence: "low", form: "tablet", category: "medication", instructions: null, times: [], schedule_kind: null, source_snippet: "Metf... twice", unclear_fields: [] })]));
     expect(d.unresolved_fields).toEqual(expect.arrayContaining(["title", "dose", "instructions", "schedule"]));
+  });
+  it("shows a best reading instead of 'Unclear item', but still asks the user to check it", () => {
+    const [d] = toDraftItems(ex([item({ title: "Dutas 0.5 mg", title_confidence: "medium", title_alternatives: ["Dutas 0.5 mg", "Dutasteride 0.5"], form: "tablet", category: "medication", dose_text: "1 tab", slots: ["after_dinner"], times: [], source_snippet: "T. Dutas 0.5mg 1 tab after dinner" })]));
+    expect(d.title).toBe("Dutas 0.5 mg");
+    expect(d.unresolved_fields).toContain("title");
+    expect(d.unresolved_fields).not.toContain("dose");
+    expect(d.alternatives).toEqual(["Dutasteride 0.5"]);
+  });
+  it("turns meal anchors into suggested times instead of leaving them blank", () => {
+    const [d] = toDraftItems(ex([item({ title: "Doxy 100", form: "capsule", category: "medication", dose_text: "1 cap", instructions: "1 cap after lunch for 10 weeks", slots: ["after_lunch"], times: [], source_snippet: "1 cap after lunch } 10 wks" })]));
+    expect(d.times).toEqual(["13:45"]);
+    expect(d.suggested_times).toBe(true);
+    expect(d.unresolved_fields).toEqual([]);
+  });
+  it("1-0-1 style anchors produce two times", () => {
+    const [d] = toDraftItems(ex([item({ slots: ["after_dinner", "after_breakfast"], times: [] })]));
+    expect(d.times).toEqual(["08:45", "20:45"]);
+  });
+  it("topical products don't require a numeric dose", () => {
+    const [d] = toDraftItems(ex([item({ title: "Pelliwash shampoo", form: "shampoo", category: "medication", instructions: "Use on alternate days", schedule_kind: "weekdays", weekdays: [1, 3, 5, 7], slots: ["on_waking"], times: [], source_snippet: "Pelliwash shampoo alt days" })]));
+    expect(d.unresolved_fields).not.toContain("dose");
+  });
+  it("a dated review visit becomes a one-off appointment", () => {
+    const [d] = toDraftItems(ex([item({ title: "Review visit", category: "appointment", schedule_kind: null, once_date: "2026-01-15", slots: [], times: ["11:00"], source_snippet: "R/v after 10 wks (15/01/2026)" })]));
+    expect(d.schedule_kind).toBe("once");
+    expect(d.once_date).toBe("2026-01-15");
+    expect(d.unresolved_fields).toEqual([]);
   });
   it("invalid time strings stay unresolved instead of being coerced", () => {
     const [d] = toDraftItems(ex([item({ times: ["after lunch"] })]));

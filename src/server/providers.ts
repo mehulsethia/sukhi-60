@@ -15,6 +15,14 @@ export function getModel() {
   return { model: anthropic(settings.anthropicModel()), id: settings.anthropicModel() };
 }
 
+/** Vision model for reading plan documents (handwritten prescriptions). */
+export function getExtractModel() {
+  if (!features.ai()) return null;
+  const anthropic = createAnthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+  const id = settings.extractModel();
+  return { model: anthropic(id), id };
+}
+
 // ---------------------------------------------------------------------------
 // Speech (ElevenLabs or Sarvam) — server-side only, behind one interface
 // ---------------------------------------------------------------------------

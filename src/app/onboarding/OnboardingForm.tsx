@@ -10,7 +10,7 @@ import { Logo } from "@/components/Logo";
 import { VCheckin, VComfort, VContext, VLanguages, VPrivacy, VProgress, VReminder, VRhythm } from "@/components/Vignettes";
 import { TEMPLATES } from "@/domain/templates";
 import { setLocaleCookie } from "@/lib/client-prefs";
-import { shrinkInputFile } from "@/lib/client-image";
+import { DocPicker } from "@/components/DocPicker";
 
 const ZONES = ["Asia/Kolkata", "Asia/Dubai", "Asia/Singapore", "Europe/London", "Europe/Berlin", "America/New_York", "America/Los_Angeles", "Australia/Sydney", "UTC"];
 const PRESETS = [
@@ -19,7 +19,9 @@ const PRESETS = [
   { key: "evening", time: "18:30", Icon: Sunset },
   { key: "night", time: "21:00", Icon: Moon },
 ] as const;
-const REASONS = ["discharge", "new_plan", "existing", "wellbeing"] as const;
+const SITUATIONS = ["discharge", "new_plan", "existing"] as const;
+const CONDITIONS = ["diabetes", "bp", "heart", "thyroid", "skin_hair", "post_surgery", "respiratory", "joints", "kidney", "mental", "pregnancy", "other"] as const;
+const RELATIONS = ["parent", "spouse", "child", "grandparent", "sibling", "other"] as const;
 const CONSENTS = [
   { kind: "ai_processing", title: "perm_ai", body: "consentAi", def: true, Icon: Bot },
   { kind: "reminders", title: "perm_reminders", body: "consentReminders", def: true, Icon: Bell },
@@ -47,7 +49,11 @@ export function OnboardingForm({ defaults }: { defaults: { timezone: string; loc
   const [times, setTimes] = useState<string[]>(["08:00", "18:30"]);
   const [custom, setCustom] = useState("");
   const [quiet, setQuiet] = useState({ start: "21:30", end: "07:30" });
-  const [reason, setReason] = useState<string>("");
+  const [situation, setSituation] = useState<string>("");
+  const [setupFor, setSetupFor] = useState<"self" | "caregiver" | "">("");
+  const [relation, setRelation] = useState<string>("parent");
+  const [health, setHealth] = useState<"diagnosed" | "wellness" | "prefer_not" | "">("");
+  const [conditions, setConditions] = useState<string[]>([]);
   const [a11y, setA11y] = useState({ large_text: false, high_contrast: false, reduce_motion: false, audio_replies: false });
   const [style, setStyle] = useState<"normal" | "gentle">("normal");
   const [consents, setConsents] = useState<Record<string, boolean>>(Object.fromEntries(CONSENTS.map((c) => [c.kind, c.def])));
@@ -71,6 +77,9 @@ export function OnboardingForm({ defaults }: { defaults: { timezone: string; loc
   };
   const show = (n: number) => (step === n ? "" : "hidden");
 
+  const intakeDone = !!setupFor && !!health;
+  const clinicalFirst = health === "diagnosed";
+  const routineOptions: TemplateKey[] = clinicalFirst ? ["clinician", "walk", "water", "stretch", "none"] : ["walk", "water", "stretch", "clinician", "none"];
   const firstDay = template in TEMPLATES ? TEMPLATES[template as keyof typeof TEMPLATES].items : [];
 
   return (
@@ -94,7 +103,11 @@ export function OnboardingForm({ defaults }: { defaults: { timezone: string; loc
           {sortedTimes.map((x) => <input key={x} type="hidden" name="checkin_times" value={x} />)}
           <input type="hidden" name="quiet_start" value={quiet.start} />
           <input type="hidden" name="quiet_end" value={quiet.end} />
-          <input type="hidden" name="reason" value={reason} />
+          <input type="hidden" name="situation" value={health === "diagnosed" ? situation : ""} />
+          <input type="hidden" name="setup_for" value={setupFor} />
+          {setupFor === "caregiver" ? <input type="hidden" name="care_recipient_relation" value={relation} /> : null}
+          <input type="hidden" name="health_context" value={health} />
+          {health === "diagnosed" ? conditions.map((c) => <input key={c} type="hidden" name="conditions" value={c} />) : null}
           <input type="hidden" name="reminder_frequency" value={style} />
           <input type="hidden" name="template" value={template} />
           {Object.entries(a11y).map(([k, v]) => (v ? <input key={k} type="hidden" name={k} value="on" /> : null))}
@@ -211,18 +224,75 @@ export function OnboardingForm({ defaults }: { defaults: { timezone: string; loc
               </p>
             </section>
 
-            {/* 4 Reason */}
+            {/* 4 About this plan */}
             <section className={show(4)} aria-labelledby="s4">
-              <h1 id="s4" className="text-[1.7rem] sm:text-[2rem]">{t("onb.reasonTitle")}</h1>
-              <p className="mt-2 text-[1.02rem] text-ink-soft">{t("onb.reasonBody")}</p>
-              <div role="radiogroup" aria-labelledby="s4" className="mt-5 grid gap-2 lg:grid-cols-2">
-                {REASONS.map((r) => (
-                  <button key={r} type="button" role="radio" aria-checked={reason === r} onClick={() => setReason(reason === r ? "" : r)} className={`flex min-h-14 items-center justify-between gap-3 rounded-xl border px-4 py-2.5 text-left font-semibold transition-colors ${reason === r ? "border-primary bg-surface shadow-[var(--shadow-sm)]" : "border-line bg-surface hover:border-ink-soft"}`}>
-                    {t(`onb.reason_${r}`)}
-                    <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full ${reason === r ? "bg-primary text-primary-ink" : "border border-line"}`}>{reason === r ? <Check size={16} aria-hidden="true" /> : null}</span>
-                  </button>
-                ))}
-              </div>
+              <h1 id="s4" className="text-[1.7rem] sm:text-[2rem]">{t("intake.title")}</h1>
+              <p className="mt-2 text-[1.02rem] text-ink-soft">{t("intake.body")}</p>
+
+              <fieldset className="mt-5">
+                <legend className="label mb-2">{t("intake.whoQ")}</legend>
+                <div role="radiogroup" className="grid gap-2 sm:grid-cols-2">
+                  {(["self", "caregiver"] as const).map((k) => (
+                    <button key={k} type="button" role="radio" aria-checked={setupFor === k} onClick={() => setSetupFor(k)} className={`flex min-h-14 items-center justify-between gap-3 rounded-xl border px-4 py-2.5 text-left font-semibold transition-colors ${setupFor === k ? "border-primary bg-surface shadow-[var(--shadow-sm)]" : "border-line bg-surface hover:border-ink-soft"}`}>
+                      <span><span className="block">{t(`intake.who_${k}`)}</span><span className="text-sm font-normal text-ink-soft">{t(`intake.who_${k}Help`)}</span></span>
+                      <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full ${setupFor === k ? "bg-primary text-primary-ink" : "border border-line"}`}>{setupFor === k ? <Check size={16} aria-hidden="true" /> : null}</span>
+                    </button>
+                  ))}
+                </div>
+                {setupFor === "caregiver" ? (
+                  <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                    <div className="field">
+                      <label htmlFor="care_relation" className="!text-sm">{t("intake.relationQ")}</label>
+                      <select id="care_relation" className="input" value={relation} onChange={(e) => setRelation(e.target.value)}>
+                        {RELATIONS.map((r) => <option key={r} value={r}>{t(`intake.rel_${r}`)}</option>)}
+                      </select>
+                    </div>
+                    <div className="field">
+                      <label htmlFor="care_recipient_name" className="!text-sm">{t("intake.recipientName")}</label>
+                      <input id="care_recipient_name" name="care_recipient_name" className="input" maxLength={80} />
+                    </div>
+                  </div>
+                ) : null}
+              </fieldset>
+
+              <fieldset className="mt-6">
+                <legend className="label mb-2">{setupFor === "caregiver" ? t("intake.healthQOther") : t("intake.healthQ")}</legend>
+                <div role="radiogroup" className="grid gap-2">
+                  {(["diagnosed", "wellness", "prefer_not"] as const).map((k) => (
+                    <button key={k} type="button" role="radio" aria-checked={health === k} onClick={() => { setHealth(k); setTemplate(k === "diagnosed" ? "clinician" : "walk"); }} className={`flex min-h-14 items-center justify-between gap-3 rounded-xl border px-4 py-2.5 text-left font-semibold transition-colors ${health === k ? "border-primary bg-surface shadow-[var(--shadow-sm)]" : "border-line bg-surface hover:border-ink-soft"}`}>
+                      <span><span className="block">{t(`intake.health_${k}`)}</span><span className="text-sm font-normal text-ink-soft">{t(`intake.health_${k}Help`)}</span></span>
+                      <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full ${health === k ? "bg-primary text-primary-ink" : "border border-line"}`}>{health === k ? <Check size={16} aria-hidden="true" /> : null}</span>
+                    </button>
+                  ))}
+                </div>
+              </fieldset>
+
+              {health === "diagnosed" ? (
+                <div className="mt-4 flex flex-col gap-4 rounded-xl border border-line bg-surface p-4">
+                  <fieldset>
+                    <legend className="label mb-2">{t("intake.conditionsQ")} <span className="hint">({t("common.optional")})</span></legend>
+                    <div className="flex flex-wrap gap-2">
+                      {CONDITIONS.map((c) => {
+                        const on = conditions.includes(c);
+                        return <button key={c} type="button" aria-pressed={on} onClick={() => setConditions((cs) => (on ? cs.filter((x) => x !== c) : [...cs, c]))} className={`chip min-h-10 cursor-pointer ${on ? "bg-primary text-primary-ink" : ""}`}>{on ? <Check size={14} aria-hidden="true" /> : null}{t(`intake.cond_${c}`)}</button>;
+                      })}
+                    </div>
+                  </fieldset>
+                  <fieldset>
+                    <legend className="label mb-2">{t("intake.situationQ")}</legend>
+                    <div className="grid gap-2">
+                      {SITUATIONS.map((r) => (
+                        <label key={r} className={`flex min-h-12 cursor-pointer items-center gap-3 rounded-xl border px-4 py-2 ${situation === r ? "border-primary" : "border-line"}`}>
+                          <input type="radio" name="situation-ui" checked={situation === r} onChange={() => setSituation(r)} className="h-5 w-5 accent-[var(--primary)]" />
+                          {t(`onb.reason_${r}`)}
+                        </label>
+                      ))}
+                    </div>
+                  </fieldset>
+                  <p className="rounded-lg bg-primary-soft px-3 py-2 text-sm text-ink">{t("intake.noAdvice")}</p>
+                </div>
+              ) : null}
+
               <details className="mt-4 rounded-xl border border-line bg-surface p-4">
                 <summary className="cursor-pointer font-semibold">{t("onb.detailsToggle")}</summary>
                 <div className="mt-3 grid gap-3 lg:grid-cols-2">
@@ -293,13 +363,13 @@ export function OnboardingForm({ defaults }: { defaults: { timezone: string; loc
               </div>
             </section>
 
-            {/* 7 First routine */}
+            {/* 7 First plan */}
             <section className={show(7)} aria-labelledby="s7">
-              <h1 id="s7" className="text-[1.7rem] sm:text-[2rem]">{t("onb.routineTitle")}</h1>
-              <p className="mt-2 text-[1.02rem] text-ink-soft">{t("onb.routineBody")}</p>
+              <h1 id="s7" className="text-[1.7rem] sm:text-[2rem]">{clinicalFirst ? t("intake.planTitleClinical") : t("onb.routineTitle")}</h1>
+              <p className="mt-2 text-[1.02rem] text-ink-soft">{clinicalFirst ? t("intake.planBodyClinical") : t("intake.planBodyWellness")}</p>
               <div role="radiogroup" aria-labelledby="s7" className="mt-5 grid gap-2 sm:grid-cols-2">
-                {(["walk", "water", "stretch", "clinician", "none"] as const).map((k) => (
-                  <label key={k} className={`flex cursor-pointer flex-col gap-0.5 rounded-xl border p-3 transition-colors ${template === k ? "border-primary bg-surface shadow-[var(--shadow-sm)]" : "border-line bg-surface hover:border-ink-soft"} ${k === "none" ? "sm:col-span-2" : ""}`}>
+                {routineOptions.map((k) => (
+                  <label key={k} className={`flex cursor-pointer flex-col gap-0.5 rounded-xl border p-3 transition-colors ${template === k ? "border-primary bg-surface shadow-[var(--shadow-sm)]" : "border-line bg-surface hover:border-ink-soft"} ${k === "none" || (k === "clinician" && clinicalFirst) ? "sm:col-span-2" : ""}`}>
                     <span className="flex items-center gap-3">
                       <input type="radio" name="template-ui" checked={template === k} onChange={() => setTemplate(k)} className="h-5 w-5 accent-[var(--primary)]" />
                       <span className="font-bold">{k === "none" ? t("onboarding.skipRoutine") : t(`templates.${k}`)}</span>
@@ -312,12 +382,13 @@ export function OnboardingForm({ defaults }: { defaults: { timezone: string; loc
                 <div className="mt-4 rounded-xl border border-primary bg-surface p-4">
                   <p className="font-semibold">{t("onb.uploadTitle")}</p>
                   <p className="hint mt-0.5">{t("onb.uploadBody")}</p>
+                  <p className="mt-2 rounded-lg bg-primary-soft px-3 py-2 text-sm text-ink">{t("intake.noAdvice")}</p>
                   <input type="hidden" name="plan_title" value={t("onb.clinicianPlanTitle")} />
-                  <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                    <div className="field"><label htmlFor="clinician_name" className="!text-sm">{t("plan.clinicianName")}</label><input id="clinician_name" name="clinician_name" className="input" maxLength={120} /></div>
+                  <div className="mt-3 flex flex-col gap-3">
+                    <div className="field"><label htmlFor="clinician_name" className="!text-sm">{t("plan.clinicianName")} <span className="hint">({t("common.optional")})</span></label><input id="clinician_name" name="clinician_name" className="input" maxLength={120} /></div>
                     <div className="field">
                       <label htmlFor="plan_file" className="!text-sm">{t("onb.uploadFile")}</label>
-                      <input id="plan_file" name="plan_file" type="file" accept="image/jpeg,image/png,image/webp,application/pdf" className="input py-2 text-sm" onChange={async (e) => { const input = e.currentTarget; await shrinkInputFile(input); setHasFile(!!input.files?.length); }} />
+                      <DocPicker id="plan_file" name="plan_file" hintName="plan_hint" onChange={setHasFile} />
                     </div>
                   </div>
                 </div>
@@ -331,6 +402,7 @@ export function OnboardingForm({ defaults }: { defaults: { timezone: string; loc
                     ))}
                   </ul>
                 )}
+                <p className="hint mt-3">{t("intake.wellnessNote")}</p>
               </div>
               )}
             </section>
@@ -341,7 +413,10 @@ export function OnboardingForm({ defaults }: { defaults: { timezone: string; loc
             <div className="mx-auto flex max-w-xl items-center justify-between gap-3">
               <button type="button" className={`btn btn-ghost ${step === 0 ? "invisible" : ""}`} onClick={() => go(-1)}><ChevronLeft size={20} aria-hidden="true" />{t("onb.back")}</button>
               {step < TOTAL - 1 ? (
-                <button type="button" className="btn btn-primary btn-lg min-w-36" onClick={() => go(1)}>{t("onb.next")}</button>
+                <span className="flex flex-col items-end gap-1">
+                  <button type="button" className="btn btn-primary btn-lg min-w-36" disabled={step === 4 && !intakeDone} onClick={() => go(1)}>{t("onb.next")}</button>
+                  {step === 4 && !intakeDone ? <span className="text-xs text-ink-soft">{t("intake.required")}</span> : null}
+                </span>
               ) : (
                 <SubmitButton className="btn btn-primary btn-lg" pendingLabel={template === "clinician" && hasFile ? t("onb.uploadReading") : t("common.saving")}>{t("onb.finish")}</SubmitButton>
               )}

@@ -7,7 +7,7 @@ import { errorJson, json } from "@/server/http";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-export const maxDuration = 90;
+export const maxDuration = 130;
 
 // Upload a plan source (photo/PDF) to private storage and extract DRAFT items with
 // provenance. Nothing is scheduled until the user reviews and confirms each item.
@@ -34,7 +34,8 @@ export async function POST(req: Request) {
     if (error || !doc) return errorJson("document_insert_failed", 500);
     docId = doc.id;
   }
-  const r = await extractPlanDraft(createAdminClient(), user.id, docId);
+  const hint = String(form?.get("hint") ?? "").slice(0, 600);
+  const r = await extractPlanDraft(createAdminClient(), user.id, docId, { hint });
   if (!r.ok) return json({ document_id: docId, ok: false, error: r.error });
   return json({ document_id: docId, ok: true, drafts: r.drafts, document_kind: r.documentKind, clinician_name: r.clinicianName, warnings: r.warnings, injection: r.injection });
 }

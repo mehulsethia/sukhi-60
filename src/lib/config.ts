@@ -21,6 +21,8 @@ export const VARS: VarSpec[] = [
   { name: "DEMO_MODE_ENABLED", required: false, secret: false, group: "app", validate: (v) => v === "true" || v === "false" },
   { name: "ANTHROPIC_API_KEY", required: false, secret: true, group: "anthropic", validate: (v) => v.startsWith("sk-ant-") },
   { name: "ANTHROPIC_MODEL", required: false, secret: false, group: "anthropic", validate: (v) => /^claude-[a-z0-9-]+$/.test(v) },
+  { name: "ANTHROPIC_EXTRACT_MODEL", required: false, secret: false, group: "anthropic", validate: (v) => /^claude-[a-z0-9-]+$/.test(v) },
+  { name: "ADMIN_EMAILS", required: false, secret: false, group: "app", validate: (v) => /@/.test(v) },
   { name: "ELEVENLABS_API_KEY", required: false, secret: true, group: "speech", validate: (v) => v.length > 10 },
   { name: "ELEVENLABS_VOICE_ID", required: false, secret: false, group: "speech", validate: (v) => /^[A-Za-z0-9]{10,40}$/.test(v) },
   { name: "ELEVENLABS_VOICE_ID_HI", required: false, secret: false, group: "speech", validate: (v) => /^[A-Za-z0-9]{10,40}$/.test(v) },
@@ -69,6 +71,9 @@ export function env(name: string): string {
 
 export const settings = {
   anthropicModel: () => process.env.ANTHROPIC_MODEL ?? "",
+  /** Reading handwritten prescriptions needs the strongest vision model; defaults to Opus. */
+  extractModel: () => (ok("ANTHROPIC_EXTRACT_MODEL") ? process.env.ANTHROPIC_EXTRACT_MODEL! : "claude-opus-5-5"),
+  adminEmails: () => (process.env.ADMIN_EMAILS ?? "").split(",").map((s) => s.trim().toLowerCase()).filter(Boolean),
   /** ElevenLabs when its key is set, otherwise Sarvam, otherwise none. */
   speechProvider: (): "elevenlabs" | "sarvam" | null => (ok("ELEVENLABS_API_KEY") ? "elevenlabs" : ok("SARVAM_API_KEY") ? "sarvam" : null),
   elevenTtsModel: () => process.env.ELEVENLABS_TTS_MODEL || "eleven_v4",

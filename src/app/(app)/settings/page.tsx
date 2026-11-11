@@ -1,4 +1,6 @@
+import type { Metadata } from "next";
 import { getLocale, getTranslations } from "next-intl/server";
+import { Brain, Cpu, MessageCircle, ShieldCheck, Trash2, UserRound, Users } from "lucide-react";
 import { requireUser } from "@/lib/supabase/server";
 import { features } from "@/lib/config";
 import { revokeFamily, setMemoryStatus, unlinkWhatsApp } from "@/app/actions";
@@ -9,6 +11,8 @@ import { DeleteAccount } from "@/components/DeleteAccount";
 import { summarizeWeek } from "@/domain/rewards";
 import { addDays, localDateOf, weekStart } from "@/domain/schedule";
 import { fmtDate, fmtDateTime } from "@/lib/format";
+
+export const metadata: Metadata = { title: "Settings" };
 
 export default async function SettingsPage() {
   const { supabase, user } = await requireUser();
@@ -28,18 +32,39 @@ export default async function SettingsPage() {
   const preview = summarizeWeek(Array.from({ length: 7 }, (_, i) => addDays(ws, i)), weekOcc ?? []).map((d) => ({ date: d.date, responded: d.responded, completed: d.completed }));
   const exportHref = `data:application/json;charset=utf-8,${encodeURIComponent(JSON.stringify({ week_start: ws, days: preview, note: "Participation counts only; no plan details or messages." }, null, 2))}`;
 
+  const nav = [
+    ["prefs", t("settings.profile"), UserRound],
+    ["consents", t("settings.consents"), ShieldCheck],
+    ["wa", t("settings.whatsapp"), MessageCircle],
+    ["family", t("settings.family"), Users],
+    ["memory", t("settings.memory"), Brain],
+    ["svc", t("settings.services"), Cpu],
+    ["delete", t("app.deleteTitle"), Trash2],
+  ] as const;
   return (
     <>
       <PageHeader title={t("settings.title")} subtitle={user.email ?? undefined} />
-      <Section title={t("settings.profile")} id="prefs">
+      <nav aria-label={t("settingsUi.sections")} className="no-scrollbar -mx-4 mb-5 flex gap-2 overflow-x-auto px-4 lg:hidden">
+        {nav.map(([id, label]) => <a key={id} href={`#${id}`} className="chip min-h-9 shrink-0 whitespace-nowrap border border-line bg-surface px-3 text-sm">{label}</a>)}
+      </nav>
+      <div className="lg:grid lg:grid-cols-[220px_minmax(0,1fr)] lg:gap-8">
+      <nav aria-label={t("settingsUi.sections")} className="sticky top-24 hidden self-start lg:block">
+        <ul className="flex flex-col gap-1">
+          {nav.map(([id, label, Icon]) => (
+            <li key={id}><a href={`#${id}`} className="flex min-h-10 items-center gap-2.5 rounded-xl px-3 text-[0.95rem] font-semibold text-ink-soft hover:bg-surface hover:text-ink"><Icon size={17} aria-hidden="true" />{label}</a></li>
+          ))}
+        </ul>
+      </nav>
+      <div className="min-w-0 [&>section]:scroll-mt-24">
+      <Section title={t("settings.profile")} id="prefs" icon={<UserRound size={20} aria-hidden="true" />} description={t("settingsUi.profileHelp")}>
         <PreferencesForm profile={{ display_name: profile?.display_name ?? "", locale: profile?.locale ?? "en", timezone: tz, checkin_times: profile?.checkin_times ?? [], quiet_start: profile?.quiet_start ?? "21:30", quiet_end: profile?.quiet_end ?? "07:30", reminder_frequency: profile?.reminder_frequency ?? "normal", accessibility: (profile?.accessibility as Record<string, boolean>) ?? {}, limitations: profile?.limitations ?? "", care_notes: profile?.care_notes ?? "" }} />
       </Section>
 
-      <Section title={t("settings.consents")} id="consents">
+      <Section title={t("settings.consents")} id="consents" icon={<ShieldCheck size={20} aria-hidden="true" />} description={t("settingsUi.consentsHelp")}>
         <ConsentsForm consents={consentMap} />
       </Section>
 
-      <Section title={t("settings.whatsapp")} id="wa">
+      <Section title={t("settings.whatsapp")} id="wa" icon={<MessageCircle size={20} aria-hidden="true" />}>
         {!features.whatsapp() ? <p className="mb-2">{t("settings.waNotConfigured")}</p> : null}
         <p><span className="font-semibold">{t("settings.waStatus")}:</span> {binding ? (binding.status === "active" ? t("settings.waActive") : t("settings.waPaused")) : t("settings.waNotLinked")}</p>
         {binding?.last_inbound_at ? <p className="hint">{t("settings.waWindow", { time: fmtDateTime(binding.last_inbound_at, tz, locale) })}</p> : null}
@@ -48,7 +73,7 @@ export default async function SettingsPage() {
         {binding ? <form action={unlinkWhatsApp} className="mt-2"><SubmitButton className="btn btn-danger">{t("settings.waUnlink")}</SubmitButton></form> : null}
       </Section>
 
-      <Section title={t("settings.family")} id="family">
+      <Section title={t("settings.family")} id="family" icon={<Users size={20} aria-hidden="true" />}>
         <p className="mb-2">{t("settings.familyIntro")}</p>
         <p className="hint mb-3">{t("settings.familyNoAutoMessages")}</p>
         {(family ?? []).length === 0 ? <p className="hint mb-2">{t("settings.familyNone")}</p> : (
@@ -71,7 +96,7 @@ export default async function SettingsPage() {
         </details>
       </Section>
 
-      <Section title={t("settings.memory")} id="memory">
+      <Section title={t("settings.memory")} id="memory" icon={<Brain size={20} aria-hidden="true" />}>
         <p className="hint mb-2">{t("settings.memoryIntro")}</p>
         {(memory ?? []).length === 0 ? <p>{t("settings.memoryEmpty")}</p> : (
           <ul className="flex flex-col gap-2">
@@ -92,20 +117,22 @@ export default async function SettingsPage() {
         )}
       </Section>
 
-      <Section title={t("settings.services")} id="svc">
-        <ul className="flex flex-col gap-1">
-          <li>{t("settings.svcAi")}: {features.ai() ? t("settings.svcOn") : t("settings.svcOff")}</li>
-          <li>{t("settings.svcVoice")}: {features.speech() ? t("settings.svcOn") : t("settings.svcOff")}</li>
-          <li>{t("settings.svcWhatsapp")}: {features.whatsapp() ? t("settings.svcOn") : t("settings.svcOff")}</li>
+      <Section title={t("settings.services")} id="svc" icon={<Cpu size={20} aria-hidden="true" />}>
+        <ul className="grid gap-2 sm:grid-cols-3">
+          {([["svcAi", features.ai()], ["svcVoice", features.speech()], ["svcWhatsapp", features.whatsapp()]] as const).map(([k, on]) => (
+            <li key={k} className="flex items-center justify-between gap-2 rounded-xl border border-line px-3 py-2.5"><span className="font-semibold">{t(`settings.${k}`)}</span><span className={`chip ${on ? "bg-ok-bg text-ok-ink" : ""}`}>{on ? t("settings.svcOn") : t("settings.svcOff")}</span></li>
+          ))}
         </ul>
         <p className="hint mt-2">{t("settings.latency")}</p>
       </Section>
 
-      <Section title={t("app.deleteTitle")} id="delete">
+      <Section title={t("app.deleteTitle")} id="delete" icon={<Trash2 size={20} aria-hidden="true" />}>
         <DeleteAccount />
       </Section>
 
       <form action="/auth/signout" method="post"><button className="btn btn-secondary w-full">{t("common.signOut")}</button></form>
+      </div>
+      </div>
     </>
   );
 }

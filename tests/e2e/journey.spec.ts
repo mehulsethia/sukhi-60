@@ -58,8 +58,9 @@ test.describe.serial("core journey", () => {
     await page.locator("#quiet_end").fill("03:01");
     await expect(page.getByText(/Sukhi will check in at/)).toBeVisible();
     await next(); // rhythm
-    await page.getByRole("radio", { name: /keep up with a plan I already have/ }).click();
-    await next(); // reason
+    await page.getByRole("radio", { name: /setting this up for myself/ }).click();
+    await page.getByRole("radio", { name: /it's for better health/ }).click();
+    await next(); // about this plan
     await next(); // comfort
     await page.getByLabel(/Allow voice notes/).check();
     await page.getByLabel(/connect WhatsApp later/).check();
@@ -174,8 +175,12 @@ test.describe.serial("core journey", () => {
     await page.getByLabel(/I agree to the/).check();
     await page.getByRole("button", { name: "Create account" }).click();
     await expect(page).toHaveURL(/\/onboarding/);
-    for (let i = 0; i < 7; i++) await page.getByRole("button", { name: "Continue" }).click();
-    await page.getByLabel(/Enter my doctor's instructions/).check();
+    for (let i = 0; i < 4; i++) await page.getByRole("button", { name: "Continue" }).click();
+    await page.getByRole("radio", { name: /Someone I care for/ }).click();
+    await page.getByRole("radio", { name: /there's a doctor's plan/ }).click();
+    await page.getByRole("button", { name: "Diabetes" }).click();
+    for (let i = 0; i < 3; i++) await page.getByRole("button", { name: "Continue" }).click();
+    await expect(page.getByLabel(/Enter my doctor's instructions/)).toBeChecked();
     await page.getByLabel("Clinician or clinic name").fill("Fictional Clinic");
     await page.getByLabel("Photo or PDF").setInputFiles(path.resolve(__dirname, "../fixtures/sample-instructions.jpg"));
     await page.getByRole("button", { name: "Start using Sukhi" }).click();

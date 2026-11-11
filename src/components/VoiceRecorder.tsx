@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
+import { Mic, Square, X } from "lucide-react";
 
 // Push-to-record with visible state, stop and cancel. Picks a codec the browser supports
 // (webm/opus on Chromium/Firefox, mp4/aac on Safari). Falls back to typing on any failure.
@@ -12,7 +13,7 @@ function pickMime(): string | undefined {
   return undefined;
 }
 
-export function VoiceRecorder({ enabled, disabledReason, onTranscript, onError }: { enabled: boolean; disabledReason: string; onTranscript: (t: string, uncertain: boolean) => void; onError: (msg: string) => void }) {
+export function VoiceRecorder({ enabled, disabledReason, onTranscript, onError, compact = false }: { enabled: boolean; disabledReason: string; onTranscript: (t: string, uncertain: boolean) => void; onError: (msg: string) => void; compact?: boolean }) {
   const t = useTranslations("chat");
   const [state, setState] = useState<"idle" | "recording" | "transcribing">("idle");
   const [seconds, setSeconds] = useState(0);
@@ -23,7 +24,8 @@ export function VoiceRecorder({ enabled, disabledReason, onTranscript, onError }
 
   useEffect(() => () => { if (timer.current) clearInterval(timer.current); recRef.current?.stream.getTracks().forEach((tr) => tr.stop()); }, []);
 
-  if (!enabled) return <p className="hint">{disabledReason}</p>;
+  const iconBtn = "flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-ink-soft transition-colors hover:bg-surface-2 hover:text-ink";
+  if (!enabled) return compact ? <button type="button" className={`${iconBtn} cursor-not-allowed opacity-40`} aria-label={disabledReason} title={disabledReason} onClick={() => onError(disabledReason)}><Mic size={20} aria-hidden="true" /></button> : <p className="hint">{disabledReason}</p>;
 
   async function start() {
     if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === "undefined") return onError(t("micUnsupported"));
@@ -67,6 +69,15 @@ export function VoiceRecorder({ enabled, disabledReason, onTranscript, onError }
     setState("recording");
   }
 
+  if (state === "recording" && compact) {
+    return (
+      <div className="flex items-center gap-1" role="group" aria-label={t("recording", { seconds })}>
+        <span className="flex items-center gap-1.5 rounded-full bg-danger-bg px-3 py-1.5 text-sm font-semibold tabular-nums text-danger-ink" aria-live="assertive"><span aria-hidden="true" className="dot animate-pulse bg-danger-ink" />{seconds}s</span>
+        <button type="button" className={iconBtn} aria-label={t("cancelRecording")} onClick={() => { cancelled.current = true; recRef.current?.stop(); }}><X size={18} aria-hidden="true" /></button>
+        <button type="button" className="flex h-11 w-11 items-center justify-center rounded-full bg-danger-ink text-white" aria-label={t("stop")} onClick={() => recRef.current?.stop()}><Square size={15} aria-hidden="true" /></button>
+      </div>
+    );
+  }
   if (state === "recording") {
     return (
       <div className="flex items-center gap-2" role="group" aria-label={t("recording", { seconds })}>
@@ -77,5 +88,6 @@ export function VoiceRecorder({ enabled, disabledReason, onTranscript, onError }
     );
   }
   if (state === "transcribing") return <span className="chip" role="status">{t("transcribing")}</span>;
+  if (compact) return <button type="button" className={iconBtn} onClick={start} aria-label={t("record")} title={t("record")}><Mic size={20} aria-hidden="true" /></button>;
   return <button type="button" className="btn btn-secondary" onClick={start}>🎙 {t("record")}</button>;
 }

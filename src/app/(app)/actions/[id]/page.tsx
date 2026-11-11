@@ -1,4 +1,6 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
+import { ChevronLeft } from "lucide-react";
 import { getLocale, getTranslations } from "next-intl/server";
 import { requireUser } from "@/lib/supabase/server";
 import { displayStatus } from "@/domain/schedule";
@@ -26,14 +28,16 @@ export default async function ActionPage({ params }: { params: Promise<{ id: str
   const status = displayStatus(occ);
 
   return (
-    <>
+    <div className="mx-auto max-w-4xl">
+      <Link href="/today" className="mb-4 inline-flex items-center gap-1 text-sm font-semibold text-ink-soft hover:text-ink"><ChevronLeft size={16} aria-hidden="true" />{t("nav.today")}</Link>
       <PageHeader title={item.title}><StatusBadge status={status} label={t(`status.${status}`)} /></PageHeader>
-      <div className="card mb-4">
+      <div className="panel mb-5 p-5">
         <p><span className="font-semibold">{t("action.dueAt")}:</span> {fmtDateTime(occ.due_at, tz, locale)} ({tz})</p>
         {item.instructions ? <p className="mt-1"><span className="font-semibold">{t("action.instructions")}:</span> {item.instructions}</p> : null}
         <p className="hint mt-1">{item.care_plans.mode === "clinician_instructions" ? (item.care_plans.clinician_verification === "clinician_verified" ? t("today.clinicianVerifiedTag") : t("today.clinicianTag")) : t("today.personalTag")}</p>
       </div>
 
+      <div className="grid gap-5 lg:grid-cols-2 [&>section]:mb-0">
       <Section title={t("action.evidence")} id="ev">
         <p className="hint mb-3">{t("action.evidenceIntro")}</p>
         <EvidenceForm occurrenceId={id} canMarkDone={["pending", "due", "awaiting_response", "later", "no_response"].includes(status)} />
@@ -56,12 +60,14 @@ export default async function ActionPage({ params }: { params: Promise<{ id: str
         </ul>
       </Section>
 
+      </div>
+      <div className="h-5" />
       <Section title={t("action.history")} id="hist">
         <ol className="flex flex-col gap-1">
           {(checkIns ?? []).map((c) => <li key={c.id}>{fmtDateTime(c.created_at, tz, locale)} — {t(`status.${c.kind === "done" ? "self_reported" : c.kind === "later" ? "later" : c.kind}`)}{c.reason ? ` (${c.reason})` : ""}{c.channel === "whatsapp" ? ` · ${t("chat.fromWhatsapp")}` : ""}</li>)}
           {(evidence ?? []).map((e) => <li key={e.id}>{fmtDateTime(e.created_at, tz, locale)} — {t(`action.${e.kind === "photo" ? "photo" : e.kind === "audio" ? "voice" : e.kind === "document" ? "document" : "note"}`)}{e.text_content ? `: ${e.text_content}` : ""}{e.transcript ? `: “${e.transcript}”` : ""}</li>)}
         </ol>
       </Section>
-    </>
+    </div>
   );
 }

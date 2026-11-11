@@ -15,14 +15,17 @@ export function PreferencesForm({ profile }: { profile: Prefs }) {
   const t = useTranslations();
   const [state, action] = useActionState(savePreferences, null);
   return (
-    <form action={action} className="flex flex-col gap-3">
-      <div className="field"><label htmlFor="pf-name">{t("onboarding.name")}</label><input id="pf-name" name="display_name" defaultValue={profile.display_name} className="input" maxLength={80} /></div>
-      <div className="grid gap-3 sm:grid-cols-2">
+    <form action={action} className="flex flex-col gap-5">
+      <div className="grid gap-4 sm:grid-cols-2">
+      <div className="field sm:col-span-2"><label htmlFor="pf-name">{t("onboarding.name")}</label><input id="pf-name" name="display_name" defaultValue={profile.display_name} className="input" maxLength={80} /></div>
         <div className="field"><label htmlFor="pf-locale">{t("onboarding.language")}</label>
           <select id="pf-locale" name="locale" defaultValue={profile.locale} className="input"><option value="en">English</option><option value="hi">हिन्दी</option><option value="mr">मराठी</option></select>
         </div>
         <div className="field"><label htmlFor="pf-tz">{t("onboarding.timezone")}</label><input id="pf-tz" name="timezone" defaultValue={profile.timezone} className="input" maxLength={64} /></div>
       </div>
+      <div className="rounded-2xl bg-surface-2 p-4">
+      <p className="mb-3 font-bold">{t("settingsUi.reminders")}</p>
+      <div className="flex flex-col gap-4">
       <TimesInput name="checkin_times" label={t("onboarding.checkinTimes")} initial={profile.checkin_times} addLabel={t("onboarding.addTime")} removeLabel={(time) => t("onboarding.removeTime", { time })} />
       <fieldset className="flex flex-wrap gap-4"><legend className="label mb-1">{t("onboarding.quietHours")}</legend>
         <div className="field"><label htmlFor="pf-qs">{t("onboarding.quietStart")}</label><input id="pf-qs" name="quiet_start" type="time" defaultValue={profile.quiet_start} className="input" /></div>
@@ -31,15 +34,21 @@ export function PreferencesForm({ profile }: { profile: Prefs }) {
       <div className="field"><label htmlFor="pf-freq">{t("settings.frequency")}</label>
         <select id="pf-freq" name="reminder_frequency" defaultValue={profile.reminder_frequency} className="input">{["normal", "gentle", "off"].map((f) => <option key={f} value={f}>{t(`settings.freq_${f}`)}</option>)}</select>
       </div>
-      <fieldset className="flex flex-col gap-2"><legend className="label mb-1">{t("onboarding.accessibility")}</legend>
+      </div>
+      </div>
+      <fieldset><legend className="label mb-2">{t("onboarding.accessibility")}</legend>
+        <div className="grid gap-2 sm:grid-cols-2">
         {([["large_text", "largeText"], ["high_contrast", "highContrast"], ["reduce_motion", "reduceMotion"], ["audio_replies", "audioReplies"]] as const).map(([k, l]) => (
-          <label key={k} className="flex min-h-12 items-center gap-3"><input type="checkbox" name={k} defaultChecked={!!profile.accessibility[k]} className="h-6 w-6" />{t(`onboarding.${l}`)}</label>
+          <label key={k} className="flex min-h-14 cursor-pointer items-center justify-between gap-3 rounded-2xl border border-line px-4"><span className="font-semibold">{t(`onboarding.${l}`)}</span><input type="checkbox" role="switch" name={k} defaultChecked={!!profile.accessibility[k]} className="h-6 w-6 accent-[var(--primary)]" /></label>
         ))}
+        </div>
       </fieldset>
+      <div className="grid gap-4 sm:grid-cols-2">
       <div className="field"><label htmlFor="pf-lim">{t("onboarding.limitations")}</label><textarea id="pf-lim" name="limitations" defaultValue={profile.limitations} rows={2} maxLength={1000} className="input" /></div>
       <div className="field"><label htmlFor="pf-care">{t("onboarding.careNotes")}</label><textarea id="pf-care" name="care_notes" defaultValue={profile.care_notes} rows={2} maxLength={2000} className="input" /></div>
+      </div>
       <div aria-live="polite">{state?.ok ? <Alert tone="ok">{t("common.saved")}</Alert> : state?.error ? <Alert tone="danger">{t("common.error")}</Alert> : null}</div>
-      <SubmitButton pendingLabel={t("common.saving")}>{t("common.save")}</SubmitButton>
+      <SubmitButton className="btn btn-primary self-start px-6" pendingLabel={t("common.saving")}>{t("common.save")}</SubmitButton>
     </form>
   );
 }
@@ -51,10 +60,10 @@ export function ConsentsForm({ consents }: { consents: Record<string, boolean> }
   return (
     <form action={action} className="flex flex-col gap-3">
       {rows.map(([k, l]) => (
-        <label key={k} className="flex items-start gap-3"><input type="checkbox" name={`consent_${k}`} defaultChecked={!!consents[k]} className="mt-1 h-6 w-6 shrink-0" /><span>{t(`onboarding.${l}`)}</span></label>
+        <label key={k} className="flex cursor-pointer items-start justify-between gap-4 rounded-2xl border border-line p-4"><span className="text-[0.95rem]">{t(`onboarding.${l}`)}</span><input type="checkbox" role="switch" name={`consent_${k}`} defaultChecked={!!consents[k]} className="mt-0.5 h-6 w-6 shrink-0 accent-[var(--primary)]" /></label>
       ))}
       <div aria-live="polite">{state?.ok ? <Alert tone="ok">{t("common.saved")}</Alert> : state?.error ? <Alert tone="danger">{t("common.error")}</Alert> : null}</div>
-      <SubmitButton pendingLabel={t("common.saving")}>{t("common.save")}</SubmitButton>
+      <SubmitButton className="btn btn-primary self-start px-6" pendingLabel={t("common.saving")}>{t("common.save")}</SubmitButton>
     </form>
   );
 }

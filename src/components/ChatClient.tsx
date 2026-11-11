@@ -1,6 +1,8 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
+import { ArrowUp, Check, Copy, Leaf, Volume2 } from "lucide-react";
 import { Alert } from "@/components/ui";
 import { VoiceRecorder } from "@/components/VoiceRecorder";
 
@@ -14,23 +16,71 @@ export interface ChatMessage {
   pending?: boolean;
 }
 
-export function ChatClient({ initial, voice, audioReplies }: { initial: ChatMessage[]; voice: { configured: boolean; consent: boolean }; audioReplies: boolean }) {
+/** Minimal, safe formatting for assistant text: paragraphs, bullet/numbered lists, **bold**. */
+function inline(text: string): ReactNode[] {
+  return text.split(/(\*\*[^*]+\*\*)/g).map((part, i) => (part.startsWith("**") && part.endsWith("**") ? <strong key={i}>{part.slice(2, -2)}</strong> : <Fragment key={i}>{part}</Fragment>));
+}
+function Rich({ text }: { text: string }) {
+  const blocks = text.trim().split(/\n{2,}/);
+  return (
+    <>
+      {blocks.map((b, i) => {
+        const lines = b.split("\n");
+        if (lines.every((l) => /^\s*([-*•]|\d+[.)])\s+/.test(l))) {
+          const ordered = /^\s*\d/.test(lines[0]);
+          const items = lines.map((l, j) => <li key={j}>{inline(l.replace(/^\s*([-*•]|\d+[.)])\s+/, ""))}</li>);
+          return ordered ? <ol key={i} className="my-2 list-decimal space-y-1 pl-6">{items}</ol> : <ul key={i} className="my-2 list-disc space-y-1 pl-6">{items}</ul>;
+        }
+        return <p key={i} className="my-2 whitespace-pre-wrap first:mt-0 last:mb-0">{inline(b)}</p>;
+      })}
+    </>
+  );
+}
+
+export function ChatClient({ initial, voice, audioReplies, suggestions, name, autoSend }: { initial: ChatMessage[]; voice: { configured: boolean; consent: boolean }; audioReplies: boolean; suggestions: string[]; name: string | null; autoSend?: string }) {
   const t = useTranslations("chat");
   const tc = useTranslations("common");
+  const router = useRouter();
   const [messages, setMessages] = useState(initial);
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [transcriptNote, setTranscriptNote] = useState<string | null>(null);
-  const endRef = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    // Block body: scrollIntoView returns a Promise in newer browsers, which must not become the effect cleanup.
-    endRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
-  }, [messages]);
+  const [reveal, setReveal] = useState<{ id: string; n: number } | null>(null);
+  const [copied, setCopied] = useState<string | null>(null);
+  const scroller = useRef<HTMLDivElement>(null);
+  const input = useRef<HTMLTextAreaElement>(null);
+  const sentAuto = useRef(false);
 
-  async function send(e?: React.FormEvent) {
-    e?.preventDefault();
-    const body = text.trim();
+  const toBottom = useCallback((smooth = true) => {
+    const el = scroller.current;
+    if (el) el.scrollTo({ top: el.scrollHeight, behavior: smooth ? "smooth" : "auto" });
+  }, []);
+  useLayoutEffect(() => { toBottom(false); }, [toBottom]);
+  useEffect(() => { toBottom(); }, [messages.length, busy, toBottom]);
+
+  // Reveal a new reply progressively, the way chat assistants type.
+  const revealMsg = reveal ? messages.find((m) => m.id === reveal.id) : undefined;
+  const revealing = !!(reveal && revealMsg && reveal.n < revealMsg.content.length);
+  useEffect(() => {
+    if (!reveal || !revealing) return;
+    const msg = messages.find((m) => m.id === reveal.id);
+    if (!msg) return;
+    const step = Math.max(3, Math.ceil(msg.content.length / 90));
+    const h = setTimeout(() => { setReveal({ id: reveal.id, n: reveal.n + step }); toBottom(false); }, 16);
+    return () => clearTimeout(h);
+  }, [reveal, revealing, messages, toBottom]);
+
+  // Auto-grow the composer.
+  useEffect(() => {
+    const el = input.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${Math.min(el.scrollHeight, 200)}px`;
+  }, [text]);
+
+  const send = useCallback(async (raw?: string) => {
+    const body = (raw ?? text).trim();
     if (!body || busy) return;
     if (!navigator.onLine) return setError(tc("offline"));
     setBusy(true);
@@ -48,15 +98,27 @@ export function ChatClient({ initial, voice, audioReplies }: { initial: ChatMess
         setError(res.status === 429 ? t("rateLimited") : tc("error"));
         return;
       }
-      setMessages((m) => [...m.map((x) => (x.id === tempId ? { ...x, pending: false } : x)), { id: j.id ?? `a-${Date.now()}`, role: "assistant", channel: "web", content: j.text, sources: j.sources ?? [], safety: j.safety }]);
+      const id = j.id ?? `a-${Date.now()}`;
+      setMessages((m) => [...m.map((x) => (x.id === tempId ? { ...x, pending: false } : x)), { id, role: "assistant", channel: "web", content: j.text, sources: j.sources ?? [], safety: j.safety }]);
+      setReveal({ id, n: 0 });
     } catch {
       setMessages((m) => m.filter((x) => x.id !== tempId));
       setText(body);
       setError(tc("error"));
     } finally {
       setBusy(false);
+      input.current?.focus();
     }
-  }
+  }, [text, busy, t, tc]);
+
+  // A suggestion tapped elsewhere (e.g. on Today) arrives as ?q= and is sent once.
+  useEffect(() => {
+    if (autoSend && !sentAuto.current) {
+      sentAuto.current = true;
+      router.replace("/chat");
+      void send(autoSend);
+    }
+  }, [autoSend, router, send]);
 
   async function play(content: string) {
     try {
@@ -68,47 +130,107 @@ export function ChatClient({ initial, voice, audioReplies }: { initial: ChatMess
       setError(t("voiceUnavailable"));
     }
   }
+  async function copy(m: ChatMessage) {
+    try { await navigator.clipboard.writeText(m.content); setCopied(m.id); setTimeout(() => setCopied(null), 1500); } catch {}
+  }
+
+  const empty = messages.length === 0;
 
   return (
-    <div className="flex flex-col gap-3">
-      <p className="hint">{t("whatsappNote")}</p>
-      <ol className="flex flex-col gap-3" aria-live="polite" aria-relevant="additions">
-        {messages.length === 0 ? <li className="card hint">{t("empty")}</li> : null}
-        {messages.map((m) => (
-          <li key={m.id} className={`max-w-[88%] rounded-2xl px-4 py-3 ${m.role === "user" ? "self-end bg-primary text-primary-ink" : m.role === "notice" ? "self-center bg-surface-2 text-sm" : m.safety === "escalation" ? "border-2 border-danger-ink bg-danger-bg text-danger-ink" : "self-start border border-line bg-surface"}`}>
-            {m.role === "notice" ? <span className="font-semibold">🔔 {t("notice")}: </span> : null}
-            {m.safety === "escalation" ? <strong className="block">{t("escalation")}</strong> : null}
-            <p className="whitespace-pre-wrap">{m.content}</p>
-            {m.channel === "whatsapp" ? <p className="mt-1 text-xs opacity-80">{t("fromWhatsapp")}</p> : null}
-            {m.sources.length ? (
-              <p className="mt-2 text-xs opacity-80">{t("sources")}: {m.sources.map((s) => s.label).join(" · ")}</p>
+    <div className="-mx-4 -mb-32 -mt-6 flex h-[calc(100dvh-4rem-62px-env(safe-area-inset-bottom))] flex-col sm:-mx-6 lg:-mx-10 lg:-mb-14 lg:-mt-8 lg:h-[calc(100dvh-4rem)]">
+      <div ref={scroller} className="flex-1 overflow-y-auto">
+        <div className="mx-auto w-full max-w-3xl px-4 pb-6 pt-6 sm:px-6">
+          {empty ? (
+            <div className="flex min-h-[52dvh] flex-col items-center justify-center text-center">
+              <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[linear-gradient(135deg,var(--hero-from),var(--hero-to))] text-white shadow-[var(--shadow-md)]"><Leaf size={26} aria-hidden="true" /></span>
+              <h1 className="mt-5 text-[1.9rem] sm:text-[2.3rem]">{name ? t("helloName", { name }) : t("hello")}</h1>
+              <p className="mt-2 max-w-md text-ink-soft">{t("empty")}</p>
+              <p className="hint mt-1">{t("whatsappNote")}</p>
+            </div>
+          ) : (
+            <>
+              <h1 className="sr-only">{t("title")}</h1>
+              <p className="hint mb-6 text-center">{t("whatsappNote")}</p>
+            </>
+          )}
+
+          <ol className="flex flex-col gap-6" aria-live="polite" aria-relevant="additions">
+            {messages.map((m) => {
+              const isRevealing = revealing && reveal?.id === m.id;
+              const shown = isRevealing ? m.content.slice(0, reveal!.n) : m.content;
+              if (m.role === "user") {
+                return (
+                  <li key={m.id} className="flex flex-col items-end">
+                    <div className={`max-w-[85%] rounded-[22px] rounded-br-md bg-surface-3 px-4 py-2.5 text-[1.02rem] ${m.pending ? "opacity-70" : ""}`}><p className="whitespace-pre-wrap">{m.content}</p></div>
+                    {m.channel === "whatsapp" ? <p className="mt-1 text-xs text-ink-faint">{t("fromWhatsapp")}</p> : null}
+                  </li>
+                );
+              }
+              if (m.role === "notice") {
+                return (
+                  <li key={m.id} className="mx-auto max-w-[90%] rounded-full border border-line bg-surface px-4 py-1.5 text-center text-sm text-ink-soft">
+                    <span className="font-semibold text-ink">{t("notice")}: </span>{m.content}
+                  </li>
+                );
+              }
+              return (
+                <li key={m.id} className="group flex gap-3">
+                  <span aria-hidden="true" className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary-soft text-primary"><Leaf size={16} /></span>
+                  <div className={`min-w-0 flex-1 text-[1.02rem] leading-relaxed ${m.safety === "escalation" ? "rounded-2xl border-2 border-danger-ink bg-danger-bg p-4 text-danger-ink" : ""}`}>
+                    {m.safety === "escalation" ? <strong className="mb-1 block">{t("escalation")}</strong> : null}
+                    <Rich text={shown} />
+                    {m.channel === "whatsapp" ? <p className="mt-1 text-xs text-ink-faint">{t("fromWhatsapp")}</p> : null}
+                    {m.sources.length && !isRevealing ? <p className="mt-2 flex flex-wrap gap-1.5">{m.sources.map((s) => <span key={`${s.type}-${s.id}`} className="chip">{s.label}</span>)}</p> : null}
+                    {!isRevealing ? (
+                      <div className="mt-1.5 flex gap-1 text-ink-faint opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100 sm:focus-within:opacity-100">
+                        <button type="button" onClick={() => copy(m)} className="flex h-8 w-8 items-center justify-center rounded-lg hover:bg-surface-2 hover:text-ink" aria-label={t("copy")}>{copied === m.id ? <Check size={15} /> : <Copy size={15} />}</button>
+                        {audioReplies && voice.configured && voice.consent ? <button type="button" onClick={() => play(m.content)} className="flex h-8 w-8 items-center justify-center rounded-lg hover:bg-surface-2 hover:text-ink" aria-label={t("play")}><Volume2 size={15} /></button> : null}
+                      </div>
+                    ) : null}
+                  </div>
+                </li>
+              );
+            })}
+            {busy ? (
+              <li className="flex gap-3" aria-label={t("sending")}>
+                <span aria-hidden="true" className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary-soft text-primary"><Leaf size={16} /></span>
+                <span className="typing flex items-center gap-1 pt-2" aria-hidden="true"><span className="h-2 w-2 rounded-full bg-ink-faint" /><span className="h-2 w-2 rounded-full bg-ink-faint" /><span className="h-2 w-2 rounded-full bg-ink-faint" /></span>
+              </li>
             ) : null}
-            {m.role === "assistant" && audioReplies && voice.configured && voice.consent ? (
-              <button type="button" className="btn btn-ghost mt-1 min-h-10 px-2 text-sm underline" onClick={() => play(m.content)}>🔊 {t("play")}</button>
-            ) : null}
-          </li>
-        ))}
-      </ol>
-      <div ref={endRef} />
-      {error ? <Alert tone="danger">{error}</Alert> : null}
-      {transcriptNote ? <Alert tone="warn">{transcriptNote}</Alert> : null}
-      <form onSubmit={send} className="sticky bottom-20 flex flex-col gap-2 rounded-2xl bg-bg/95 py-2 md:bottom-0">
-        <label htmlFor="chat-input" className="sr-only">{t("placeholder")}</label>
-        <textarea id="chat-input" className="input" rows={2} maxLength={2000} placeholder={t("placeholder")} value={text} onChange={(e) => setText(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }} />
-        <div className="flex flex-wrap items-center gap-2">
-          <button type="submit" className="btn btn-primary" disabled={busy || !text.trim()}>{busy ? t("sending") : t("send")}</button>
-          <VoiceRecorder
-            enabled={voice.configured && voice.consent}
-            disabledReason={!voice.consent ? t("voiceConsent") : t("voiceUnavailable")}
-            onTranscript={(tr, uncertain) => {
-              setText(tr);
-              setTranscriptNote(uncertain ? `${t("transcriptConfirm")} ${t("transcriptUncertain")}` : t("transcriptConfirm"));
-              document.getElementById("chat-input")?.focus();
-            }}
-            onError={(m) => setError(m)}
-          />
+          </ol>
         </div>
-      </form>
+      </div>
+
+      <div className="border-t border-line bg-bg/95 backdrop-blur-md lg:border-0 lg:bg-transparent">
+        <div className="mx-auto w-full max-w-3xl px-4 pb-3 pt-3 sm:px-6 lg:pb-6">
+          {error ? <div className="mb-2"><Alert tone="danger">{error}</Alert></div> : null}
+          {transcriptNote ? <div className="mb-2"><Alert tone="warn">{transcriptNote}</Alert></div> : null}
+          {suggestions.length && !busy ? (
+            <div className={`no-scrollbar mb-3 ${empty ? "grid gap-2 sm:grid-cols-2" : "flex gap-2 overflow-x-auto"}`}>
+              {suggestions.map((s) => (
+                <button key={s} type="button" onClick={() => send(s)} className={`rounded-2xl border border-line bg-surface text-left transition-colors hover:border-primary hover:bg-primary-soft ${empty ? "px-4 py-3 text-[0.96rem]" : "shrink-0 whitespace-nowrap px-3.5 py-2 text-sm"}`}>{s}</button>
+              ))}
+            </div>
+          ) : null}
+          <form onSubmit={(e) => { e.preventDefault(); send(); }} className="flex items-end gap-2 rounded-[26px] border border-line-strong bg-surface p-2 pl-4 shadow-[var(--shadow-md)] focus-within:border-primary">
+            <label htmlFor="chat-input" className="sr-only">{t("placeholder")}</label>
+            <textarea ref={input} id="chat-input" rows={1} maxLength={2000} placeholder={t("placeholder")} value={text} onChange={(e) => setText(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); send(); } }} className="max-h-[200px] min-h-[44px] flex-1 resize-none bg-transparent py-2.5 text-[1.02rem] outline-none placeholder:text-ink-faint" />
+            <VoiceRecorder
+              compact
+              enabled={voice.configured && voice.consent}
+              disabledReason={!voice.consent ? t("voiceConsent") : t("voiceUnavailable")}
+              onTranscript={(tr, uncertain) => {
+                setText(tr);
+                setTranscriptNote(uncertain ? `${t("transcriptConfirm")} ${t("transcriptUncertain")}` : t("transcriptConfirm"));
+                input.current?.focus();
+              }}
+              onError={(m) => setError(m)}
+            />
+            <button type="submit" aria-label={t("send")} disabled={busy || !text.trim()} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-primary text-primary-ink transition-opacity disabled:opacity-30"><ArrowUp size={20} aria-hidden="true" /></button>
+          </form>
+          <p className="mt-2 text-center text-xs text-ink-faint">{t("disclaimer")}</p>
+        </div>
+      </div>
     </div>
   );
 }

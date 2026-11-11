@@ -114,7 +114,7 @@ async function insertDraftItems(supabase: UserDb, userId: string, planId: string
       times: d.times,
       weekdays: d.weekdays,
       weekly_target: d.schedule_kind === "weekly_target" ? (d.weekly_target ?? 1) : d.weekly_target,
-      once_date: d.schedule_kind === "once" ? new Date().toISOString().slice(0, 10) : null,
+      once_date: d.schedule_kind === "once" ? (d.once_date ?? new Date().toISOString().slice(0, 10)) : null,
       status: "draft" as const,
       provenance: "extracted" as const,
       source_document_id: documentId,
@@ -147,22 +147,59 @@ async function createTemplatePlan(supabase: Awaited<ReturnType<typeof requireUse
   return plan.id;
 }
 
+const IntakeSchema = z.object({
+  setup_for: z.enum(["self", "caregiver"]).nullable(),
+  care_recipient_relation: z.enum(["parent", "spouse", "child", "grandparent", "sibling", "other"]).nullable(),
+  care_recipient_name: z.string().max(80).nullable(),
+  health_context: z.enum(["diagnosed", "wellness", "prefer_not"]).nullable(),
+  conditions: z.array(z.enum(["diabetes", "bp", "heart", "thyroid", "skin_hair", "post_surgery", "respiratory", "joints", "kidney", "mental", "pregnancy", "other"])).max(12),
+  care_situation: z.enum(["discharge", "new_plan", "existing"]).nullable(),
+});
+
+const CONDITION_TEXT: Record<string, string> = {
+  diabetes: "diabetes", bp: "blood pressure", heart: "a heart condition", thyroid: "thyroid", skin_hair: "a skin or hair condition",
+  post_surgery: "recovery after surgery", respiratory: "a breathing condition", joints: "joint or bone problems", kidney: "a kidney condition",
+  mental: "mental health", pregnancy: "pregnancy care", other: "another condition",
+};
+const SITUATION_TEXT: Record<string, string> = {
+  discharge: "Recently came home from hospital and is settling into a routine.",
+  new_plan: "Has recently started a new treatment plan.",
+  existing: "Wants help keeping up with a plan they already have.",
+};
+
+/** Plain-language context facts for the assistant, phrased as what the user told us. */
+function intakeFacts(v: z.infer<typeof IntakeSchema>): string[] {
+  const out: string[] = [];
+  if (v.setup_for === "caregiver") out.push(`The account is run by a family caregiver (${v.care_recipient_relation ?? "relative"}) on behalf of ${v.care_recipient_name || "the person receiving care"}. Address the caregiver; refer to the care recipient in the third person.`);
+  if (v.health_context === "diagnosed") {
+    const conds = v.conditions.map((c) => CONDITION_TEXT[c]).filter(Boolean);
+    out.push(`Follows a care plan from their doctor${conds.length ? ` (user-reported: ${conds.join(", ")})` : ""}. Help them follow it as written; never suggest treatment changes.`);
+    if (v.care_situation && SITUATION_TEXT[v.care_situation]) out.push(SITUATION_TEXT[v.care_situation]);
+  }
+  if (v.health_context === "wellness") out.push("Is working on self-chosen wellbeing goals (no doctor's plan).");
+  return out.map((s) => s.slice(0, 500));
+}
+
 export async function completeOnboarding(_prev: ActionState, fd: FormData): Promise<ActionState> {
   const r = await saveProfile(fd, true);
   if ("error" in r) return { error: r.error };
   const { supabase, user } = r;
   try {
     await writeConsents(fd, user.id, supabase);
-    // "What brings you here" becomes confirmed context for the assistant (never a diagnosis).
-    const REASON_TEXT: Record<string, string> = {
-      discharge: "Recently came home from hospital and is settling into a routine.",
-      new_plan: "Has recently started a new treatment plan.",
-      existing: "Wants help keeping up with a plan they already have.",
-      wellbeing: "Is working on personal wellbeing goals.",
-    };
-    const reason = String(fd.get("reason") ?? "");
-    if (REASON_TEXT[reason]) {
-      await createAdminClient().from("memory_facts").insert({ user_id: user.id, kind: "context", content: REASON_TEXT[reason], source_type: "onboarding", status: "confirmed" });
+    // Intake answers: self-reported context for reminders and the assistant. Never a diagnosis.
+    const intake = IntakeSchema.safeParse({
+      setup_for: fd.get("setup_for") || null,
+      care_recipient_relation: fd.get("care_recipient_relation") || null,
+      care_recipient_name: String(fd.get("care_recipient_name") ?? "").trim() || null,
+      health_context: fd.get("health_context") || null,
+      conditions: fd.getAll("conditions").map(String),
+      care_situation: fd.get("situation") || null,
+    });
+    if (intake.success) {
+      const v = intake.data;
+      await supabase.from("profiles").update({ ...v, care_recipient_relation: v.setup_for === "caregiver" ? v.care_recipient_relation : null, care_recipient_name: v.setup_for === "caregiver" ? v.care_recipient_name : null }).eq("id", user.id);
+      const facts = intakeFacts(v);
+      if (facts.length) await createAdminClient().from("memory_facts").insert(facts.map((content) => ({ user_id: user.id, kind: "context" as const, content, source_type: "onboarding" as const, status: "confirmed" as const })));
     }
     const tpl = String(fd.get("template") ?? "none");
     if (tpl === "walk" || tpl === "water" || tpl === "stretch") {
@@ -189,7 +226,7 @@ export async function completeOnboarding(_prev: ActionState, fd: FormData): Prom
         const docId = await storePlanSource(supabase, user.id, file);
         if (docId) {
           await supabase.from("care_plans").update({ source_document_id: docId }).eq("id", plan.id);
-          const ex = await extractPlanDraft(createAdminClient(), user.id, docId);
+          const ex = await extractPlanDraft(createAdminClient(), user.id, docId, { hint: String(fd.get("plan_hint") ?? "").slice(0, 600) });
           if (ex.ok && ex.drafts.length) drafted = !(await insertDraftItems(supabase, user.id, plan.id, docId, ex.drafts))?.error;
         }
       }
@@ -219,6 +256,12 @@ export async function saveConsents(_prev: ActionState, fd: FormData): Promise<Ac
   }
   revalidatePath("/settings");
   return { ok: true };
+}
+
+/** Mark in-app notifications as read on this device. */
+export async function markNotificationsRead() {
+  await requireUser();
+  (await cookies()).set("sukhi_notif_seen", new Date().toISOString(), { path: "/", sameSite: "lax", httpOnly: true, secure: process.env.NODE_ENV === "production", maxAge: 60 * 60 * 24 * 365 });
 }
 
 // ---------------------------------------------------------------------------

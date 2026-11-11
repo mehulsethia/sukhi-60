@@ -145,6 +145,30 @@ export type Database = {
         }
         Relationships: []
       }
+      app_activity: {
+        Row: {
+          day: string
+          first_at: string
+          hits: number
+          last_at: string
+          user_id: string
+        }
+        Insert: {
+          day: string
+          first_at?: string
+          hits?: number
+          last_at?: string
+          user_id: string
+        }
+        Update: {
+          day?: string
+          first_at?: string
+          hits?: number
+          last_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       audit_events: {
         Row: {
           action: string
@@ -1017,48 +1041,69 @@ export type Database = {
         Row: {
           accessibility: Json
           care_notes: string | null
+          care_recipient_name: string | null
+          care_recipient_relation: string | null
+          care_situation: string | null
           checkin_times: string[]
+          conditions: string[]
           created_at: string
           display_name: string | null
+          health_context: string | null
           id: string
+          is_internal: boolean
           limitations: string | null
           locale: Database["public"]["Enums"]["app_locale"]
           onboarded_at: string | null
           quiet_end: string
           quiet_start: string
           reminder_frequency: string
+          setup_for: string | null
           timezone: string
           updated_at: string
         }
         Insert: {
           accessibility?: Json
           care_notes?: string | null
+          care_recipient_name?: string | null
+          care_recipient_relation?: string | null
+          care_situation?: string | null
           checkin_times?: string[]
+          conditions?: string[]
           created_at?: string
           display_name?: string | null
+          health_context?: string | null
           id: string
+          is_internal?: boolean
           limitations?: string | null
           locale?: Database["public"]["Enums"]["app_locale"]
           onboarded_at?: string | null
           quiet_end?: string
           quiet_start?: string
           reminder_frequency?: string
+          setup_for?: string | null
           timezone?: string
           updated_at?: string
         }
         Update: {
           accessibility?: Json
           care_notes?: string | null
+          care_recipient_name?: string | null
+          care_recipient_relation?: string | null
+          care_situation?: string | null
           checkin_times?: string[]
+          conditions?: string[]
           created_at?: string
           display_name?: string | null
+          health_context?: string | null
           id?: string
+          is_internal?: boolean
           limitations?: string | null
           locale?: Database["public"]["Enums"]["app_locale"]
           onboarded_at?: string | null
           quiet_end?: string
           quiet_start?: string
           reminder_frequency?: string
+          setup_for?: string | null
           timezone?: string
           updated_at?: string
         }
@@ -1235,6 +1280,18 @@ export type Database = {
         Returns: Json
       }
       accept_family_invite: { Args: { p_token: string }; Returns: Json }
+      admin_metrics: {
+        Args: {
+          p_days?: number
+          p_exclude_emails?: string[]
+          p_include_internal?: boolean
+        }
+        Returns: Json
+      }
+      admin_set_internal: {
+        Args: { p_internal: boolean; p_user: string }
+        Returns: undefined
+      }
       apply_check_in_internal: {
         Args: {
           p_channel: Database["public"]["Enums"]["channel_kind"]
@@ -1338,6 +1395,7 @@ export type Database = {
         }
         Returns: Json
       }
+      touch_activity: { Args: never; Returns: undefined }
     }
     Enums: {
       app_locale: "en" | "hi" | "mr"

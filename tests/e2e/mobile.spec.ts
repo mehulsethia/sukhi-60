@@ -12,7 +12,10 @@ test("mobile: landing fits, bottom nav after sign-up, microphone denial falls ba
   await page.getByLabel(/I agree to the/).check();
   await page.getByRole("button", { name: "Create account" }).click();
   await expect(page).toHaveURL(/\/onboarding/);
-  for (let i = 0; i < 6; i++) await page.getByRole("button", { name: "Continue" }).click();
+  for (let i = 0; i < 4; i++) await page.getByRole("button", { name: "Continue" }).click();
+  await page.getByRole("radio", { name: /setting this up for myself/ }).click();
+  await page.getByRole("radio", { name: /rather not say/ }).click();
+  for (let i = 0; i < 2; i++) await page.getByRole("button", { name: "Continue" }).click();
   await page.getByLabel(/Allow voice notes/).check();
   await page.getByRole("button", { name: "Continue" }).click();
   await page.getByRole("button", { name: "Start using Sukhi" }).click();

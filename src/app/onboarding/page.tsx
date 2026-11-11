@@ -4,6 +4,8 @@ import { requireUser } from "@/lib/supabase/server";
 import { OnboardingForm } from "./OnboardingForm";
 
 export const metadata: Metadata = { title: "Welcome" };
+// Finishing onboarding may read an uploaded prescription with the vision model.
+export const maxDuration = 130;
 
 export default async function OnboardingPage() {
   const { supabase, user } = await requireUser();
