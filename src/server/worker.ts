@@ -15,6 +15,8 @@ import { reply } from "@/domain/replies";
 import { inQuietHours, localTimeOf, reminderSendTime } from "@/domain/schedule";
 import { runCheckins } from "./checkins";
 import { cleanupOrphanVideos } from "./cleanup";
+import { sendPush } from "./push";
+import { ctext, resumePausedPlans, runInactivityAlerts } from "./companion";
 
 type Job = Database["public"]["Tables"]["jobs"]["Row"];
 type Outcome = "done" | "retry" | "dead" | "cancelled";
@@ -23,13 +25,17 @@ class PermanentError extends Error {}
 class CancelJob extends Error {}
 
 export async function runWorkerTick(admin: AdminClient, workerId: string) {
-  const summary = { silence: 0, generation_enqueued: 0, claimed: 0, done: 0, retried: 0, dead: 0, cancelled: 0, checkins: 0, videos_removed: 0 };
+  const summary = { silence: 0, generation_enqueued: 0, claimed: 0, done: 0, retried: 0, dead: 0, cancelled: 0, checkins: 0, videos_removed: 0, plans_resumed: 0, family_alerts: 0 };
   const { data: silenced } = await admin.rpc("apply_silence_rule", { p_limit: 500 });
   summary.silence = Number(silenced ?? 0);
   // Proactive assistant check-ins due in this minute (bounded batch; next tick picks up the rest).
   summary.checkins = await runCheckins(admin).catch(() => 0);
   // Housekeeping once an hour: remove video uploads that never became evidence.
   if (new Date().getUTCMinutes() === 17) summary.videos_removed = await cleanupOrphanVideos(admin).catch(() => 0);
+  // Plans paused "until a date" come back on that date (user's timezone), before occurrences are generated.
+  summary.plans_resumed = await resumePausedPlans(admin).catch(() => 0);
+  // Once an hour: consented family "no activity" alerts.
+  if (new Date().getUTCMinutes() === 23) summary.family_alerts = await runInactivityAlerts(admin).catch(() => 0);
 
   // Daily occurrence generation per user with confirmed items (dedupe per UTC day).
   const { data: users } = await admin.from("plan_items").select("user_id").eq("status", "confirmed").limit(1000);
@@ -130,6 +136,8 @@ async function handleReminder(admin: AdminClient, job: Job) {
 
   // In-app notice is always written; the web Today view shows it without any channel.
   await admin.from("messages").insert({ user_id: userId, role: "notice", channel: "system", content: reply(profile.locale, "reminder", { title: item.title }), source_refs: [{ type: "occurrence", id: occ.id, label: item.title }] });
+  // Phone notification on any device the user turned them on for (same quiet-hours check as above).
+  await sendPush(admin, userId, { title: ctext(profile.locale, "pushReminderTitle"), body: ctext(profile.locale, "pushReminder", { title: item.title }), url: "/today", tag: `occ-${occ.id}` }).catch(() => 0);
 
   const { data: binding } = await admin.from("channel_bindings").select("id, external_id, status, last_inbound_at").eq("user_id", userId).neq("status", "revoked").maybeSingle();
   const decision = decideSend({ binding, consentWhatsapp: !!consents.whatsapp, approvedTemplates: settings.approvedTemplates(), quiet: false });

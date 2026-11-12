@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { Metadata } from "next";
 import { getLocale, getTranslations } from "next-intl/server";
-import { Award, CalendarCheck, Flame, Target, TrendingUp, Trophy } from "lucide-react";
+import { Award, CalendarCheck, Flame, Stethoscope, Target, TrendingUp, Trophy } from "lucide-react";
 import { requireUser } from "@/lib/supabase/server";
 import { activeDays, goalProgress, summarizeWeek } from "@/domain/rewards";
 import { pointsTotal } from "@/server/points";
@@ -124,6 +124,7 @@ export default async function ProgressPage({ searchParams }: { searchParams: Pro
             <Link key={k} href={`/progress?range=${k}`} aria-current={k === range ? "page" : undefined} scroll={false}>{t(`progressUi.range_${k}`)}</Link>
           ))}
         </nav>
+        <Link href="/visit" className="btn btn-secondary"><Stethoscope size={17} aria-hidden="true" />{t("visit.link")}</Link>
       </PageHeader>
 
       <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">

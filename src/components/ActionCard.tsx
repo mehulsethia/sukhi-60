@@ -7,11 +7,12 @@ import { checkIn } from "@/app/actions";
 import { Alert, StatusBadge } from "@/components/ui";
 import { bucketOf, BUCKET_COLOR } from "@/lib/status";
 import { SupportFlow } from "@/components/SupportFlow";
+import { TellFamilyButton } from "@/components/CompanionForms";
 import { BARRIER_CODES, type BarrierCode } from "@/domain/behaviour";
 import type { SupportResult } from "@/server/support";
 
 interface Props {
-  action: { id: string; title: string; instructions: string | null; display: string; time: string | null; tz: string; weekly: { done: number; target: number } | null; planMode: string };
+  action: { id: string; title: string; instructions: string | null; display: string; time: string | null; tz: string; weekly: { done: number; target: number } | null; planMode: string; canTellFamily?: boolean };
   variant?: "row" | "hero";
 }
 
@@ -49,6 +50,7 @@ export function ActionCard({ action, variant = "row" }: Props) {
       {state?.ok && points > 0 ? <div className="pop-in"><Alert tone="ok">{t("today.pointsEarned", { points })}</Alert></div> : null}
       {state?.ok && (result === "already_recorded" || result === "already_counted") ? <Alert tone="info">{t("today.alreadyRecorded")}</Alert> : null}
       {state?.ok && lastKind === "unable" ? <Alert tone="info">{t("today.unwellNote")}</Alert> : null}
+      {state?.ok && lastKind === "unable" && action.canTellFamily ? <TellFamilyButton /> : null}
       {state?.ok && support ? <SupportFlow key={support.reportId} occurrenceId={action.id} title={action.title} initial={support} /> : null}
     </div>
   );

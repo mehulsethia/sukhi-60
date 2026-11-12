@@ -25,6 +25,7 @@ export default async function PlanList({ searchParams }: { searchParams: Promise
   return (
     <>
       <PageHeader title={t("plan.title")} subtitle={t("planUi.subtitle")}>
+        <Link href="/visit" className="btn btn-secondary"><Stethoscope size={18} aria-hidden="true" />{t("visit.link")}</Link>
         <a href="#new-plan" className="btn btn-primary"><Plus size={18} aria-hidden="true" />{t("plan.newPlan")}</a>
       </PageHeader>
 

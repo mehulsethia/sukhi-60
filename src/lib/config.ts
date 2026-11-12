@@ -7,7 +7,7 @@ interface VarSpec {
   name: string;
   required: boolean;
   secret: boolean;
-  group: "supabase" | "app" | "worker" | "anthropic" | "speech" | "sarvam" | "whatsapp";
+  group: "supabase" | "app" | "worker" | "anthropic" | "speech" | "sarvam" | "whatsapp" | "push";
   validate?: (v: string) => boolean;
 }
 
@@ -35,6 +35,10 @@ export const VARS: VarSpec[] = [
   { name: "SARVAM_ASR_MODEL", required: false, secret: false, group: "sarvam", validate: (v) => /^saaras:v\d/.test(v) },
   { name: "SARVAM_TTS_MODEL", required: false, secret: false, group: "sarvam", validate: (v) => /^bulbul:v\d/.test(v) },
   { name: "SARVAM_TTS_SPEAKER", required: false, secret: false, group: "sarvam", validate: (v) => /^[a-z_]+$/.test(v) },
+  // Web push (phone notifications). Generate with: npx web-push generate-vapid-keys
+  { name: "NEXT_PUBLIC_VAPID_PUBLIC_KEY", required: false, secret: false, group: "push", validate: (v) => /^[A-Za-z0-9_-]{80,100}$/.test(v) },
+  { name: "VAPID_PRIVATE_KEY", required: false, secret: true, group: "push", validate: (v) => /^[A-Za-z0-9_-]{40,50}$/.test(v) },
+  { name: "VAPID_SUBJECT", required: false, secret: false, group: "push", validate: (v) => /^(mailto:|https:\/\/)/.test(v) },
   // MVP: WhatsApp connect is shown as "coming soon" until this is "true" (and the keys below are set).
   { name: "WHATSAPP_ENABLED", required: false, secret: false, group: "whatsapp", validate: (v) => v === "true" || v === "false" },
   { name: "WHATSAPP_ACCESS_TOKEN", required: false, secret: true, group: "whatsapp", validate: (v) => v.length > 20 },
@@ -64,6 +68,7 @@ export const features = {
   ai: () => ok("ANTHROPIC_API_KEY") && ok("ANTHROPIC_MODEL"),
   speech: () => ok("ELEVENLABS_API_KEY") || ok("SARVAM_API_KEY"),
   whatsapp: () => ok("WHATSAPP_ACCESS_TOKEN") && ok("WHATSAPP_PHONE_NUMBER_ID") && ok("WHATSAPP_APP_SECRET") && ok("WHATSAPP_VERIFY_TOKEN"),
+  push: () => ok("NEXT_PUBLIC_VAPID_PUBLIC_KEY") && ok("VAPID_PRIVATE_KEY"),
   /** Offered to users (connect, consent, copy). Off for the MVP: shown as "coming soon". */
   whatsappLaunched: () => process.env.WHATSAPP_ENABLED === "true" && features.whatsapp(),
   demo: () => process.env.DEMO_MODE_ENABLED === "true",

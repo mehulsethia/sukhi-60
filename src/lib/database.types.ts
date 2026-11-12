@@ -277,6 +277,8 @@ export type Database = {
           created_at: string
           id: string
           mode: Database["public"]["Enums"]["plan_mode"]
+          pause_reason: string | null
+          paused_until: string | null
           source_description: string | null
           source_document_id: string | null
           status: Database["public"]["Enums"]["plan_status"]
@@ -291,6 +293,8 @@ export type Database = {
           created_at?: string
           id?: string
           mode: Database["public"]["Enums"]["plan_mode"]
+          pause_reason?: string | null
+          paused_until?: string | null
           source_description?: string | null
           source_document_id?: string | null
           status?: Database["public"]["Enums"]["plan_status"]
@@ -305,6 +309,8 @@ export type Database = {
           created_at?: string
           id?: string
           mode?: Database["public"]["Enums"]["plan_mode"]
+          pause_reason?: string | null
+          paused_until?: string | null
           source_description?: string | null
           source_document_id?: string | null
           status?: Database["public"]["Enums"]["plan_status"]
@@ -700,6 +706,47 @@ export type Database = {
         }
         Relationships: []
       }
+      family_alerts: {
+        Row: {
+          access_id: string
+          created_at: string
+          dedupe_key: string
+          id: string
+          kind: string
+          member_user_id: string
+          patient_id: string
+          seen_at: string | null
+        }
+        Insert: {
+          access_id: string
+          created_at?: string
+          dedupe_key: string
+          id?: string
+          kind: string
+          member_user_id: string
+          patient_id: string
+          seen_at?: string | null
+        }
+        Update: {
+          access_id?: string
+          created_at?: string
+          dedupe_key?: string
+          id?: string
+          kind?: string
+          member_user_id?: string
+          patient_id?: string
+          seen_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "family_alerts_access_id_fkey"
+            columns: ["access_id"]
+            isOneToOne: false
+            referencedRelation: "family_access"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       habit_confidence: {
         Row: {
           confidence: number | null
@@ -948,6 +995,42 @@ export type Database = {
         }
         Relationships: []
       }
+      mood_checkins: {
+        Row: {
+          created_at: string
+          id: string
+          local_date: string
+          mood: number
+          sleep_hours: number | null
+          sleep_quality: number | null
+          stress: number | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          local_date: string
+          mood: number
+          sleep_hours?: number | null
+          sleep_quality?: number | null
+          stress?: number | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          local_date?: string
+          mood?: number
+          sleep_hours?: number | null
+          sleep_quality?: number | null
+          stress?: number | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       nudge_events: {
         Row: {
           acknowledged_at: string | null
@@ -1140,8 +1223,11 @@ export type Database = {
           source_page: number | null
           source_snippet: string | null
           status: Database["public"]["Enums"]["item_status"]
+          stock_count: number | null
+          stock_updated_at: string | null
           times: string[]
           title: string
+          units_per_dose: number
           unresolved_fields: string[]
           updated_at: string
           user_id: string
@@ -1166,8 +1252,11 @@ export type Database = {
           source_page?: number | null
           source_snippet?: string | null
           status?: Database["public"]["Enums"]["item_status"]
+          stock_count?: number | null
+          stock_updated_at?: string | null
           times?: string[]
           title: string
+          units_per_dose?: number
           unresolved_fields?: string[]
           updated_at?: string
           user_id: string
@@ -1192,8 +1281,11 @@ export type Database = {
           source_page?: number | null
           source_snippet?: string | null
           status?: Database["public"]["Enums"]["item_status"]
+          stock_count?: number | null
+          stock_updated_at?: string | null
           times?: string[]
           title?: string
+          units_per_dose?: number
           unresolved_fields?: string[]
           updated_at?: string
           user_id?: string
@@ -1309,6 +1401,42 @@ export type Database = {
           setup_for?: string | null
           timezone?: string
           updated_at?: string
+        }
+        Relationships: []
+      }
+      push_subscriptions: {
+        Row: {
+          auth: string
+          created_at: string
+          endpoint: string
+          failures: number
+          id: string
+          last_success_at: string | null
+          p256dh: string
+          user_agent: string | null
+          user_id: string
+        }
+        Insert: {
+          auth: string
+          created_at?: string
+          endpoint: string
+          failures?: number
+          id?: string
+          last_success_at?: string | null
+          p256dh: string
+          user_agent?: string | null
+          user_id: string
+        }
+        Update: {
+          auth?: string
+          created_at?: string
+          endpoint?: string
+          failures?: number
+          id?: string
+          last_success_at?: string | null
+          p256dh?: string
+          user_agent?: string | null
+          user_id?: string
         }
         Relationships: []
       }
@@ -1572,10 +1700,6 @@ export type Database = {
         }
         Returns: Json
       }
-      orphan_evidence_videos: {
-        Args: { p_limit?: number; p_older_than?: unknown }
-        Returns: { name: string }[]
-      }
       admin_set_internal: {
         Args: { p_internal: boolean; p_user: string }
         Returns: undefined
@@ -1672,6 +1796,12 @@ export type Database = {
         Returns: Database["public"]["Enums"]["job_status"]
       }
       family_summary: { Args: { p_access: string }; Returns: Json }
+      orphan_evidence_videos: {
+        Args: { p_limit?: number; p_older_than?: string }
+        Returns: {
+          name: string
+        }[]
+      }
       record_check_in: {
         Args: {
           p_idempotency_key: string

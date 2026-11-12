@@ -107,6 +107,7 @@ export function FamilyInviteForm({ disabled }: { disabled: boolean }) {
       <div className="field"><label htmlFor="fam-label">{t("settings.familyLabel")}</label><input id="fam-label" name="label" className="input" required maxLength={80} /></div>
       <fieldset><legend className="label mb-1">{t("settings.familyScopes")}</legend>
         {["weekly_summary", "garden"].map((s) => <label key={s} className="flex min-h-10 items-center gap-3"><input type="checkbox" name="scopes" value={s} defaultChecked={s === "weekly_summary"} className="h-5 w-5" />{t(`settings.scope_${s}`)}</label>)}
+        <label className="flex min-h-10 items-start gap-3 py-1"><input type="checkbox" name="scopes" value="alerts" className="mt-0.5 h-5 w-5" /><span>{t("settings.scope_alerts")}<span className="hint block text-sm">{t("companion.alertsScopeHelp")}</span></span></label>
       </fieldset>
       <SubmitButton className="btn btn-secondary self-start" pendingLabel={t("common.saving")}>{t("settings.familyInvite")}</SubmitButton>
       <div aria-live="polite">

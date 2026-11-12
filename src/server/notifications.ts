@@ -6,7 +6,7 @@ import { addDays, localDateOf } from "@/domain/schedule";
 
 export const NOTIF_COOKIE = "sukhi_notif_seen";
 
-export type NotifKind = "checkin" | "due" | "reminder" | "drafts" | "assessment" | "milestone" | "proposal" | "missed" | "whatsapp" | "family";
+export type NotifKind = "checkin" | "due" | "reminder" | "drafts" | "assessment" | "milestone" | "proposal" | "missed" | "whatsapp" | "family" | "family_alert";
 export interface Notif {
   id: string;
   kind: NotifKind;
@@ -44,7 +44,12 @@ export async function getNotifications(db: AdminClient, userId: string, tz: stri
     db.from("consents").select("granted").eq("user_id", userId).eq("kind", "whatsapp").maybeSingle(),
   ]);
 
+  // Alerts about someone who shared them with this user (RLS: only while access is active).
+  const { data: famAlerts } = await db.from("family_alerts").select("id, access_id, kind, created_at, family_access!inner(patient_id)").eq("member_user_id", userId).gte("created_at", since7d).order("created_at", { ascending: false }).limit(5);
   const out: Omit<Notif, "unread">[] = [];
+  for (const a of famAlerts ?? []) {
+    out.push({ id: `fa-${a.id}`, kind: "family_alert", key: `familyAlert_${a.kind}`, values: {}, href: `/family/${a.access_id}`, at: a.created_at });
+  }
   for (const c of checkins.data ?? []) {
     const preview = c.content.length > 90 ? `${c.content.slice(0, 88)}…` : c.content;
     out.push({ id: `ci-${c.id}`, kind: "checkin", key: "checkin", values: { preview }, href: "/chat", at: c.created_at });

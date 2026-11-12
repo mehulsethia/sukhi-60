@@ -12,6 +12,9 @@ import { CategoryIcon } from "@/components/CategoryIcon";
 import { fmtDateTime } from "@/lib/format";
 import { readingState } from "@/server/plan-reading";
 import { ReadingStatus } from "@/components/ReadingStatus";
+import { PauseUntilForm, StockForm } from "@/components/CompanionForms";
+import { daysLeft } from "@/server/companion";
+import { addDays, localDateOf } from "@/domain/schedule";
 
 export const metadata: Metadata = { title: "Plan" };
 // "Try again" reads the document in the background after this response.
@@ -63,6 +66,7 @@ export default async function PlanDetail({ params, searchParams }: { params: Pro
           {i.source_snippet ? <p className="hint mt-1.5">{t("plan.source")}{i.source_page ? ` · ${t("plan.sourcePage", { page: i.source_page })}` : ""}: “{i.source_snippet}”</p> : null}
         </div>
       </div>
+      {i.category === "medication" && i.status !== "draft" ? <StockForm itemId={i.id} stock={i.stock_count} perDose={i.units_per_dose} daysLeft={daysLeft(i)} /> : null}
       {i.unresolved_fields.length ? <div className="mt-3"><Alert tone="warn">{t("plan.unresolved")}: {i.unresolved_fields.join(", ")}</Alert></div> : null}
       <div className="mt-3 flex flex-wrap gap-2 sm:pl-10">
         <EditItemToggle planId={plan.id} clinical={clinical} item={i as unknown as EditableItem} />
@@ -89,6 +93,7 @@ export default async function PlanDetail({ params, searchParams }: { params: Pro
               <span className={`chip ${plan.status === "active" ? "bg-ok-bg text-ok-ink" : ""}`}>{t(`plan.status_${plan.status}`)}</span>
               <span className="chip">{clinical ? t(`plan.verification_${plan.clinician_verification}`) : t("plan.personalBadge")}</span>
               {plan.clinician_name ? <span className="chip">{t("plan.clinicianName")}: {plan.clinician_name}</span> : null}
+              {plan.status === "paused" && plan.paused_until ? <span className="chip bg-warn-bg text-warn-ink">{t("companion.pausedUntil", { date: plan.paused_until })}{plan.pause_reason ? ` · ${t(`companion.reason_${plan.pause_reason}`)}` : ""}</span> : null}
             </div>
           </div>
         </div>
@@ -98,6 +103,7 @@ export default async function PlanDetail({ params, searchParams }: { params: Pro
           {plan.status !== "active" ? <SubmitButton className="btn btn-primary" name="status" value="active">{plan.status === "paused" ? t("plan.resume") : t("plan.activate")}</SubmitButton> : null}
           <SubmitButton className="btn btn-ghost" name="status" value="archived">{t("plan.archive")}</SubmitButton>
         </form>
+        {plan.status === "active" ? <div className="w-full sm:w-auto"><PauseUntilForm planId={plan.id} minDate={addDays(localDateOf(new Date(), tz), 1)} maxDate={addDays(localDateOf(new Date(), tz), 90)} /></div> : null}
       </header>
       {plan.source_document_id && (reading === "pending" || reading === "failed" || reading === "stale") ? <ReadingStatus planId={plan.id} docId={plan.source_document_id} state={reading} /> : null}
       {sp.from === "onboarding" && reading !== "pending" ? <div className="mb-5"><Alert tone={drafts.length ? "warn" : "info"}>{drafts.length ? t("onb.reviewDrafts") : t("onb.reviewNoDoc")}</Alert></div> : null}

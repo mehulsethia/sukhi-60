@@ -21,6 +21,9 @@ import { CONSENT_KINDS, writeConsentChoices } from "@/server/consents";
 import { validateUpload } from "@/server/files";
 import { sendWelcome } from "@/server/checkins";
 import { decideSuggestion, reportBarrier, respondToNudge, type SupportResult, type SuggestionOutcome } from "@/server/support";
+import { removeSubscription, saveSubscription, sendPush } from "@/server/push";
+import { ctext, notifyFamily } from "@/server/companion";
+import { addDays, localDateOf } from "@/domain/schedule";
 import { BARRIER_CODES, cleanMotivation, normalizeRestart, normalizeStyles, parseConfidence } from "@/domain/behaviour";
 
 export type ActionState = { ok?: boolean; error?: string; data?: Record<string, unknown> } | null;
@@ -457,10 +460,127 @@ export async function setPlanStatus(fd: FormData) {
   const { supabase, user } = await requireUser();
   const id = z.string().uuid().parse(fd.get("plan_id"));
   const status = z.enum(["active", "paused", "archived"]).parse(fd.get("status"));
-  await supabase.from("care_plans").update({ status }).eq("id", id).eq("user_id", user.id);
+  // Any manual status change clears a "pause until" date.
+  await supabase.from("care_plans").update({ status, paused_until: null, pause_reason: null }).eq("id", id).eq("user_id", user.id);
   if (status === "active") await materializeOccurrences(createAdminClient(), user.id, 7);
   revalidatePath(`/plan/${id}`);
   revalidatePath("/today");
+}
+
+/** Pause a plan until a date (travel, festival, fasting...). It resumes by itself on that date. */
+export async function pausePlanUntil(_prev: ActionState, fd: FormData): Promise<ActionState> {
+  const { supabase, user } = await requireUser();
+  const id = z.string().uuid().safeParse(fd.get("plan_id"));
+  const until = z.string().regex(/^\d{4}-\d{2}-\d{2}$/).safeParse(fd.get("until"));
+  const reason = z.enum(["travel", "festival", "fasting", "unwell", "other"]).safeParse(fd.get("reason") || "other");
+  if (!id.success || !until.success || !reason.success) return { error: "invalid_input" };
+  const { data: profile } = await supabase.from("profiles").select("timezone").eq("id", user.id).single();
+  const today = localDateOf(new Date(), profile?.timezone ?? "Asia/Kolkata");
+  if (until.data <= today || until.data > addDays(today, 90)) return { error: "invalid_date" };
+  const { error } = await supabase.from("care_plans").update({ status: "paused", paused_until: until.data, pause_reason: reason.data }).eq("id", id.data).eq("user_id", user.id);
+  if (error) return { error: "save_failed" };
+  revalidatePath(`/plan/${id.data}`);
+  revalidatePath("/plan");
+  revalidatePath("/today");
+  return { ok: true };
+}
+
+// ---------------------------------------------------------------------------
+// Medicine stock (a count only: never changes the schedule or dose)
+// ---------------------------------------------------------------------------
+export async function setStock(_prev: ActionState, fd: FormData): Promise<ActionState> {
+  const { supabase, user } = await requireUser();
+  const id = z.string().uuid().safeParse(fd.get("item_id"));
+  const mode = fd.get("mode") === "add" ? "add" : fd.get("mode") === "clear" ? "clear" : "set";
+  const count = z.coerce.number().int().min(0).max(10000).safeParse(fd.get("count") || 0);
+  const perDose = z.coerce.number().int().min(1).max(20).safeParse(fd.get("units_per_dose") || 1);
+  if (!id.success || !count.success || !perDose.success) return { error: "invalid_input" };
+  const { data: item } = await supabase.from("plan_items").select("id, plan_id, stock_count").eq("id", id.data).eq("user_id", user.id).maybeSingle();
+  if (!item) return { error: "not_found" };
+  const next = mode === "clear" ? null : mode === "add" ? Math.min(10000, (item.stock_count ?? 0) + count.data) : count.data;
+  const { error } = await supabase.from("plan_items").update({ stock_count: next, units_per_dose: perDose.data, stock_updated_at: new Date().toISOString() }).eq("id", item.id).eq("user_id", user.id);
+  if (error) return { error: "save_failed" };
+  revalidatePath(`/plan/${item.plan_id}`);
+  revalidatePath("/today");
+  return { ok: true };
+}
+
+// ---------------------------------------------------------------------------
+// Phone notifications (web push)
+// ---------------------------------------------------------------------------
+const PushSub = z.object({ endpoint: z.string().url().startsWith("https://").max(1000), p256dh: z.string().min(10).max(200), auth: z.string().min(8).max(100), userAgent: z.string().max(300).nullable().optional() });
+
+export async function savePushSubscriptionAction(input: { endpoint: string; p256dh: string; auth: string; userAgent?: string | null }): Promise<{ ok: boolean }> {
+  const { user } = await requireUser();
+  const v = PushSub.safeParse(input);
+  if (!v.success) return { ok: false };
+  return { ok: await saveSubscription(createAdminClient(), user.id, v.data) };
+}
+
+export async function removePushSubscriptionAction(endpoint: string) {
+  const { user } = await requireUser();
+  if (typeof endpoint !== "string" || endpoint.length > 1000) return;
+  await removeSubscription(createAdminClient(), user.id, endpoint);
+}
+
+export async function sendTestPushAction(): Promise<{ sent: number }> {
+  const { supabase, user } = await requireUser();
+  const { data: p } = await supabase.from("profiles").select("locale").eq("id", user.id).single();
+  const l = p?.locale ?? "en";
+  return { sent: await sendPush(createAdminClient(), user.id, { title: ctext(l, "pushTestTitle"), body: ctext(l, "pushTest"), url: "/today", tag: "test" }) };
+}
+
+// ---------------------------------------------------------------------------
+// Mood, stress and sleep (one per local day; no free text)
+// ---------------------------------------------------------------------------
+export async function saveMood(_prev: ActionState, fd: FormData): Promise<ActionState> {
+  const { supabase, user } = await requireUser();
+  const v = z.object({
+    mood: z.coerce.number().int().min(1).max(5),
+    stress: z.coerce.number().int().min(1).max(3).nullable(),
+    sleep_quality: z.coerce.number().int().min(1).max(3).nullable(),
+    sleep_hours: z.coerce.number().min(0).max(16).multipleOf(0.5).nullable(),
+  }).safeParse({ mood: fd.get("mood"), stress: fd.get("stress") || null, sleep_quality: fd.get("sleep_quality") || null, sleep_hours: fd.get("sleep_hours") || null });
+  if (!v.success) return { error: "invalid_input" };
+  const { data: profile } = await supabase.from("profiles").select("timezone").eq("id", user.id).single();
+  const local_date = localDateOf(new Date(), profile?.timezone ?? "Asia/Kolkata");
+  const { data: existing } = await supabase.from("mood_checkins").select("id").eq("user_id", user.id).eq("local_date", local_date).maybeSingle();
+  const { error } = existing
+    ? await supabase.from("mood_checkins").update(v.data).eq("id", existing.id)
+    : await supabase.from("mood_checkins").insert({ user_id: user.id, local_date, ...v.data });
+  if (error) return { error: "save_failed" };
+  revalidatePath("/today");
+  revalidatePath("/progress");
+  return { ok: true, data: { low: v.data.mood <= 2 || v.data.stress === 3 } };
+}
+
+// ---------------------------------------------------------------------------
+// Family: "let my family know" (patient-initiated, per event) and reading alerts
+// ---------------------------------------------------------------------------
+export async function shareNotWellAction(): Promise<{ ok: boolean; sent: number }> {
+  const { supabase, user } = await requireUser();
+  const { data: profile } = await supabase.from("profiles").select("timezone").eq("id", user.id).single();
+  const sent = await notifyFamily(createAdminClient(), user.id, "not_well", localDateOf(new Date(), profile?.timezone ?? "Asia/Kolkata"));
+  return { ok: true, sent };
+}
+
+export async function markFamilyAlertsSeen(accessId: string) {
+  const { supabase, user } = await requireUser();
+  if (!z.string().uuid().safeParse(accessId).success) return;
+  await supabase.from("family_alerts").update({ seen_at: new Date().toISOString() }).eq("access_id", accessId).eq("member_user_id", user.id).is("seen_at", null);
+}
+
+// ---------------------------------------------------------------------------
+// Doctor-visit prep: questions to ask (stored as confirmed "open question" memories)
+// ---------------------------------------------------------------------------
+export async function addDoctorQuestion(_prev: ActionState, fd: FormData): Promise<ActionState> {
+  const { user } = await requireUser();
+  const q = z.string().trim().min(3).max(300).safeParse(fd.get("question"));
+  if (!q.success) return { error: "invalid_input" };
+  const { error } = await createAdminClient().from("memory_facts").insert({ user_id: user.id, kind: "open_question", content: q.data, source_type: "settings", status: "confirmed" });
+  if (error) return { error: "save_failed" };
+  revalidatePath("/visit");
+  return { ok: true };
 }
 
 const ItemSchema = z
@@ -629,7 +749,7 @@ export async function unlinkWhatsApp() {
 export async function createFamilyInvite(_prev: ActionState, fd: FormData): Promise<ActionState> {
   const { supabase, user } = await requireUser();
   const label = z.string().trim().min(1).max(80).safeParse(fd.get("label"));
-  const scopes = fd.getAll("scopes").map(String).filter((s) => s === "weekly_summary" || s === "garden");
+  const scopes = fd.getAll("scopes").map(String).filter((s) => s === "weekly_summary" || s === "garden" || s === "alerts");
   if (!label.success || scopes.length === 0) return { error: "invalid_input" };
   const { data: consent } = await supabase.from("consents").select("granted").eq("kind", "family_sharing").maybeSingle();
   if (!consent?.granted) return { error: "family_consent_required" };
@@ -666,6 +786,7 @@ export async function setMemoryStatus(fd: FormData) {
   const status = z.enum(["confirmed", "rejected"]).parse(fd.get("status"));
   await supabase.from("memory_facts").update({ status }).eq("id", id).eq("user_id", user.id);
   revalidatePath("/settings");
+  revalidatePath("/visit");
 }
 
 export async function setRewardGoal(_prev: ActionState, fd: FormData): Promise<ActionState> {

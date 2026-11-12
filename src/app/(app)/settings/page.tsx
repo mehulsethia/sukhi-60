@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { getLocale, getTranslations } from "next-intl/server";
-import { Brain, Cpu, HandHeart, MessageCircle, ShieldCheck, Trash2, UserRound, Users } from "lucide-react";
+import { BellRing, Brain, Cpu, HandHeart, MessageCircle, ShieldCheck, Trash2, UserRound, Users } from "lucide-react";
 import { requireUser } from "@/lib/supabase/server";
 import { features } from "@/lib/config";
 import { revokeFamily, setMemoryStatus, unlinkWhatsApp } from "@/app/actions";
@@ -12,6 +12,7 @@ import { summarizeWeek } from "@/domain/rewards";
 import { addDays, localDateOf, weekStart } from "@/domain/schedule";
 import { fmtDate, fmtDateTime } from "@/lib/format";
 import { ResetLearnedForm, SupportPrefsForm } from "@/components/SupportPrefsForm";
+import { PushToggle } from "@/components/PushToggle";
 import { getLearnedSummary } from "@/server/support";
 import { normalizeRestart, normalizeStyles } from "@/domain/behaviour";
 
@@ -39,6 +40,7 @@ export default async function SettingsPage() {
   const nav = [
     ["prefs", t("settings.profile"), UserRound],
     ["support", t("support.settingsTitle"), HandHeart],
+    ["notifications", t("push.title"), BellRing],
     ["consents", t("settings.consents"), ShieldCheck],
     ["wa", t("settings.whatsapp"), MessageCircle],
     ["family", t("settings.family"), Users],
@@ -80,6 +82,10 @@ export default async function SettingsPage() {
           )}
           <ResetLearnedForm />
         </div>
+      </Section>
+
+      <Section title={t("push.title")} id="notifications" icon={<BellRing size={20} aria-hidden="true" />} description={t("push.body")}>
+        <PushToggle publicKey={process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || null} />
       </Section>
 
       <Section title={t("settings.consents")} id="consents" icon={<ShieldCheck size={20} aria-hidden="true" />} description={t("settingsUi.consentsHelp")}>

@@ -29,7 +29,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     <div className="min-h-dvh lg:grid lg:grid-cols-[264px_minmax(0,1fr)]">
       <a href="#main" className="skip-link">{t("app.skipToContent")}</a>
       {/* Desktop sidebar */}
-      <aside className="sticky top-0 hidden h-dvh flex-col border-r border-line bg-surface px-4 py-6 lg:flex">
+      <aside className="sticky top-0 hidden h-dvh flex-col border-r border-line bg-surface px-4 py-6 lg:flex print:!hidden">
         <div className="px-2"><Logo href="/today" /></div>
         <div className="mt-9 flex-1"><BottomNav variant="sidebar" badges={{ chat: unreadChat }} /></div>
         <Link href="/chat" className="mb-4 block rounded-[var(--r-lg)] bg-primary p-4 text-white transition-colors hover:bg-[var(--primary-hover)]">
@@ -50,7 +50,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       </aside>
 
       <div className="flex min-w-0 flex-col">
-        <header className="sticky top-0 z-30 flex h-16 items-center justify-between gap-3 border-b border-line bg-bg/85 px-4 backdrop-blur-md sm:px-6 lg:px-10">
+        <header className="sticky top-0 z-30 flex h-16 print:hidden items-center justify-between gap-3 border-b border-line bg-bg/85 px-4 backdrop-blur-md sm:px-6 lg:px-10">
           <div className="flex min-w-0 items-center gap-3">
             <span className="lg:hidden"><Logo href="/today" size={26} /></span>
             <TopTitle />
@@ -62,7 +62,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         </header>
         <main id="main" className="mx-auto w-full max-w-6xl flex-1 px-4 pb-32 pt-6 sm:px-6 lg:px-10 lg:pb-14 lg:pt-8">{children}</main>
       </div>
-      <div className="lg:hidden"><BottomNav badges={{ chat: unreadChat }} /></div>
+      <div className="lg:hidden print:hidden"><BottomNav badges={{ chat: unreadChat }} /></div>
       <ActivityPing />
     </div>
   );

@@ -13,6 +13,10 @@ import { pointsTotal } from "@/server/points";
 import { addDays, localDateOf, weekStart } from "@/domain/schedule";
 import { ActionCard } from "@/components/ActionCard";
 import { InstallPrompt } from "@/components/InstallPrompt";
+import { PushToggle } from "@/components/PushToggle";
+import { MoodCard } from "@/components/CompanionForms";
+import { COMPANION_POLICY, daysLeft } from "@/server/companion";
+import { Package } from "lucide-react";
 import { fmtTime, hoursAgoIso, nowMs } from "@/lib/format";
 import { BUCKETS, BUCKET_COLOR, bucketOf, isDone, type Bucket } from "@/lib/status";
 
@@ -62,6 +66,12 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
     supabase.from("action_occurrences").select("local_date, status").gte("local_date", ws).lte("local_date", addDays(ws, 6)),
     assistantSuggestions(supabase, user.id, tz, t),
   ]);
+  const [{ data: mood }, { data: stocked }, { count: alertMembers }] = await Promise.all([
+    supabase.from("mood_checkins").select("mood, stress, sleep_quality, sleep_hours").eq("user_id", user.id).eq("local_date", localDateOf(new Date(), tz)).maybeSingle(),
+    supabase.from("plan_items").select("id, plan_id, title, stock_count, units_per_dose, schedule_kind, times, weekdays, weekly_target").eq("status", "confirmed").not("stock_count", "is", null),
+    supabase.from("family_access").select("id", { count: "exact", head: true }).eq("patient_id", user.id).eq("status", "active").contains("scopes", ["alerts"]),
+  ]);
+  const runningLow = (stocked ?? []).map((i) => ({ ...i, left: daysLeft(i) })).filter((i) => i.left !== null && i.left <= COMPANION_POLICY.refillWarnDays);
   // Top up only when today looks empty (new plan, or before the scheduler's daily run).
   let actions = firstActions;
   if (actions.length === 0) {
@@ -90,6 +100,7 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
     id: a.id, title: a.item.title, instructions: a.item.instructions, display: a.display,
     time: a.local_time ? fmtTime(a.due_at, tz, locale) : null, tz,
     weekly: a.target_count > 1 ? { done: a.completed_count, target: a.target_count } : null, planMode: a.item.plan_mode,
+    canTellFamily: (alertMembers ?? 0) > 0,
   });
   const hourOf = (a: (typeof actions)[number]) => Number((a.local_time ?? "00:00").slice(0, 2));
   const summary = actions.length === 0 ? null : done === actions.length ? t("app.allDone") : done === 0 ? t("app.nothingYet") : t("app.progressToday", { done, total: actions.length });
@@ -104,6 +115,7 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
       </header>
 
       <InstallPrompt />
+      <PushToggle variant="prompt" publicKey={process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || null} />
       {showSupportPrompt ? (
         <section aria-labelledby="support-prompt" className="mb-6 flex flex-col gap-3 rounded-[var(--r-lg)] border border-line bg-surface p-5 sm:flex-row sm:items-center">
           <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-primary-soft text-primary"><HandHeart size={22} aria-hidden="true" /></span>
@@ -162,6 +174,15 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
         </div>
 
         <aside className="flex flex-col gap-5">
+          {runningLow.length ? (
+            <div className="panel border-[color-mix(in_srgb,var(--st-open)_45%,var(--line))] p-5">
+              <p className="flex items-center gap-2 font-bold"><Package size={18} className="text-warn-ink" aria-hidden="true" />{t("companion.lowTitle")}</p>
+              <ul className="mt-2 flex flex-col gap-1.5 text-[0.95rem]">
+                {runningLow.map((i) => <li key={i.id}><Link href={`/plan/${i.plan_id}`} className="hover:underline">{i.left! <= 0 ? t("companion.lowOut", { title: i.title }) : t("companion.lowDays", { title: i.title, days: i.left! })}</Link></li>)}
+              </ul>
+            </div>
+          ) : null}
+          <MoodCard today={mood ? { ...mood, sleep_hours: mood.sleep_hours === null ? null : Number(mood.sleep_hours) } : null} />
           {actions.length ? (
             <div className="panel flex items-center gap-4 p-5">
               <DayRing counts={counts} total={actions.length} label={t("today.ringLabel")} />

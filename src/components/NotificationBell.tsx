@@ -3,13 +3,13 @@ import Link from "next/link";
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { Award, Bell, CalendarClock, ClipboardCheck, Image as ImageIcon, MessageCircle, Sparkles, Users, Wind } from "lucide-react";
+import { Award, Bell, CalendarClock, ClipboardCheck, Image as ImageIcon, MessageCircle, Sparkles, Users, Wind, HeartHandshake } from "lucide-react";
 import { markNotificationsRead } from "@/app/actions";
 
 export interface BellItem { id: string; kind: string; text: string; href: string; when: string; unread: boolean }
 
-const ICONS: Record<string, typeof Bell> = { checkin: Sparkles, due: CalendarClock, reminder: CalendarClock, drafts: ClipboardCheck, assessment: ImageIcon, milestone: Award, proposal: Sparkles, missed: Wind, whatsapp: MessageCircle, family: Users };
-const TONE: Record<string, string> = { checkin: "var(--primary)", due: "var(--st-open)", missed: "var(--st-skipped)", drafts: "var(--st-review)", assessment: "var(--st-evidence)", milestone: "var(--haldi)", proposal: "var(--st-unable)", whatsapp: "var(--st-done)", family: "var(--st-done)", reminder: "var(--st-open)" };
+const ICONS: Record<string, typeof Bell> = { checkin: Sparkles, due: CalendarClock, reminder: CalendarClock, drafts: ClipboardCheck, assessment: ImageIcon, milestone: Award, proposal: Sparkles, missed: Wind, whatsapp: MessageCircle, family: Users, family_alert: HeartHandshake };
+const TONE: Record<string, string> = { checkin: "var(--primary)", due: "var(--st-open)", missed: "var(--st-skipped)", drafts: "var(--st-review)", assessment: "var(--st-evidence)", milestone: "var(--haldi)", proposal: "var(--st-unable)", whatsapp: "var(--st-done)", family: "var(--st-done)", family_alert: "var(--st-open)", reminder: "var(--st-open)" };
 
 export function NotificationBell() {
   const t = useTranslations("notif");

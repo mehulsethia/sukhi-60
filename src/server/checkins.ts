@@ -11,6 +11,8 @@ import { pointsTotal } from "./points";
 import { addDays, inQuietHours, localDateOf, localTimeOf } from "@/domain/schedule";
 import { quoteUntrusted } from "@/domain/safety";
 import { runRestartFollowup } from "./support";
+import { sendPush } from "./push";
+import { ctext, runRefillChecks } from "./companion";
 import en from "../../messages/en.json";
 import hi from "../../messages/hi.json";
 import mr from "../../messages/mr.json";
@@ -77,6 +79,7 @@ export async function runCheckins(admin: AdminClient, now = new Date(), limit = 
       // Gentle restart: at most one follow-up about yesterday, only in the day's first slot.
       // Its own limits (daily cap, "give me space", one per lapse) are applied inside.
       if (sent && s.first) await runRestartFollowup(admin, s.profile, s.date, now).catch(() => false);
+      if (sent && s.first) await runRefillChecks(admin, s.profile, s.date, now).catch(() => 0);
       return sent;
     }),
   );
@@ -175,6 +178,8 @@ async function sendCheckin(admin: AdminClient, s: Slot, now: Date): Promise<bool
     { onConflict: "provider_message_id", ignoreDuplicates: true },
   );
   if (!error) await admin.from("audit_events").insert({ user_id: p.id, actor: "system", action: "assistant_checkin", entity: "message", details: { kind: s.kind, slot: s.slot, model } as never });
+  // Generic, lock-screen-safe nudge; the message itself stays in the app.
+  if (!error) await sendPush(admin, p.id, { title: ctext(p.locale, "pushCheckinTitle"), body: ctext(p.locale, "pushCheckin"), url: "/chat", tag: "checkin" }).catch(() => 0);
   return !error;
 }
 
