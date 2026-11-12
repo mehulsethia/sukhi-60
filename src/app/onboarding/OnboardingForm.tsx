@@ -45,7 +45,7 @@ function fmt(time: string, _locale: string) {
   return `${h % 12 || 12}:${String(m).padStart(2, "0")} ${h < 12 ? "am" : "pm"}`;
 }
 
-export function OnboardingForm({ defaults }: { defaults: { timezone: string; locale: string } }) {
+export function OnboardingForm({ defaults, whatsappLaunched = false }: { defaults: { timezone: string; locale: string }; whatsappLaunched?: boolean }) {
   const t = useTranslations();
   const router = useRouter();
   const [state, action] = useActionState(completeOnboarding, null);
@@ -372,7 +372,13 @@ export function OnboardingForm({ defaults }: { defaults: { timezone: string; loc
               <h1 id="s6" className="text-[1.7rem] sm:text-[2rem]">{t("onb.permTitle")}</h1>
               <p className="mt-2 text-[1.02rem] text-ink-soft">{t("onb.permBody")}</p>
               <div className="mt-5 grid gap-2 xl:grid-cols-2">
-                {CONSENTS.map(({ kind, title, body, Icon }) => (
+                {CONSENTS.map(({ kind, title, body, Icon }) => kind === "whatsapp" && !whatsappLaunched ? (
+                  <div key={kind} className="flex items-start gap-3 rounded-xl border border-line bg-surface p-3 text-ink-soft">
+                    <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-surface-2"><Icon size={21} aria-hidden="true" /></span>
+                    <span className="flex-1"><span className="block font-bold text-ink">{t(`onb.${title}`)}</span><span className="text-sm leading-snug">{t("settings.waComingSoon")}</span></span>
+                    <span className="chip mt-1 shrink-0 bg-primary-soft text-primary">{t("common.comingSoon")}</span>
+                  </div>
+                ) : (
                   <label key={kind} className={`flex cursor-pointer items-start gap-3 rounded-xl border p-3 transition-colors ${consents[kind] ? "border-primary bg-surface" : "border-line bg-surface"}`}>
                     <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl ${consents[kind] ? "bg-primary text-primary-ink" : "bg-surface-2 text-ink-soft"}`}><Icon size={21} aria-hidden="true" /></span>
                     <span className="flex-1">

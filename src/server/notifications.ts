@@ -1,4 +1,5 @@
 import "server-only";
+import { features } from "@/lib/config";
 import { cookies } from "next/headers";
 import type { AdminClient } from "@/lib/supabase/admin";
 import { addDays, localDateOf } from "@/domain/schedule";
@@ -71,7 +72,7 @@ export async function getNotifications(db: AdminClient, userId: string, tz: stri
   for (const f of family.data ?? []) {
     out.push({ id: `fam-${f.id}`, kind: "family", key: "familyJoined", values: { name: f.invitee_label }, href: "/settings#family", at: f.accepted_at ?? now.toISOString() });
   }
-  if (!binding.data && consent.data?.granted) {
+  if (features.whatsappLaunched() && !binding.data && consent.data?.granted) {
     out.push({ id: "wa-setup", kind: "whatsapp", key: "whatsappSetup", values: {}, href: "/settings#wa", at: "2000-01-01T00:00:00Z" });
   }
   return out

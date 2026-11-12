@@ -11,6 +11,7 @@ const LINKS = [
   ["#benefits", "navBenefits"],
   ["#features", "navFeatures"],
   ["#why-sukhi", "navWhy"],
+  ["#roadmap", "navRoadmap"],
   ["#faqs", "navFaq"],
 ] as const;
 

@@ -75,7 +75,7 @@ function QuickActions({ occ, onMessages, onProof }: { occ: TodayRef; onMessages:
   );
 }
 
-export function ChatClient({ initial, voice, audioReplies, suggestions, name, autoSend, today, openNudges = [] }: { initial: ChatMessage[]; voice: { configured: boolean; consent: boolean }; audioReplies: boolean; suggestions: string[]; name: string | null; autoSend?: string; today: TodayRef[]; openNudges?: string[] }) {
+export function ChatClient({ initial, voice, audioReplies, suggestions, name, autoSend, today, openNudges = [], whatsappLaunched = false }: { initial: ChatMessage[]; voice: { configured: boolean; consent: boolean }; audioReplies: boolean; suggestions: string[]; name: string | null; autoSend?: string; today: TodayRef[]; openNudges?: string[]; whatsappLaunched?: boolean }) {
   const t = useTranslations("chat");
   const tc = useTranslations("common");
   const tr = useTranslations();
@@ -213,12 +213,12 @@ export function ChatClient({ initial, voice, audioReplies, suggestions, name, au
               <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-primary text-white shadow-[var(--shadow-md)]"><Leaf size={26} aria-hidden="true" /></span>
               <h1 className="mt-5 text-[1.9rem] sm:text-[2.3rem]">{name ? t("helloName", { name }) : t("hello")}</h1>
               <p className="mt-2 max-w-md text-ink-soft">{t("empty")}</p>
-              <p className="hint mt-1">{t("whatsappNote")}</p>
+              {whatsappLaunched ? <p className="hint mt-1">{t("whatsappNote")}</p> : null}
             </div>
           ) : (
             <>
               <h1 className="sr-only">{t("title")}</h1>
-              <p className="hint mb-6 text-center">{t("whatsappNote")}</p>
+              {whatsappLaunched ? <p className="hint mb-6 text-center">{t("whatsappNote")}</p> : null}
             </>
           )}
 

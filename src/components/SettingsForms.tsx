@@ -53,15 +53,22 @@ export function PreferencesForm({ profile }: { profile: Prefs }) {
   );
 }
 
-export function ConsentsForm({ consents }: { consents: Record<string, boolean> }) {
+export function ConsentsForm({ consents, whatsappLaunched = false }: { consents: Record<string, boolean>; whatsappLaunched?: boolean }) {
   const t = useTranslations();
   const [state, action] = useActionState(saveConsents, null);
   const rows = [["ai_processing", "consentAi"], ["reminders", "consentReminders"], ["voice_processing", "consentVoice"], ["whatsapp", "consentWhatsapp"], ["family_sharing", "consentFamily"]] as const;
   return (
     <form action={action} className="flex flex-col gap-3">
-      {rows.map(([k, l]) => (
+      {rows.map(([k, l]) => (k === "whatsapp" && !whatsappLaunched ? (
+        // Coming soon: keep the stored choice unchanged, but don't offer it yet.
+        <div key={k} className="flex items-start justify-between gap-4 rounded-2xl border border-line p-4 text-ink-soft">
+          <span className="text-[0.95rem]">{t(`onboarding.${l}`)}</span>
+          <span className="chip shrink-0 bg-primary-soft text-primary">{t("common.comingSoon")}</span>
+          {consents[k] ? <input type="hidden" name={`consent_${k}`} value="on" /> : null}
+        </div>
+      ) : (
         <label key={k} className="flex cursor-pointer items-start justify-between gap-4 rounded-2xl border border-line p-4"><span className="text-[0.95rem]">{t(`onboarding.${l}`)}</span><input type="checkbox" role="switch" name={`consent_${k}`} defaultChecked={!!consents[k]} className="mt-0.5 h-6 w-6 shrink-0 accent-[var(--primary)]" /></label>
-      ))}
+      )))}
       <div aria-live="polite">{state?.ok ? <Alert tone="ok">{t("common.saved")}</Alert> : state?.error ? <Alert tone="danger">{t("common.error")}</Alert> : null}</div>
       <SubmitButton className="btn btn-primary self-start px-6" pendingLabel={t("common.saving")}>{t("common.save")}</SubmitButton>
     </form>

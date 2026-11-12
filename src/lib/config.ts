@@ -35,6 +35,8 @@ export const VARS: VarSpec[] = [
   { name: "SARVAM_ASR_MODEL", required: false, secret: false, group: "sarvam", validate: (v) => /^saaras:v\d/.test(v) },
   { name: "SARVAM_TTS_MODEL", required: false, secret: false, group: "sarvam", validate: (v) => /^bulbul:v\d/.test(v) },
   { name: "SARVAM_TTS_SPEAKER", required: false, secret: false, group: "sarvam", validate: (v) => /^[a-z_]+$/.test(v) },
+  // MVP: WhatsApp connect is shown as "coming soon" until this is "true" (and the keys below are set).
+  { name: "WHATSAPP_ENABLED", required: false, secret: false, group: "whatsapp", validate: (v) => v === "true" || v === "false" },
   { name: "WHATSAPP_ACCESS_TOKEN", required: false, secret: true, group: "whatsapp", validate: (v) => v.length > 20 },
   { name: "WHATSAPP_PHONE_NUMBER_ID", required: false, secret: false, group: "whatsapp", validate: (v) => /^\d{6,20}$/.test(v) },
   { name: "WHATSAPP_APP_SECRET", required: false, secret: true, group: "whatsapp", validate: (v) => v.length >= 16 },
@@ -62,6 +64,8 @@ export const features = {
   ai: () => ok("ANTHROPIC_API_KEY") && ok("ANTHROPIC_MODEL"),
   speech: () => ok("ELEVENLABS_API_KEY") || ok("SARVAM_API_KEY"),
   whatsapp: () => ok("WHATSAPP_ACCESS_TOKEN") && ok("WHATSAPP_PHONE_NUMBER_ID") && ok("WHATSAPP_APP_SECRET") && ok("WHATSAPP_VERIFY_TOKEN"),
+  /** Offered to users (connect, consent, copy). Off for the MVP: shown as "coming soon". */
+  whatsappLaunched: () => process.env.WHATSAPP_ENABLED === "true" && features.whatsapp(),
   demo: () => process.env.DEMO_MODE_ENABLED === "true",
 };
 

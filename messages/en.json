@@ -27,7 +27,8 @@
     "required": "Required",
     "close": "Close",
     "notConfigured": "Not configured",
-    "disclaimer": "Sukhi supports everyday wellbeing habits and routines. It is not a substitute for professional medical advice, diagnosis or treatment. In an emergency, call 112."
+    "disclaimer": "Sukhi supports everyday wellbeing habits and routines. It is not a substitute for professional medical advice, diagnosis or treatment. In an emergency, call 112.",
+    "comingSoon": "Coming soon"
   },
   "nav": {
     "today": "Today",
@@ -143,7 +144,35 @@
     "footerContact": "Contact",
     "footerNav": "Footer",
     "footerDisclaimer": "Sukhi supports everyday wellbeing habits and routines. It is not a substitute for professional medical advice, diagnosis or treatment.",
-    "copyright": "© {year} Sukhi. In an emergency, call 112."
+    "copyright": "© {year} Sukhi. In an emergency, call 112.",
+    "navRoadmap": "Roadmap",
+    "roadmapTitle": "Future roadmap",
+    "roadmapBody": "What we're building next, so Sukhi can support every part of your health routine, wherever you are and whoever helps you.",
+    "roadmapNote": "Plans may change. Health features are reviewed with clinicians, and anything that uses your data is switched on only with your consent.",
+    "rm1Title": "More ways to reach Sukhi",
+    "rm1_1": "WhatsApp reminders and two-way replies",
+    "rm1_2": "Voice-call check-ins for basic phones",
+    "rm1_3": "Android and iOS apps with push notifications and offline use",
+    "rm1_4": "Smartwatch and smart-speaker reminders",
+    "rm1_5": "More Indian languages: Tamil, Telugu, Bengali, Gujarati, Kannada and more",
+    "rm2Title": "Connected health data",
+    "rm2_1": "Steps and sleep from Google Health Connect, Apple Health, Fitbit and Garmin",
+    "rm2_2": "Readings from Bluetooth BP monitors and glucometers, logged automatically",
+    "rm2_3": "ABHA / ABDM records: import prescriptions and discharge summaries",
+    "rm2_4": "Lab reports read into a simple, shareable timeline",
+    "rm2_5": "Medicine stock tracking and pharmacy refill reminders",
+    "rm3Title": "Your care circle",
+    "rm3_1": "A family app with shared reminders and consent-based alerts",
+    "rm3_2": "A clinic dashboard to share plans and see progress, with permission",
+    "rm3_3": "Doctor-visit prep: your questions and recent progress in one page",
+    "rm3_4": "Teleconsult booking with your own doctor",
+    "rm3_5": "A mode for community health workers who support many families",
+    "rm4Title": "Smarter, kinder support",
+    "rm4_1": "Routine suggestions learned from your own week, always yours to accept",
+    "rm4_2": "Indian meal photos turned into simple food logs",
+    "rm4_3": "Mood, stress and sleep check-ins with guided breathing",
+    "rm4_4": "Festival, travel and fasting-aware schedules you confirm",
+    "rm4_5": "Family challenges and rewards for showing up"
   },
   "onboarding": {
     "title": "Let's set things up",
@@ -502,7 +531,8 @@
     "svcWhatsapp": "WhatsApp",
     "svcOn": "Available",
     "svcOff": "Not configured",
-    "latency": "Reminders are checked about once a minute. WhatsApp replies usually arrive within seconds and at most a couple of minutes."
+    "latency": "Reminders are checked about once a minute. WhatsApp replies usually arrive within seconds and at most a couple of minutes.",
+    "waComingSoon": "WhatsApp reminders and replies are coming soon. For now, everything works right here in the Sukhi app."
   },
   "family": {
     "acceptTitle": "Family support invitation",
@@ -636,7 +666,7 @@
     "tourTitle": "Here's how Sukhi helps",
     "tourBody": "Three simple things, every day.",
     "tour1Title": "Gentle reminders",
-    "tour1Body": "At times that suit you — in the app or on WhatsApp.",
+    "tour1Body": "At times that suit you, right here in the app.",
     "tour2Title": "Honest check-ins",
     "tour2Body": "Tell Sukhi how it went. “Not today” counts too.",
     "tour3Title": "Progress you can see",

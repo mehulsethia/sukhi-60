@@ -57,6 +57,7 @@ export default async function Landing() {
     { Icon: RotateCcw, text: t("feat5") },
   ];
   const days = [1, 2, 3, 4, 5, 6, 7].map((d) => tr(`weekday.${d}`));
+  const roadmap = ([1, 2, 3, 4] as const).map((g) => ({ title: t(`rm${g}Title`), items: ([1, 2, 3, 4, 5] as const).map((i) => t(`rm${g}_${i}`)) }));
 
   return (
     <>
@@ -234,6 +235,32 @@ export default async function Landing() {
                 </li>
               ))}
             </ul>
+          </div>
+        </section>
+
+        {/* Future roadmap */}
+        <section id="roadmap" aria-labelledby="roadmap-title" className="scroll-mt-20 border-t border-line py-16 sm:py-24">
+          <div className={container}>
+            <div className="max-w-2xl">
+              <h2 id="roadmap-title" className={h2}>{t("roadmapTitle")}</h2>
+              <p className={lead}>{t("roadmapBody")}</p>
+            </div>
+            <div className="mt-10 grid gap-10 border-t border-line pt-10 sm:grid-cols-2 lg:grid-cols-4 lg:gap-8">
+              {roadmap.map((g) => (
+                <div key={g.title}>
+                  <h3 className="text-lg font-semibold">{g.title}</h3>
+                  <ul className="mt-4 flex flex-col gap-3">
+                    {g.items.map((it) => (
+                      <li key={it} className="flex gap-3 text-[1rem] leading-relaxed text-ink-soft">
+                        <span aria-hidden="true" className="mt-[0.8em] h-px w-4 shrink-0 bg-ink-faint" />
+                        <span>{it}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ))}
+            </div>
+            <p className="hint mt-10 max-w-3xl">{t("roadmapNote")}</p>
           </div>
         </section>
 

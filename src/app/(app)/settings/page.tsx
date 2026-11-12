@@ -83,16 +83,25 @@ export default async function SettingsPage() {
       </Section>
 
       <Section title={t("settings.consents")} id="consents" icon={<ShieldCheck size={20} aria-hidden="true" />} description={t("settingsUi.consentsHelp")}>
-        <ConsentsForm consents={consentMap} />
+        <ConsentsForm consents={consentMap} whatsappLaunched={features.whatsappLaunched()} />
       </Section>
 
       <Section title={t("settings.whatsapp")} id="wa" icon={<MessageCircle size={20} aria-hidden="true" />}>
-        {!features.whatsapp() ? <p className="mb-2">{t("settings.waNotConfigured")}</p> : null}
+        {!features.whatsappLaunched() ? (
+          <>
+            <p className="mb-1"><span className="chip bg-primary-soft text-primary">{t("common.comingSoon")}</span></p>
+            <p>{t("settings.waComingSoon")}</p>
+            {binding ? <form action={unlinkWhatsApp} className="mt-3"><SubmitButton className="btn btn-danger">{t("settings.waUnlink")}</SubmitButton></form> : null}
+          </>
+        ) : (
+        <>
         <p><span className="font-semibold">{t("settings.waStatus")}:</span> {binding ? (binding.status === "active" ? t("settings.waActive") : t("settings.waPaused")) : t("settings.waNotLinked")}</p>
         {binding?.last_inbound_at ? <p className="hint">{t("settings.waWindow", { time: fmtDateTime(binding.last_inbound_at, tz, locale) })}</p> : null}
         <p className="hint mt-1">{t("settings.waWindowNote")}</p>
         {features.whatsapp() ? <LinkCodeForm rebind={!!binding} /> : null}
         {binding ? <form action={unlinkWhatsApp} className="mt-2"><SubmitButton className="btn btn-danger">{t("settings.waUnlink")}</SubmitButton></form> : null}
+        </>
+        )}
       </Section>
 
       <Section title={t("settings.family")} id="family" icon={<Users size={20} aria-hidden="true" />}>
@@ -141,8 +150,8 @@ export default async function SettingsPage() {
 
       <Section title={t("settings.services")} id="svc" icon={<Cpu size={20} aria-hidden="true" />}>
         <ul className="grid gap-2 sm:grid-cols-3">
-          {([["svcAi", features.ai()], ["svcVoice", features.speech()], ["svcWhatsapp", features.whatsapp()]] as const).map(([k, on]) => (
-            <li key={k} className="flex items-center justify-between gap-2 rounded-xl border border-line px-3 py-2.5"><span className="font-semibold">{t(`settings.${k}`)}</span><span className={`chip ${on ? "bg-ok-bg text-ok-ink" : ""}`}>{on ? t("settings.svcOn") : t("settings.svcOff")}</span></li>
+          {([["svcAi", features.ai()], ["svcVoice", features.speech()], ["svcWhatsapp", features.whatsappLaunched()]] as const).map(([k, on]) => (
+            <li key={k} className="flex items-center justify-between gap-2 rounded-xl border border-line px-3 py-2.5"><span className="font-semibold">{t(`settings.${k}`)}</span><span className={`chip ${on ? "bg-ok-bg text-ok-ink" : ""}`}>{on ? t("settings.svcOn") : k === "svcWhatsapp" ? t("common.comingSoon") : t("settings.svcOff")}</span></li>
           ))}
         </ul>
         <p className="hint mt-2">{t("settings.latency")}</p>

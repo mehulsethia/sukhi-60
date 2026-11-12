@@ -36,6 +36,7 @@ export default async function ChatPage({ searchParams }: { searchParams: Promise
       today={today}
       initial={initial}
       openNudges={openNudges}
+      whatsappLaunched={features.whatsappLaunched()}
       voice={{ configured: features.speech(), consent: voiceConsent }}
       audioReplies={audioReplies}
       suggestions={suggestions}
