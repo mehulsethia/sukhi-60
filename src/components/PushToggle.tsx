@@ -95,15 +95,18 @@ export function PushToggle({ publicKey, variant = "full" }: { publicKey: string 
     if (hidden || !publicKey) return null;
     const dismiss = () => { setHidden(true); try { localStorage.setItem(DISMISS, "1"); } catch {} };
     return (
-      <div className="pop-in mb-5 flex items-center gap-3 rounded-2xl border border-line bg-surface p-3.5 shadow-[var(--shadow-sm)]">
-        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary-soft text-primary"><BellRing size={19} aria-hidden="true" /></span>
-        <div className="min-w-0 flex-1">
-          <p className="font-semibold leading-tight">{t("promptTitle")}</p>
-          <p className="text-sm text-ink-soft">{t("promptBody")}</p>
-          {note ? <p className="text-sm text-danger-ink" role="alert">{note}</p> : null}
+      // Stacks on phones (text, then a full-width button); one row from tablet width up.
+      <div className="pop-in relative mb-5 flex flex-col gap-3 rounded-2xl border border-line bg-surface p-4 pr-12 shadow-[var(--shadow-sm)] sm:flex-row sm:items-center sm:pr-14">
+        <div className="flex min-w-0 flex-1 items-start gap-3">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary-soft text-primary"><BellRing size={19} aria-hidden="true" /></span>
+          <div className="min-w-0 flex-1">
+            <p className="font-semibold leading-snug">{t("promptTitle")}</p>
+            <p className="text-sm text-ink-soft">{t("promptBody")}</p>
+            {note ? <p className="text-sm text-danger-ink" role="alert">{note}</p> : null}
+          </div>
         </div>
-        <button type="button" className="pill-btn pill-btn-primary" disabled={busy} onClick={enable}>{t("enable")}</button>
-        <button type="button" onClick={dismiss} aria-label={t("dismiss")} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-ink-soft hover:bg-surface-2"><X size={17} aria-hidden="true" /></button>
+        <button type="button" className="pill-btn pill-btn-primary w-full shrink-0 sm:w-auto" disabled={busy} onClick={enable}>{t("enable")}</button>
+        <button type="button" onClick={dismiss} aria-label={t("dismiss")} className="absolute right-2 top-2 flex h-10 w-10 items-center justify-center rounded-full text-ink-soft hover:bg-surface-2 sm:top-1/2 sm:-translate-y-1/2"><X size={17} aria-hidden="true" /></button>
       </div>
     );
   }

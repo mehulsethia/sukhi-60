@@ -36,9 +36,13 @@ export async function proxy(request: NextRequest) {
     },
   });
 
-  const { data } = await supabase.auth.getUser();
+  // getClaims refreshes an expired session and verifies the JWT (locally when the project
+  // uses asymmetric signing keys), so most requests skip a round trip to Supabase Auth.
+  // Pages and server actions still verify the user with getUser() before touching data.
+  const { data } = await supabase.auth.getClaims();
+  const signedIn = !!data?.claims?.sub;
   const isPublic = path === "/" || PUBLIC_PREFIXES.some((p) => path.startsWith(p));
-  if (!data.user && !isPublic) {
+  if (!signedIn && !isPublic) {
     if (path.startsWith("/api/")) {
       return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
     }

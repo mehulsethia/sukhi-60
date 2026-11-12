@@ -29,14 +29,16 @@ export function InstallPrompt() {
   if (hidden) return null;
   const dismiss = () => { setHidden(true); try { localStorage.setItem(KEY, "1"); } catch {} };
   return (
-    <div className="pop-in mb-5 flex items-center gap-3 rounded-2xl border border-line bg-surface p-3.5 shadow-[var(--shadow-sm)]">
-      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary-soft text-primary">{ios ? <Share size={19} aria-hidden="true" /> : <Download size={19} aria-hidden="true" />}</span>
-      <div className="min-w-0 flex-1">
-        <p className="font-semibold leading-tight">{t("title")}</p>
-        <p className="text-sm text-ink-soft">{ios ? t("iosSteps") : t("body")}</p>
+    <div className="pop-in relative mb-5 flex flex-col gap-3 rounded-2xl border border-line bg-surface p-4 pr-12 shadow-[var(--shadow-sm)] sm:flex-row sm:items-center sm:pr-14">
+      <div className="flex min-w-0 flex-1 items-start gap-3">
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary-soft text-primary">{ios ? <Share size={19} aria-hidden="true" /> : <Download size={19} aria-hidden="true" />}</span>
+        <div className="min-w-0 flex-1">
+          <p className="font-semibold leading-snug">{t("title")}</p>
+          <p className="text-sm text-ink-soft">{ios ? t("iosSteps") : t("body")}</p>
+        </div>
       </div>
-      {evt ? <button type="button" className="pill-btn pill-btn-primary" onClick={async () => { await evt.prompt(); await evt.userChoice.catch(() => null); dismiss(); }}>{t("button")}</button> : null}
-      <button type="button" onClick={dismiss} aria-label={t("dismiss")} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-ink-soft hover:bg-surface-2"><X size={17} aria-hidden="true" /></button>
+      {evt ? <button type="button" className="pill-btn pill-btn-primary w-full shrink-0 sm:w-auto" onClick={async () => { await evt.prompt(); await evt.userChoice.catch(() => null); dismiss(); }}>{t("button")}</button> : null}
+      <button type="button" onClick={dismiss} aria-label={t("dismiss")} className="absolute right-2 top-2 flex h-10 w-10 items-center justify-center rounded-full text-ink-soft hover:bg-surface-2 sm:top-1/2 sm:-translate-y-1/2"><X size={17} aria-hidden="true" /></button>
     </div>
   );
 }

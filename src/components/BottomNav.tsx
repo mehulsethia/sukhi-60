@@ -1,5 +1,6 @@
 "use client";
 import Link from "next/link";
+import { useState } from "react";
 import { usePathname } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { CalendarCheck, MessageCircle, ClipboardList, BarChart3, Settings } from "lucide-react";
@@ -16,7 +17,12 @@ const ITEMS = [
 export function BottomNav({ variant = "tabs", badges = {} }: { variant?: "tabs" | "sidebar"; badges?: Partial<Record<string, number>> }) {
   const t = useTranslations("nav");
   const path = usePathname();
-  const isActive = (href: string) => path === href || path.startsWith(`${href}/`) || (href === "/today" && path.startsWith("/actions"));
+  // Highlight the tapped tab immediately, before the server responds. The pending tap only
+  // applies while we're still on the page it was made from, so no effect is needed to clear it.
+  const [tapped, setTapped] = useState<{ href: string; from: string } | null>(null);
+  const pending = tapped && tapped.from === path ? tapped.href : null;
+  const isActive = (href: string) => (pending ? href === pending : path === href || path.startsWith(`${href}/`) || (href === "/today" && path.startsWith("/actions")));
+  const tap = (href: string) => () => { if (href !== path) setTapped({ href, from: path }); };
 
   if (variant === "sidebar") {
     return (
@@ -26,7 +32,7 @@ export function BottomNav({ variant = "tabs", badges = {} }: { variant?: "tabs" 
             const active = isActive(href);
             return (
               <li key={href}>
-                <Link href={href} aria-current={active ? "page" : undefined} className={`relative flex min-h-12 items-center gap-3 rounded-xl px-3.5 text-[0.98rem] font-semibold transition-colors ${active ? "bg-sky text-primary" : "text-ink-soft hover:bg-sky/60 hover:text-ink"}`}>
+                <Link href={href} onClick={tap(href)} aria-current={active ? "page" : undefined} className={`relative flex min-h-12 items-center gap-3 rounded-xl px-3.5 text-[0.98rem] font-semibold transition-colors ${active ? "bg-sky text-primary" : "text-ink-soft hover:bg-sky/60 hover:text-ink"}`}>
                   {active ? <span aria-hidden="true" className="absolute -left-4 top-2 h-8 w-1 rounded-r-full bg-primary" /> : null}
                   <Icon aria-hidden="true" size={20} strokeWidth={active ? 2.3 : 1.8} />
                   {t(key)}
@@ -47,7 +53,7 @@ export function BottomNav({ variant = "tabs", badges = {} }: { variant?: "tabs" 
           const active = isActive(href);
           return (
             <li key={href} className="flex-1">
-              <Link href={href} aria-current={active ? "page" : undefined} className={`flex min-h-[62px] flex-col items-center justify-center gap-1 text-[0.8rem] font-semibold ${active ? "text-primary" : "text-ink-soft"}`}>
+              <Link href={href} onClick={tap(href)} aria-current={active ? "page" : undefined} className={`flex min-h-[62px] touch-manipulation select-none flex-col items-center justify-center gap-1 text-[0.8rem] font-semibold ${active ? "text-primary" : "text-ink-soft"}`}>
                 <span className={`relative flex h-8 w-14 items-center justify-center rounded-full transition-colors ${active ? "bg-sky" : ""}`}>
                   <Icon aria-hidden="true" size={20} strokeWidth={active ? 2.2 : 1.8} />
                   {badges[key] && !active ? <span className="absolute right-2 top-0 h-2.5 w-2.5 rounded-full bg-primary ring-2 ring-surface" aria-label={`${badges[key]} new`} /> : null}
