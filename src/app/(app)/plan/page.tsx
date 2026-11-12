@@ -24,7 +24,7 @@ export default async function PlanList({ searchParams }: { searchParams: Promise
     .order("created_at");
   return (
     <>
-      <PageHeader title={t("plan.title")} subtitle={t("planUi.subtitle")}>
+      <PageHeader title={t("plan.title")}>
         <Link href="/visit" className="btn btn-secondary"><Stethoscope size={18} aria-hidden="true" />{t("visit.link")}</Link>
         <a href="#new-plan" className="btn btn-primary"><Plus size={18} aria-hidden="true" />{t("plan.newPlan")}</a>
       </PageHeader>
@@ -48,9 +48,9 @@ export default async function PlanList({ searchParams }: { searchParams: Promise
                     <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${clinical ? "bg-[color-mix(in_srgb,var(--st-review)_14%,var(--surface))] text-st-review" : "bg-primary-soft text-primary"}`}>{clinical ? <Stethoscope size={21} aria-hidden="true" /> : <Leaf size={21} aria-hidden="true" />}</span>
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-lg font-bold group-hover:text-primary">{p.title}</p>
-                      <p className="text-sm text-ink-soft">{clinical ? (p.clinician_name ? t("planUi.fromDoctor", { name: p.clinician_name }) : t(`plan.verification_${p.clinician_verification}`)) : t("plan.personalBadge")}</p>
+                      <p className="text-sm text-ink-soft">{clinical ? (p.clinician_name ? t("planUi.fromDoctor", { name: p.clinician_name }) : t(`plan.verification_${p.clinician_verification}`)) : t("today.personalTag")}</p>
                     </div>
-                    <span className={`chip ${p.status === "active" ? "bg-ok-bg text-ok-ink" : ""}`}>{t(`plan.status_${p.status}`)}</span>
+                    {p.status !== "active" ? <span className="chip">{t(`plan.status_${p.status}`)}</span> : null}
                   </div>
                   <ul className="mt-4 flex flex-1 flex-col gap-2">
                     {items.slice(0, 4).map((i) => (
@@ -63,10 +63,7 @@ export default async function PlanList({ searchParams }: { searchParams: Promise
                     {items.length === 0 ? <li className="text-sm text-ink-soft">{t("plan.noItems")}</li> : null}
                     {items.length > 4 ? <li className="text-sm font-semibold text-ink-soft">{t("planUi.more", { n: items.length - 4 })}</li> : null}
                   </ul>
-                  <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-line pt-3 text-sm">
-                    <span className="font-semibold">{t("plan.items")}: {items.length}</span>
-                    {drafts ? <span className="chip ml-auto bg-warn-bg text-warn-ink"><AlertCircle size={13} aria-hidden="true" />{t("planUi.draftsToCheck", { n: drafts })}</span> : null}
-                  </div>
+                  {drafts ? <div className="mt-4 border-t border-line pt-3 text-sm"><span className="chip bg-warn-bg text-warn-ink"><AlertCircle size={13} aria-hidden="true" />{t("planUi.draftsToCheck", { n: drafts })}</span></div> : null}
                 </Link>
               </li>
             );
@@ -75,10 +72,10 @@ export default async function PlanList({ searchParams }: { searchParams: Promise
       )}
 
       <div className="grid gap-5 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]">
-        <Section title={t("plan.newPlan")} id="new-plan" description={t("planUi.newPlanHelp")} icon={<Plus size={20} aria-hidden="true" />}>
+        <Section title={t("plan.newPlan")} id="new-plan" icon={<Plus size={20} aria-hidden="true" />}>
           <CreatePlanForm defaultMode={sp.new === "clinician" ? "clinician_instructions" : "personal_goal"} />
         </Section>
-        <Section title={t("plan.useTemplate")} id="tpl" description={t("onboarding.routineIntro")} icon={<Leaf size={20} aria-hidden="true" />}>
+        <Section title={t("plan.useTemplate")} id="tpl" icon={<Leaf size={20} aria-hidden="true" />}>
           <div className="flex flex-col gap-2.5">
             {(["walk", "water", "stretch"] as const).map((k) => {
               const Icon = TPL_ICON[k];

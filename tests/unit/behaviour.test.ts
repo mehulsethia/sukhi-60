@@ -211,11 +211,11 @@ describe("learning signals (descriptive, repeated only)", () => {
   });
 });
 
-describe("onboarding stays at eight steps", () => {
-  it("has exactly eight step sections", () => {
+describe("onboarding stays at seven steps", () => {
+  it("has exactly seven step sections", () => {
     const src = fs.readFileSync(path.resolve(__dirname, "../../src/app/onboarding/OnboardingForm.tsx"), "utf8");
-    expect(src.match(/<section className=\{show\(\d\)\}/g)).toHaveLength(8);
+    expect(src.match(/<section className=\{show\(\d\)\}/g)).toHaveLength(7);
     expect(src).toMatch(/const SCENES = \[[^\]]+\];/);
-    expect(src.match(/const SCENES = \[([^\]]+)\]/)![1].split(",")).toHaveLength(8);
+    expect(src.match(/const SCENES = \[([^\]]+)\]/)![1].split(",")).toHaveLength(7);
   });
 });

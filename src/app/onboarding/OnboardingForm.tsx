@@ -2,17 +2,16 @@
 import { useActionState, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { Bell, Bot, Check, ChevronLeft, Globe2, Mic, MessageCircle, Moon, Sun, Sunrise, Sunset, TrendingUp, Users, ListChecks } from "lucide-react";
+import { Bell, Bot, Check, ChevronLeft, Globe2, Mic, MessageCircle, Moon, Sun, Sunrise, Sunset, Users } from "lucide-react";
 import { completeOnboarding } from "@/app/actions";
 import { Alert } from "@/components/ui";
 import { SubmitButton } from "@/components/SubmitButton";
 import { Logo } from "@/components/Logo";
-import { VCheckin, VComfort, VContext, VLanguages, VPrivacy, VProgress, VReminder, VRhythm } from "@/components/Vignettes";
+import { VComfort, VContext, VLanguages, VPrivacy, VProgress, VReminder, VRhythm } from "@/components/Vignettes";
 import { TEMPLATES } from "@/domain/templates";
 import { setLocaleCookie } from "@/lib/client-prefs";
 import { DocPicker } from "@/components/DocPicker";
-import { RestartQuestion, StyleQuestion, SupportHiddenInputs } from "@/components/SupportChoices";
-import { MOTIVATION_MAX, type CommunicationStyle, type RestartPreference } from "@/domain/behaviour";
+import { MOTIVATION_MAX } from "@/domain/behaviour";
 
 const ZONES = ["Asia/Kolkata", "Asia/Dubai", "Asia/Singapore", "Europe/London", "Europe/Berlin", "America/New_York", "America/Los_Angeles", "Australia/Sydney", "UTC"];
 const PRESETS = [
@@ -34,7 +33,9 @@ const CONSENTS = [
 ] as const;
 type TemplateKey = "walk" | "water" | "stretch" | "clinician" | "none";
 
-const SCENES = [VLanguages, VCheckin, VReminder, VRhythm, VContext, VComfort, VPrivacy, VProgress];
+// Steps: language, about you, rhythm, about this plan, comfort, permissions, first plan.
+const SCENES = [VLanguages, VReminder, VRhythm, VContext, VComfort, VPrivacy, VProgress];
+const SIDE = [0, 2, 3, 4, 5, 6, 7]; // onb.side{n} caption per step
 const TOTAL = SCENES.length;
 
 // Deterministic on purpose: Node and browsers format Intl times differently ("8:00 AM" vs
@@ -60,14 +61,11 @@ export function OnboardingForm({ defaults, whatsappLaunched = false }: { default
   const [relation, setRelation] = useState<string>("parent");
   const [health, setHealth] = useState<"diagnosed" | "wellness" | "prefer_not" | "">("");
   const [conditions, setConditions] = useState<string[]>([]);
-  const [a11y, setA11y] = useState({ large_text: false, high_contrast: false, reduce_motion: false, audio_replies: false });
+  const [a11y, setA11y] = useState({ large_text: false, high_contrast: false, reduce_motion: false });
   const [style, setStyle] = useState<"normal" | "gentle">("normal");
   const [consents, setConsents] = useState<Record<string, boolean>>(Object.fromEntries(CONSENTS.map((c) => [c.kind, c.def])));
   const [template, setTemplate] = useState<TemplateKey>("walk");
   const [hasFile, setHasFile] = useState(false);
-  // Behavioural preferences: both optional; defaults apply when skipped.
-  const [commStyles, setCommStyles] = useState<CommunicationStyle[]>([]);
-  const [restartPref, setRestartPref] = useState<RestartPreference | null>(null);
   const [confidence, setConfidence] = useState<number | null>(null);
 
   const zones = ZONES.includes(tz) ? ZONES : [tz, ...ZONES];
@@ -99,7 +97,7 @@ export function OnboardingForm({ defaults, whatsappLaunched = false }: { default
         <Logo />
         <div key={step} className="pop-in mx-auto w-full max-w-sm">
           <Scene />
-          <p className="display mt-10 text-center text-[1.7rem] font-semibold">{t(`onb.side${step}`)}</p>
+          <p className="display mt-10 text-center text-[1.7rem] font-semibold">{t(`onb.side${SIDE[step]}`)}</p>
         </div>
         <p className="text-sm text-ink-soft">{t("common.disclaimer")}</p>
       </aside>
@@ -120,13 +118,12 @@ export function OnboardingForm({ defaults, whatsappLaunched = false }: { default
           {health === "diagnosed" ? conditions.map((c) => <input key={c} type="hidden" name="conditions" value={c} />) : null}
           <input type="hidden" name="reminder_frequency" value={style} />
           <input type="hidden" name="template" value={template} />
-          <SupportHiddenInputs styles={commStyles} restart={restartPref} />
           {confidence !== null && template !== "none" ? <input type="hidden" name="habit_confidence" value={confidence} /> : null}
           {Object.entries(a11y).map(([k, v]) => (v ? <input key={k} type="hidden" name={k} value="on" /> : null))}
           {Object.entries(consents).map(([k, v]) => (v ? <input key={k} type="hidden" name={`consent_${k}`} value="on" /> : null))}
 
           <div>
-            <p className="mb-2 text-sm font-semibold text-ink-soft" aria-live="polite">{t("onb.stepOf", { current: step + 1, total: TOTAL })}</p>
+            <p className="sr-only" aria-live="polite">{t("onb.stepOf", { current: step + 1, total: TOTAL })}</p>
             <div className="flex gap-1.5" aria-hidden="true">
               {Array.from({ length: TOTAL }).map((_, i) => <span key={i} className={`h-1.5 flex-1 rounded-full transition-colors duration-300 ${i <= step ? "bg-primary" : "bg-surface-3"}`} />)}
             </div>
@@ -140,7 +137,6 @@ export function OnboardingForm({ defaults, whatsappLaunched = false }: { default
             {/* 0 Language */}
             <section className={show(0)} aria-labelledby="s0">
               <h1 id="s0" className="text-[1.7rem] sm:text-[2rem]">{t("onb.langTitle")}</h1>
-              <p className="mt-2 text-[1.02rem] text-ink-soft">{t("onb.langBody")}</p>
               <div role="radiogroup" aria-labelledby="s0" className="mt-5 grid gap-2">
                 {([["en", "English", "Hello"], ["hi", "हिन्दी", "नमस्ते"], ["mr", "मराठी", "नमस्कार"]] as const).map(([code, name, hello]) => (
                   <button key={code} type="button" role="radio" aria-checked={locale === code} onClick={() => chooseLocale(code)} className={`flex min-h-[68px] items-center justify-between rounded-xl border px-5 text-left transition-colors ${locale === code ? "border-primary bg-surface shadow-[var(--shadow-md)]" : "border-line bg-surface hover:border-ink-soft"}`}>
@@ -154,27 +150,9 @@ export function OnboardingForm({ defaults, whatsappLaunched = false }: { default
               </div>
             </section>
 
-            {/* 1 Tour */}
-            <section className={show(1)} aria-labelledby="s1">
-              <h1 id="s1" className="text-[1.7rem] sm:text-[2rem]">{t("onb.tourTitle")}</h1>
-              <p className="mt-2 text-[1.02rem] text-ink-soft">{t("onb.tourBody")}</p>
-              <ul className="mt-5 grid gap-2">
-                {([[Bell, "tour1"], [ListChecks, "tour2"], [TrendingUp, "tour3"]] as const).map(([Icon, k]) => (
-                  <li key={k} className="flex items-start gap-4 rounded-xl border border-line bg-surface p-4">
-                    <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-primary-soft text-primary"><Icon size={22} aria-hidden="true" /></span>
-                    <div>
-                      <h2 className="text-lg">{t(`onb.${k}Title`)}</h2>
-                      <p className="mt-1 text-ink-soft">{t(`onb.${k}Body`)}</p>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            </section>
-
             {/* 2 About you */}
-            <section className={show(2)} aria-labelledby="s2">
-              <h1 id="s2" className="text-[1.7rem] sm:text-[2rem]">{t("onb.aboutTitle")}</h1>
-              <p className="mt-2 text-[1.02rem] text-ink-soft">{t("onb.aboutBody")}</p>
+            <section className={show(1)} aria-labelledby="s1">
+              <h1 id="s1" className="text-[1.7rem] sm:text-[2rem]">{t("onb.aboutTitle")}</h1>
               <div className="mt-6 flex flex-col gap-5">
                 <div className="field">
                   <label htmlFor="display_name">{t("onboarding.name")}</label>
@@ -193,9 +171,8 @@ export function OnboardingForm({ defaults, whatsappLaunched = false }: { default
             </section>
 
             {/* 3 Rhythm */}
-            <section className={show(3)} aria-labelledby="s3">
-              <h1 id="s3" className="text-[1.7rem] sm:text-[2rem]">{t("onb.rhythmTitle")}</h1>
-              <p className="mt-2 text-[1.02rem] text-ink-soft">{t("onb.rhythmBody")}</p>
+            <section className={show(2)} aria-labelledby="s2">
+              <h1 id="s2" className="text-[1.7rem] sm:text-[2rem]">{t("onb.rhythmTitle")}</h1>
               <fieldset className="mt-5">
                 <legend className="sr-only">{t("onboarding.checkinTimes")}</legend>
                 <div className="grid grid-cols-2 gap-2 xl:grid-cols-4">
@@ -223,30 +200,23 @@ export function OnboardingForm({ defaults, whatsappLaunched = false }: { default
               <fieldset className="mt-4 rounded-xl border border-line bg-sky px-4 py-3 text-ink">
                 <legend className="sr-only">{t("onb.quietTitle")}</legend>
                 <p className="flex items-center gap-2 text-lg font-semibold"><Moon size={20} aria-hidden="true" />{t("onb.quietTitle")}</p>
-                <p className="mt-1 text-ink-soft">{t("onb.quietBody")}</p>
                 <div className="mt-2 flex flex-wrap gap-4">
                   <div className="field"><label htmlFor="quiet_start" className="!text-sm">{t("onboarding.quietStart")}</label><input id="quiet_start" type="time" className="input w-36" value={quiet.start} onChange={(e) => setQuiet((q) => ({ ...q, start: e.target.value }))} required /></div>
                   <div className="field"><label htmlFor="quiet_end" className="!text-sm">{t("onboarding.quietEnd")}</label><input id="quiet_end" type="time" className="input w-36" value={quiet.end} onChange={(e) => setQuiet((q) => ({ ...q, end: e.target.value }))} required /></div>
                 </div>
               </fieldset>
-              <p className="mt-4 rounded-xl bg-primary-soft px-4 py-2.5 text-[0.95rem] text-ink" aria-live="polite">
-                {sortedTimes.length
-                  ? t("onb.rhythmPreview", { times: sortedTimes.map((x) => fmt(x, locale)).join(", "), start: fmt(quiet.start || "21:30", locale), end: fmt(quiet.end || "07:30", locale) })
-                  : t("onb.rhythmPreviewNone", { start: fmt(quiet.start || "21:30", locale), end: fmt(quiet.end || "07:30", locale) })}
-              </p>
             </section>
 
             {/* 4 About this plan */}
-            <section className={show(4)} aria-labelledby="s4">
-              <h1 id="s4" className="text-[1.7rem] sm:text-[2rem]">{t("intake.title")}</h1>
-              <p className="mt-2 text-[1.02rem] text-ink-soft">{t("intake.body")}</p>
+            <section className={show(3)} aria-labelledby="s3">
+              <h1 id="s3" className="text-[1.7rem] sm:text-[2rem]">{t("intake.title")}</h1>
 
               <fieldset className="mt-5">
                 <legend className="label mb-2">{t("intake.whoQ")}</legend>
                 <div role="radiogroup" className="grid gap-2 sm:grid-cols-2">
                   {(["self", "caregiver"] as const).map((k) => (
                     <button key={k} type="button" role="radio" aria-checked={setupFor === k} onClick={() => setSetupFor(k)} className={`flex min-h-14 items-center justify-between gap-3 rounded-xl border px-4 py-2.5 text-left font-semibold transition-colors ${setupFor === k ? "border-primary bg-surface shadow-[var(--shadow-sm)]" : "border-line bg-surface hover:border-ink-soft"}`}>
-                      <span><span className="block">{t(`intake.who_${k}`)}</span><span className="text-sm font-normal text-ink-soft">{t(`intake.who_${k}Help`)}</span></span>
+                      <span>{t(`intake.who_${k}`)}</span>
                       <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full ${setupFor === k ? "bg-primary text-primary-ink" : "border border-line"}`}>{setupFor === k ? <Check size={16} aria-hidden="true" /> : null}</span>
                     </button>
                   ))}
@@ -272,7 +242,7 @@ export function OnboardingForm({ defaults, whatsappLaunched = false }: { default
                 <div role="radiogroup" className="grid gap-2">
                   {(["diagnosed", "wellness", "prefer_not"] as const).map((k) => (
                     <button key={k} type="button" role="radio" aria-checked={health === k} onClick={() => { setHealth(k); setTemplate(k === "diagnosed" ? "clinician" : "walk"); }} className={`flex min-h-14 items-center justify-between gap-3 rounded-xl border px-4 py-2.5 text-left font-semibold transition-colors ${health === k ? "border-primary bg-surface shadow-[var(--shadow-sm)]" : "border-line bg-surface hover:border-ink-soft"}`}>
-                      <span><span className="block">{t(`intake.health_${k}`)}</span><span className="text-sm font-normal text-ink-soft">{t(`intake.health_${k}Help`)}</span></span>
+                      <span>{t(`intake.health_${k}`)}</span>
                       <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full ${health === k ? "bg-primary text-primary-ink" : "border border-line"}`}>{health === k ? <Check size={16} aria-hidden="true" /> : null}</span>
                     </button>
                   ))}
@@ -301,14 +271,12 @@ export function OnboardingForm({ defaults, whatsappLaunched = false }: { default
                       ))}
                     </div>
                   </fieldset>
-                  <p className="rounded-lg bg-primary-soft px-3 py-2 text-sm text-ink">{t("intake.noAdvice")}</p>
                 </div>
               ) : null}
 
               <div className="field mt-5">
                 <label htmlFor="personal_motivation">{t("onb.motivationLabel")} <span className="hint">({t("common.optional")})</span></label>
-                <textarea id="personal_motivation" name="personal_motivation" className="input" rows={2} maxLength={MOTIVATION_MAX} aria-describedby="motivation-hint" />
-                <span id="motivation-hint" className="hint text-xs">{t("onb.motivationHint")}</span>
+                <textarea id="personal_motivation" name="personal_motivation" className="input" rows={2} maxLength={MOTIVATION_MAX} />
               </div>
 
               <details className="mt-4 rounded-xl border border-line bg-surface p-4">
@@ -316,22 +284,19 @@ export function OnboardingForm({ defaults, whatsappLaunched = false }: { default
                 <div className="mt-3 grid gap-3 lg:grid-cols-2">
                   <div className="field">
                     <label htmlFor="care_notes">{t("onboarding.careNotes")}</label>
-                    <textarea id="care_notes" name="care_notes" className="input" rows={2} maxLength={2000} aria-describedby="care-hint" />
-                    <span id="care-hint" className="hint text-xs">{t("onboarding.careNotesHint")}</span>
+                    <textarea id="care_notes" name="care_notes" className="input" rows={2} maxLength={2000} placeholder={t("onboarding.careNotesHint")} />
                   </div>
                   <div className="field">
                     <label htmlFor="limitations">{t("onboarding.limitations")}</label>
-                    <textarea id="limitations" name="limitations" className="input" rows={2} maxLength={1000} aria-describedby="lim-hint" />
-                    <span id="lim-hint" className="hint text-xs">{t("onboarding.limitationsHint")}</span>
+                    <textarea id="limitations" name="limitations" className="input" rows={2} maxLength={1000} placeholder={t("onboarding.limitationsHint")} />
                   </div>
                 </div>
               </details>
             </section>
 
             {/* 5 Comfort */}
-            <section className={show(5)} aria-labelledby="s5">
-              <h1 id="s5" className="text-[1.7rem] sm:text-[2rem]">{t("onb.comfortTitle")}</h1>
-              <p className="mt-2 text-[1.02rem] text-ink-soft">{t("onb.comfortBody")}</p>
+            <section className={show(4)} aria-labelledby="s4">
+              <h1 id="s4" className="text-[1.7rem] sm:text-[2rem]">{t("onb.comfortTitle")}</h1>
               <div aria-hidden="true" className={`mt-5 rounded-xl border p-4 transition-all ${a11y.high_contrast ? "border-ink bg-surface" : "border-line bg-surface"}`} style={{ fontSize: a11y.large_text ? "1.2rem" : "1rem" }}>
                 <div className="flex items-start justify-between gap-3">
                   <div>
@@ -343,7 +308,7 @@ export function OnboardingForm({ defaults, whatsappLaunched = false }: { default
                 <div className="mt-4 grid grid-cols-[1fr_auto] gap-2"><span className="btn btn-primary">✓ {t("today.done")}</span><span className="btn btn-secondary">{t("today.later")}</span></div>
               </div>
               <div className="mt-4 grid gap-2 sm:grid-cols-2">
-                {([["large_text", "largeText"], ["high_contrast", "highContrast"], ["reduce_motion", "reduceMotion"], ["audio_replies", "audioReplies"]] as const).map(([k, l]) => (
+                {([["large_text", "largeText"], ["high_contrast", "highContrast"], ["reduce_motion", "reduceMotion"]] as const).map(([k, l]) => (
                   <label key={k} className="flex min-h-14 cursor-pointer items-center justify-between gap-3 rounded-2xl border border-line bg-surface px-4">
                     <span className="font-semibold">{t(`onboarding.${l}`)}</span>
                     <input type="checkbox" role="switch" checked={a11y[k]} onChange={(e) => setA11y((s) => ({ ...s, [k]: e.target.checked }))} className="h-6 w-6 accent-[var(--primary)]" />
@@ -361,24 +326,14 @@ export function OnboardingForm({ defaults, whatsappLaunched = false }: { default
                   ))}
                 </div>
               </fieldset>
-              <div className="mt-6 flex flex-col gap-6 border-t border-line pt-5">
-                <StyleQuestion value={commStyles} onChange={setCommStyles} id="onb-style-q" />
-                <RestartQuestion value={restartPref} onChange={setRestartPref} id="onb-restart-q" />
-              </div>
             </section>
 
             {/* 6 Permissions */}
-            <section className={show(6)} aria-labelledby="s6">
-              <h1 id="s6" className="text-[1.7rem] sm:text-[2rem]">{t("onb.permTitle")}</h1>
+            <section className={show(5)} aria-labelledby="s5">
+              <h1 id="s5" className="text-[1.7rem] sm:text-[2rem]">{t("onb.permTitle")}</h1>
               <p className="mt-2 text-[1.02rem] text-ink-soft">{t("onb.permBody")}</p>
               <div className="mt-5 grid gap-2 xl:grid-cols-2">
-                {CONSENTS.map(({ kind, title, body, Icon }) => kind === "whatsapp" && !whatsappLaunched ? (
-                  <div key={kind} className="flex items-start gap-3 rounded-xl border border-line bg-surface p-3 text-ink-soft">
-                    <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-surface-2"><Icon size={21} aria-hidden="true" /></span>
-                    <span className="flex-1"><span className="block font-bold text-ink">{t(`onb.${title}`)}</span><span className="text-sm leading-snug">{t("settings.waComingSoon")}</span></span>
-                    <span className="chip mt-1 shrink-0 bg-primary-soft text-primary">{t("common.comingSoon")}</span>
-                  </div>
-                ) : (
+                {CONSENTS.filter((c) => c.kind !== "whatsapp" || whatsappLaunched).map(({ kind, title, body, Icon }) => (
                   <label key={kind} className={`flex cursor-pointer items-start gap-3 rounded-xl border p-3 transition-colors ${consents[kind] ? "border-primary bg-surface" : "border-line bg-surface"}`}>
                     <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl ${consents[kind] ? "bg-primary text-primary-ink" : "bg-surface-2 text-ink-soft"}`}><Icon size={21} aria-hidden="true" /></span>
                     <span className="flex-1">
@@ -392,10 +347,9 @@ export function OnboardingForm({ defaults, whatsappLaunched = false }: { default
             </section>
 
             {/* 7 First plan */}
-            <section className={show(7)} aria-labelledby="s7">
-              <h1 id="s7" className="text-[1.7rem] sm:text-[2rem]">{clinicalFirst ? t("intake.planTitleClinical") : t("onb.routineTitle")}</h1>
-              <p className="mt-2 text-[1.02rem] text-ink-soft">{clinicalFirst ? t("intake.planBodyClinical") : t("intake.planBodyWellness")}</p>
-              <div role="radiogroup" aria-labelledby="s7" className="mt-5 grid gap-2 sm:grid-cols-2">
+            <section className={show(6)} aria-labelledby="s6">
+              <h1 id="s6" className="text-[1.7rem] sm:text-[2rem]">{clinicalFirst ? t("intake.planTitleClinical") : t("onb.routineTitle")}</h1>
+              <div role="radiogroup" aria-labelledby="s6" className="mt-5 grid gap-2 sm:grid-cols-2">
                 {routineOptions.map((k) => (
                   <label key={k} className={`flex cursor-pointer flex-col gap-0.5 rounded-xl border p-3 transition-colors ${template === k ? "border-primary bg-surface shadow-[var(--shadow-sm)]" : "border-line bg-surface hover:border-ink-soft"} ${k === "none" || (k === "clinician" && clinicalFirst) ? "sm:col-span-2" : ""}`}>
                     <span className="flex items-center gap-3">
@@ -410,7 +364,7 @@ export function OnboardingForm({ defaults, whatsappLaunched = false }: { default
                 <div className="mt-4 rounded-xl border border-primary bg-surface p-4">
                   <p className="font-semibold">{t("onb.uploadTitle")}</p>
                   <p className="hint mt-0.5">{t("onb.uploadBody")}</p>
-                  <p className="mt-2 rounded-lg bg-primary-soft px-3 py-2 text-sm text-ink">{t("intake.noAdvice")}</p>
+                  <p className="hint mt-1">{t("chat.disclaimer")}</p>
                   <input type="hidden" name="plan_title" value={t("onb.clinicianPlanTitle")} />
                   <div className="mt-3 flex flex-col gap-3">
                     <div className="field"><label htmlFor="clinician_name" className="!text-sm">{t("plan.clinicianName")} <span className="hint">({t("common.optional")})</span></label><input id="clinician_name" name="clinician_name" className="input" maxLength={120} /></div>
@@ -430,20 +384,18 @@ export function OnboardingForm({ defaults, whatsappLaunched = false }: { default
                     ))}
                   </ul>
                 )}
-                <p className="hint mt-3">{t("intake.wellnessNote")}</p>
               </div>
               )}
               {template !== "none" ? (
-                <fieldset className="mt-4 rounded-xl border border-line bg-surface p-4" aria-describedby="conf-hint">
+                <fieldset className="mt-4 rounded-xl border border-line bg-surface p-4">
                   <legend className="sr-only">{t("onb.confidenceTitle")}</legend>
                   <p className="font-semibold" aria-hidden="true">{t("onb.confidenceTitle")} <span className="hint font-normal">({t("common.optional")})</span></p>
-                  <p id="conf-hint" className="hint mt-0.5">{t("onb.confidenceHint")}</p>
                   <div role="radiogroup" aria-label={t("onb.confidenceTitle")} className="mt-3 grid grid-cols-5 gap-1.5 sm:grid-cols-10">
                     {Array.from({ length: 10 }, (_, i) => i + 1).map((n) => (
                       <button key={n} type="button" role="radio" aria-checked={confidence === n} aria-label={t("onb.confidenceValue", { n })} onClick={() => setConfidence(confidence === n ? null : n)} className={`flex min-h-12 items-center justify-center rounded-lg border text-lg font-semibold tabular-nums transition-colors ${confidence === n ? "border-primary bg-primary text-primary-ink" : "border-line bg-surface hover:border-ink-soft"}`}>{n}</button>
                     ))}
                   </div>
-                  {confidence !== null ? <button type="button" className="link mt-2 text-sm" onClick={() => setConfidence(null)}>{t("onb.clearChoice")}</button> : null}
+                  <p className="mt-1.5 flex justify-between text-xs text-ink-soft" aria-hidden="true"><span>{t("onb.confLow")}</span><span>{t("onb.confHigh")}</span></p>
                 </fieldset>
               ) : null}
             </section>
@@ -455,8 +407,8 @@ export function OnboardingForm({ defaults, whatsappLaunched = false }: { default
               <button type="button" className={`btn btn-ghost ${step === 0 ? "invisible" : ""}`} onClick={() => go(-1)}><ChevronLeft size={20} aria-hidden="true" />{t("onb.back")}</button>
               {step < TOTAL - 1 ? (
                 <span className="flex flex-col items-end gap-1">
-                  <button type="button" className="btn btn-primary btn-lg min-w-36" disabled={step === 4 && !intakeDone} onClick={() => go(1)}>{t("onb.next")}</button>
-                  {step === 4 && !intakeDone ? <span className="text-xs text-ink-soft">{t("intake.required")}</span> : null}
+                  <button type="button" className="btn btn-primary btn-lg min-w-36" disabled={step === 3 && !intakeDone} onClick={() => go(1)}>{t("onb.next")}</button>
+                  {step === 3 && !intakeDone ? <span className="text-xs text-ink-soft">{t("intake.required")}</span> : null}
                 </span>
               ) : (
                 <SubmitButton className="btn btn-primary btn-lg" pendingLabel={template === "clinician" && hasFile ? t("onb.uploadReading") : t("common.saving")}>{t("onb.finish")}</SubmitButton>

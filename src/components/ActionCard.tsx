@@ -117,18 +117,17 @@ export function ActionCard({ action, variant = "row" }: Props) {
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-start justify-between gap-2">
             <h3 id={`t-${action.id}`} className={`text-[1.08rem] ${complete ? "text-ink-soft line-through decoration-1" : ""}`}>{action.title}</h3>
-            <StatusBadge status={action.display} label={t(`status.${action.display}`)} />
+            {/* Upcoming slots need no badge: the time already says when. */}
+            {action.display !== "pending" ? <StatusBadge status={action.display} label={t(`status.${action.display}`)} /> : null}
           </div>
           {action.instructions ? <p className="mt-1 text-[0.95rem] text-ink-soft">{action.instructions}</p> : null}
-          <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs font-semibold text-ink-soft">
-            <span>{action.planMode === "clinician_instructions" ? t("today.clinicianTag") : t("today.personalTag")}</span>
-            {action.time ? <span className="sr-only">{t("today.localTime", { time: action.time, tz: action.tz })}</span> : null}
-            {action.weekly ? <span>{t("today.weeklyProgress", { done: action.weekly.done, target: action.weekly.target })}</span> : null}
-          </div>
+          {action.planMode === "clinician_instructions" ? <p className="mt-2 text-xs font-semibold text-ink-soft">{t("today.clinicianTag")}</p> : null}
+          {action.time ? <span className="sr-only">{t("today.localTime", { time: action.time, tz: action.tz })}</span> : null}
+          {action.weekly ? <span className="sr-only">{t("today.weeklyProgress", { done: action.weekly.done, target: action.weekly.target })}</span> : null}
           {action.display === "no_response" ? <p className="hint mt-1">{t("status.no_response_help")}</p> : null}
           {buttons}
           {feedback}
-          <Link href={`/actions/${action.id}`} className="mt-3 inline-flex items-center gap-1.5 text-sm font-semibold text-primary hover:underline"><Camera size={15} aria-hidden="true" />{t("today.addEvidence")}</Link>
+          {canAnswer || complete ? <Link href={`/actions/${action.id}`} className="mt-3 inline-flex items-center gap-1.5 text-sm font-semibold text-primary hover:underline"><Camera size={15} aria-hidden="true" />{t("today.addEvidence")}</Link> : null}
         </div>
       </div>
     </article>

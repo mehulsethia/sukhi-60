@@ -38,7 +38,7 @@ export function PreferencesForm({ profile }: { profile: Prefs }) {
       </div>
       <fieldset><legend className="label mb-2">{t("onboarding.accessibility")}</legend>
         <div className="grid gap-2 sm:grid-cols-2">
-        {([["large_text", "largeText"], ["high_contrast", "highContrast"], ["reduce_motion", "reduceMotion"], ["audio_replies", "audioReplies"]] as const).map(([k, l]) => (
+        {([["large_text", "largeText"], ["high_contrast", "highContrast"], ["reduce_motion", "reduceMotion"]] as const).map(([k, l]) => (
           <label key={k} className="flex min-h-14 cursor-pointer items-center justify-between gap-3 rounded-2xl border border-line px-4"><span className="font-semibold">{t(`onboarding.${l}`)}</span><input type="checkbox" role="switch" name={k} defaultChecked={!!profile.accessibility[k]} className="h-6 w-6 accent-[var(--primary)]" /></label>
         ))}
         </div>
@@ -60,12 +60,8 @@ export function ConsentsForm({ consents, whatsappLaunched = false }: { consents:
   return (
     <form action={action} className="flex flex-col gap-3">
       {rows.map(([k, l]) => (k === "whatsapp" && !whatsappLaunched ? (
-        // Coming soon: keep the stored choice unchanged, but don't offer it yet.
-        <div key={k} className="flex items-start justify-between gap-4 rounded-2xl border border-line p-4 text-ink-soft">
-          <span className="text-[0.95rem]">{t(`onboarding.${l}`)}</span>
-          <span className="chip shrink-0 bg-primary-soft text-primary">{t("common.comingSoon")}</span>
-          {consents[k] ? <input type="hidden" name={`consent_${k}`} value="on" /> : null}
-        </div>
+        // Not launched yet: keep the stored choice unchanged, but don't show it.
+        consents[k] ? <input key={k} type="hidden" name={`consent_${k}`} value="on" /> : null
       ) : (
         <label key={k} className="flex cursor-pointer items-start justify-between gap-4 rounded-2xl border border-line p-4"><span className="text-[0.95rem]">{t(`onboarding.${l}`)}</span><input type="checkbox" role="switch" name={`consent_${k}`} defaultChecked={!!consents[k]} className="mt-0.5 h-6 w-6 shrink-0 accent-[var(--primary)]" /></label>
       )))}

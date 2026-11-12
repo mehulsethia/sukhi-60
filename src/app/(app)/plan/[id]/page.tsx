@@ -1,15 +1,14 @@
 import Link from "next/link";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { getLocale, getTranslations } from "next-intl/server";
-import { ChevronLeft, FileText, History, Leaf, ListPlus, ScanText, Stethoscope } from "lucide-react";
+import { getTranslations } from "next-intl/server";
+import { ChevronLeft, FileText, Leaf, ListPlus, ScanText, Stethoscope } from "lucide-react";
 import { requireUser } from "@/lib/supabase/server";
 import { setItemStatus, setPlanStatus } from "@/app/actions";
 import { EditItemToggle, ExtractUpload, ItemForm, type EditableItem } from "@/components/PlanForms";
 import { Alert, Section } from "@/components/ui";
 import { SubmitButton } from "@/components/SubmitButton";
 import { CategoryIcon } from "@/components/CategoryIcon";
-import { fmtDateTime } from "@/lib/format";
 import { readingState } from "@/server/plan-reading";
 import { ReadingStatus } from "@/components/ReadingStatus";
 import { PauseUntilForm, StockForm } from "@/components/CompanionForms";
@@ -26,12 +25,10 @@ export default async function PlanDetail({ params, searchParams }: { params: Pro
   if (!/^[0-9a-f-]{36}$/.test(id)) notFound();
   const { supabase, user } = await requireUser();
   const t = await getTranslations();
-  const locale = await getLocale();
   const { data: plan } = await supabase.from("care_plans").select("*").eq("id", id).maybeSingle();
   if (!plan) notFound();
-  const [{ data: items }, { data: versions }, { data: profile }] = await Promise.all([
+  const [{ data: items }, { data: profile }] = await Promise.all([
     supabase.from("plan_items").select("*").eq("plan_id", id).neq("status", "retired").order("created_at"),
-    supabase.from("plan_item_versions").select("id, item_id, version, change_kind, changed_via, created_at, snapshot, plan_items!inner(plan_id)").eq("plan_items.plan_id", id).order("created_at", { ascending: false }).limit(30),
     supabase.from("profiles").select("timezone").eq("id", user.id).single(),
   ]);
   const clinical = plan.mode === "clinician_instructions";
@@ -54,10 +51,9 @@ export default async function PlanDetail({ params, searchParams }: { params: Pro
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-start justify-between gap-2">
             <p className="text-[1.05rem] font-bold">{i.title}</p>
-            <span className={`chip ${i.status === "draft" ? "bg-warn-bg text-warn-ink" : i.status === "confirmed" ? "bg-ok-bg text-ok-ink" : ""}`}>{t(`plan.item_${i.status}`)} · {t("plan.version", { v: i.version })}</span>
+            {i.status !== "confirmed" ? <span className={`chip ${i.status === "draft" ? "bg-warn-bg text-warn-ink" : ""}`}>{t(`plan.item_${i.status}`)}</span> : null}
           </div>
           <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-sm">
-            <span className="chip">{t(`plan.cat_${i.category}`)}</span>
             <span className="chip">{t(`plan.sched_${i.schedule_kind}`)}{i.schedule_kind === "weekly_target" ? ` · ${i.weekly_target}×` : ""}</span>
             {i.schedule_kind === "weekdays" ? <span className="chip">{i.weekdays.map((d) => t(`weekday.${d}`)).join(" ")}</span> : null}
             {i.times.map((tm) => <span key={tm} className="chip bg-primary-soft font-bold tabular-nums text-primary">{tm}</span>)}
@@ -90,9 +86,8 @@ export default async function PlanDetail({ params, searchParams }: { params: Pro
           <div className="min-w-0">
             <h1 className="text-[1.9rem] sm:text-[2.4rem]">{plan.title}</h1>
             <div className="mt-2 flex flex-wrap gap-2">
-              <span className={`chip ${plan.status === "active" ? "bg-ok-bg text-ok-ink" : ""}`}>{t(`plan.status_${plan.status}`)}</span>
-              <span className="chip">{clinical ? t(`plan.verification_${plan.clinician_verification}`) : t("plan.personalBadge")}</span>
-              {plan.clinician_name ? <span className="chip">{t("plan.clinicianName")}: {plan.clinician_name}</span> : null}
+              {plan.status !== "active" ? <span className="chip">{t(`plan.status_${plan.status}`)}</span> : null}
+              <span className="chip">{clinical ? (plan.clinician_name ? t("planUi.fromDoctor", { name: plan.clinician_name }) : t(`plan.verification_${plan.clinician_verification}`)) : t("today.personalTag")}</span>
               {plan.status === "paused" && plan.paused_until ? <span className="chip bg-warn-bg text-warn-ink">{t("companion.pausedUntil", { date: plan.paused_until })}{plan.pause_reason ? ` · ${t(`companion.reason_${plan.pause_reason}`)}` : ""}</span> : null}
             </div>
           </div>
@@ -106,7 +101,7 @@ export default async function PlanDetail({ params, searchParams }: { params: Pro
         {plan.status === "active" ? <div className="w-full sm:w-auto"><PauseUntilForm planId={plan.id} minDate={addDays(localDateOf(new Date(), tz), 1)} maxDate={addDays(localDateOf(new Date(), tz), 90)} /></div> : null}
       </header>
       {plan.source_document_id && (reading === "pending" || reading === "failed" || reading === "stale") ? <ReadingStatus planId={plan.id} docId={plan.source_document_id} state={reading} /> : null}
-      {sp.from === "onboarding" && reading !== "pending" ? <div className="mb-5"><Alert tone={drafts.length ? "warn" : "info"}>{drafts.length ? t("onb.reviewDrafts") : t("onb.reviewNoDoc")}</Alert></div> : null}
+      {sp.from === "onboarding" && reading !== "pending" && !drafts.length ? <div className="mb-5"><Alert tone={drafts.length ? "warn" : "info"}>{drafts.length ? t("onb.reviewDrafts") : t("onb.reviewNoDoc")}</Alert></div> : null}
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
         <div className="min-w-0">
@@ -135,19 +130,6 @@ export default async function PlanDetail({ params, searchParams }: { params: Pro
           ) : null}
           <Section title={t("plan.upload")} id="upload" icon={<ScanText size={20} aria-hidden="true" />}>
             <ExtractUpload planId={plan.id} />
-          </Section>
-          <Section title={t("plan.history")} id="history" icon={<History size={20} aria-hidden="true" />}>
-            {(versions ?? []).length === 0 ? <p className="hint">—</p> : (
-              <ol className="relative flex flex-col gap-3 border-l border-line pl-4 text-sm">
-                {(versions ?? []).map((v) => (
-                  <li key={v.id} className="relative">
-                    <span aria-hidden="true" className="absolute -left-[21px] top-1.5 h-2.5 w-2.5 rounded-full border-2 border-surface bg-primary" />
-                    <p className="font-semibold">{(v.snapshot as { title?: string }).title}</p>
-                    <p className="text-ink-soft">{t(`plan.change_${v.change_kind}`)} · {t("plan.version", { v: v.version })} · {fmtDateTime(v.created_at, tz, locale)}</p>
-                  </li>
-                ))}
-              </ol>
-            )}
           </Section>
         </aside>
       </div>

@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { getLocale, getTranslations } from "next-intl/server";
-import { BellRing, Brain, Cpu, HandHeart, MessageCircle, ShieldCheck, Trash2, UserRound, Users } from "lucide-react";
+import { BellRing, Brain, HandHeart, MessageCircle, ShieldCheck, Trash2, UserRound, Users } from "lucide-react";
 import { requireUser } from "@/lib/supabase/server";
 import { features } from "@/lib/config";
 import { revokeFamily, setMemoryStatus, unlinkWhatsApp } from "@/app/actions";
@@ -35,17 +35,15 @@ export default async function SettingsPage() {
   const { data: weekOcc } = await supabase.from("action_occurrences").select("local_date, status").gte("local_date", ws).lte("local_date", addDays(ws, 6));
   const preview = summarizeWeek(Array.from({ length: 7 }, (_, i) => addDays(ws, i)), weekOcc ?? []).map((d) => ({ date: d.date, responded: d.responded, completed: d.completed }));
   const learned = await getLearnedSummary(supabase, user.id, profile?.learning_reset_at ?? null, tz);
-  const exportHref = `data:application/json;charset=utf-8,${encodeURIComponent(JSON.stringify({ week_start: ws, days: preview, note: "Participation counts only; no plan details or messages." }, null, 2))}`;
 
   const nav = [
     ["prefs", t("settings.profile"), UserRound],
     ["support", t("support.settingsTitle"), HandHeart],
     ["notifications", t("push.title"), BellRing],
     ["consents", t("settings.consents"), ShieldCheck],
-    ["wa", t("settings.whatsapp"), MessageCircle],
+    ...(features.whatsappLaunched() || binding ? [["wa", t("settings.whatsapp"), MessageCircle] as const] : []),
     ["family", t("settings.family"), Users],
     ["memory", t("settings.memory"), Brain],
-    ["svc", t("settings.services"), Cpu],
     ["delete", t("app.deleteTitle"), Trash2],
   ] as const;
   return (
@@ -63,15 +61,14 @@ export default async function SettingsPage() {
         </ul>
       </nav>
       <div className="min-w-0 [&>section]:scroll-mt-24">
-      <Section title={t("settings.profile")} id="prefs" icon={<UserRound size={20} aria-hidden="true" />} description={t("settingsUi.profileHelp")}>
+      <Section title={t("settings.profile")} id="prefs" icon={<UserRound size={20} aria-hidden="true" />} >
         <PreferencesForm profile={{ display_name: profile?.display_name ?? "", locale: profile?.locale ?? "en", timezone: tz, checkin_times: profile?.checkin_times ?? [], quiet_start: profile?.quiet_start ?? "21:30", quiet_end: profile?.quiet_end ?? "07:30", reminder_frequency: profile?.reminder_frequency ?? "normal", accessibility: (profile?.accessibility as Record<string, boolean>) ?? {}, limitations: profile?.limitations ?? "", care_notes: profile?.care_notes ?? "" }} />
       </Section>
 
-      <Section title={t("support.settingsTitle")} id="support" icon={<HandHeart size={20} aria-hidden="true" />} description={t("support.settingsHelp")}>
+      <Section title={t("support.settingsTitle")} id="support" icon={<HandHeart size={20} aria-hidden="true" />} >
         <SupportPrefsForm initial={{ styles: normalizeStyles(profile?.communication_styles), restart: normalizeRestart(profile?.restart_preference), motivation: profile?.personal_motivation ?? "" }} />
         <div className="mt-6 rounded-2xl bg-surface-2 p-4">
           <p className="font-bold">{t("support.learnedTitle")}</p>
-          <p className="hint mt-0.5">{t("support.learnedHelp")}</p>
           {!learned.hasData ? <p className="mt-2">{t("support.learnedNone")}</p> : (
             <ul className="mt-2 flex list-disc flex-col gap-1 pl-5">
               {learned.topBarrier ? <li>{t("support.learnedBarrier", { reason: t(`support.barrier_${learned.topBarrier.code}`), n: learned.topBarrier.n })}</li> : null}
@@ -88,11 +85,11 @@ export default async function SettingsPage() {
         <PushToggle publicKey={process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || null} />
       </Section>
 
-      <Section title={t("settings.consents")} id="consents" icon={<ShieldCheck size={20} aria-hidden="true" />} description={t("settingsUi.consentsHelp")}>
+      <Section title={t("settings.consents")} id="consents" icon={<ShieldCheck size={20} aria-hidden="true" />} >
         <ConsentsForm consents={consentMap} whatsappLaunched={features.whatsappLaunched()} />
       </Section>
 
-      <Section title={t("settings.whatsapp")} id="wa" icon={<MessageCircle size={20} aria-hidden="true" />}>
+      {features.whatsappLaunched() || binding ? <Section title={t("settings.whatsapp")} id="wa" icon={<MessageCircle size={20} aria-hidden="true" />}>
         {!features.whatsappLaunched() ? (
           <>
             <p className="mb-1"><span className="chip bg-primary-soft text-primary">{t("common.comingSoon")}</span></p>
@@ -108,11 +105,10 @@ export default async function SettingsPage() {
         {binding ? <form action={unlinkWhatsApp} className="mt-2"><SubmitButton className="btn btn-danger">{t("settings.waUnlink")}</SubmitButton></form> : null}
         </>
         )}
-      </Section>
+      </Section> : null}
 
       <Section title={t("settings.family")} id="family" icon={<Users size={20} aria-hidden="true" />}>
         <p className="mb-2">{t("settings.familyIntro")}</p>
-        <p className="hint mb-3">{t("settings.familyNoAutoMessages")}</p>
         {(family ?? []).length === 0 ? <p className="hint mb-2">{t("settings.familyNone")}</p> : (
           <ul className="mb-3 flex flex-col gap-2">
             {(family ?? []).map((f) => (
@@ -129,18 +125,16 @@ export default async function SettingsPage() {
         <details className="mt-3">
           <summary className="cursor-pointer font-semibold">{t("settings.familyPreview")}</summary>
           <ul className="mt-2 text-sm">{preview.map((d) => <li key={d.date}>{fmtDate(d.date, locale)}: {t("progress.responded")} {d.responded} · {t("progress.completed")} {d.completed}</li>)}</ul>
-          <a href={exportHref} download={`sukhi-summary-${ws}.json`} className="btn btn-secondary mt-2">{t("settings.familyExport")}</a>
         </details>
       </Section>
 
       <Section title={t("settings.memory")} id="memory" icon={<Brain size={20} aria-hidden="true" />}>
-        <p className="hint mb-2">{t("settings.memoryIntro")}</p>
         {(memory ?? []).length === 0 ? <p>{t("settings.memoryEmpty")}</p> : (
           <ul className="flex flex-col gap-2">
             {(memory ?? []).map((m) => (
               <li key={m.id} className="rounded-xl border border-line p-3">
                 <p>{m.content}</p>
-                <p className="hint">{t(`settings.mem_${m.status}`)} · {m.kind}</p>
+                <p className="hint">{t(`settings.mem_${m.status}`)}</p>
                 {m.status === "proposed" ? (
                   <form action={setMemoryStatus} className="mt-2 flex gap-2">
                     <input type="hidden" name="memory_id" value={m.id} />
@@ -154,14 +148,6 @@ export default async function SettingsPage() {
         )}
       </Section>
 
-      <Section title={t("settings.services")} id="svc" icon={<Cpu size={20} aria-hidden="true" />}>
-        <ul className="grid gap-2 sm:grid-cols-3">
-          {([["svcAi", features.ai()], ["svcVoice", features.speech()], ["svcWhatsapp", features.whatsappLaunched()]] as const).map(([k, on]) => (
-            <li key={k} className="flex items-center justify-between gap-2 rounded-xl border border-line px-3 py-2.5"><span className="font-semibold">{t(`settings.${k}`)}</span><span className={`chip ${on ? "bg-ok-bg text-ok-ink" : ""}`}>{on ? t("settings.svcOn") : k === "svcWhatsapp" ? t("common.comingSoon") : t("settings.svcOff")}</span></li>
-          ))}
-        </ul>
-        <p className="hint mt-2">{t("settings.latency")}</p>
-      </Section>
 
       <Section title={t("app.deleteTitle")} id="delete" icon={<Trash2 size={20} aria-hidden="true" />}>
         <DeleteAccount />

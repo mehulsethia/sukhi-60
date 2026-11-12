@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getTranslations } from "next-intl/server";
-import { LogOut, MessageCircle } from "lucide-react";
+import { LogOut } from "lucide-react";
 import { requireUser } from "@/lib/supabase/server";
 import { BottomNav } from "@/components/BottomNav";
 import { Logo } from "@/components/Logo";
@@ -32,11 +32,6 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       <aside className="sticky top-0 hidden h-dvh flex-col border-r border-line bg-surface px-4 py-6 lg:flex print:!hidden">
         <div className="px-2"><Logo href="/today" /></div>
         <div className="mt-9 flex-1"><BottomNav variant="sidebar" badges={{ chat: unreadChat }} /></div>
-        <Link href="/chat" className="mb-4 block rounded-[var(--r-lg)] bg-primary p-4 text-white transition-colors hover:bg-[var(--primary-hover)]">
-          <span className="flex h-9 w-9 items-center justify-center rounded-full bg-white/15"><MessageCircle size={18} aria-hidden="true" /></span>
-          <span className="mt-3 block font-semibold">{t("shell.askTitle")}</span>
-          <span className="mt-0.5 block text-sm text-white/90">{t("shell.askBody")}</span>
-        </Link>
         <div className="flex items-center gap-3 rounded-[var(--r-lg)] border border-line p-2.5">
           <span aria-hidden="true" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary-soft text-sm font-bold text-primary">{initial}</span>
           <span className="min-w-0 flex-1">

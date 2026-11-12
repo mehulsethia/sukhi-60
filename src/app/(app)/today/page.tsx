@@ -2,15 +2,12 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import { getLocale, getTranslations } from "next-intl/server";
 import { cookies } from "next/headers";
-import { Bell, ClipboardList, Flame, HandHeart, MessageCircle, Moon, PartyPopper, Sun, Sunrise, Sunset, CalendarRange } from "lucide-react";
+import { Bell, ClipboardList, HandHeart, Moon, PartyPopper, Sun, Sunrise, Sunset, CalendarRange } from "lucide-react";
 import { dismissSupportPrompt } from "@/app/actions";
 import { requireUser } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getToday, materializeOccurrences } from "@/server/core";
-import { assistantSuggestions } from "@/server/suggestions";
-import { activeDays, summarizeWeek } from "@/domain/rewards";
-import { pointsTotal } from "@/server/points";
-import { addDays, localDateOf, weekStart } from "@/domain/schedule";
+import { localDateOf } from "@/domain/schedule";
 import { ActionCard } from "@/components/ActionCard";
 import { InstallPrompt } from "@/components/InstallPrompt";
 import { PushToggle } from "@/components/PushToggle";
@@ -18,28 +15,9 @@ import { MoodCard } from "@/components/CompanionForms";
 import { COMPANION_POLICY, daysLeft } from "@/server/companion";
 import { Package } from "lucide-react";
 import { fmtTime, hoursAgoIso, nowMs } from "@/lib/format";
-import { BUCKETS, BUCKET_COLOR, bucketOf, isDone, type Bucket } from "@/lib/status";
+import { bucketOf, isDone } from "@/lib/status";
 
 export const metadata: Metadata = { title: "Today" };
-
-/** Ring split into one arc per check-in state, so the day reads at a glance. */
-function DayRing({ counts, total, label }: { counts: Partial<Record<Bucket, number>>; total: number; label: string }) {
-  const r = 52, c = 2 * Math.PI * r, gap = total > 1 ? 4 : 0;
-  const present = BUCKETS.filter((b) => counts[b]);
-  const lens = present.map((b) => ((counts[b] ?? 0) / Math.max(total, 1)) * c);
-  const arcs = present.map((b, i) => ({ b, dash: Math.max(0, lens[i] - gap), offset: lens.slice(0, i).reduce((a, n) => a + n, 0) }));
-  const done = (counts.done ?? 0) + (counts.evidence ?? 0);
-  return (
-    <svg width="132" height="132" viewBox="0 0 132 132" role="img" aria-label={label} className="shrink-0">
-      <circle cx="66" cy="66" r={r} fill="none" stroke="var(--surface-3)" strokeWidth="12" />
-      {arcs.map((a) => (
-        <circle key={a.b} cx="66" cy="66" r={r} fill="none" stroke={a.b === "open" ? "var(--surface-3)" : BUCKET_COLOR[a.b]} strokeWidth="12" strokeLinecap="butt" strokeDasharray={`${a.dash} ${c}`} strokeDashoffset={-a.offset} transform="rotate(-90 66 66)" />
-      ))}
-      <text x="66" y="66" textAnchor="middle" className="display" fontSize="30" fontWeight="700" fill="var(--ink)">{done}<tspan fontSize="18" fill="var(--ink-faint)">/{total}</tspan></text>
-      <text x="66" y="88" textAnchor="middle" fontSize="12" fill="var(--ink-soft)">{label}</text>
-    </svg>
-  );
-}
 
 const PARTS = [
   { key: "morning", from: 0, to: 12, Icon: Sunrise },
@@ -57,14 +35,9 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
   // Existing accounts: offer the new support-style questions without forcing anything.
   const showSupportPrompt = !welcome && !profile?.behaviour_prefs_updated_at && (await cookies()).get("sukhi_support_prompt")?.value !== "dismissed";
   const tz = profile?.timezone ?? "UTC";
-  const ws = weekStart(localDateOf(new Date(), tz));
-  const weekDates = Array.from({ length: 7 }, (_, i) => addDays(ws, i));
-  const [firstActions, points, { data: notices }, { data: weekOcc }, suggestions] = await Promise.all([
+  const [firstActions, { data: notices }] = await Promise.all([
     getToday(supabase, user.id, tz),
-    pointsTotal(supabase, user.id),
     supabase.from("messages").select("id, content, created_at").eq("role", "notice").gte("created_at", hoursAgoIso(12)).order("created_at", { ascending: false }).limit(1),
-    supabase.from("action_occurrences").select("local_date, status").gte("local_date", ws).lte("local_date", addDays(ws, 6)),
-    assistantSuggestions(supabase, user.id, tz, t),
   ]);
   const [{ data: mood }, { data: stocked }, { count: alertMembers }] = await Promise.all([
     supabase.from("mood_checkins").select("mood, stress, sleep_quality, sleep_hours").eq("user_id", user.id).eq("local_date", localDateOf(new Date(), tz)).maybeSingle(),
@@ -80,16 +53,11 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
   }
   const timed = actions.filter((a) => a.target_count === 1);
   const weekly = actions.filter((a) => a.target_count > 1);
-  const stats = { points };
-  const week = summarizeWeek(weekDates, weekOcc ?? []);
-  const todayStr = localDateOf(new Date(), tz);
   const now = nowMs();
   const hour = Number(new Intl.DateTimeFormat("en-GB", { timeZone: tz, hour: "2-digit", hourCycle: "h23" }).format(new Date(now)));
   const greet = hour < 12 ? t("app.morning") : hour < 17 ? t("app.afternoon") : t("app.evening");
   const first = profile?.display_name?.split(" ")[0];
   const dateLabel = new Intl.DateTimeFormat(locale === "en" ? "en-IN" : `${locale}-IN`, { timeZone: tz, weekday: "long", day: "numeric", month: "long" }).format(new Date(now));
-  const counts: Partial<Record<Bucket, number>> = {};
-  for (const a of actions) counts[bucketOf(a.display)] = (counts[bucketOf(a.display)] ?? 0) + 1;
   const done = actions.filter((a) => isDone(bucketOf(a.display))).length;
   // Up next: whatever needs an answer now, else the next one coming up.
   const heroAction =
@@ -110,8 +78,7 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
       <header className="mb-7">
         <p className="text-sm font-semibold text-ink-soft">{dateLabel}</p>
         <h1 className="mt-1 text-[2rem] leading-[1.1] sm:text-[2.5rem]">{greet}{first ? `, ${first}` : ""}.</h1>
-        <p className="mt-2 text-lg font-medium text-primary">{t("app.tagline")}</p>
-        {summary ? <p className="mt-1 text-lg text-ink-soft">{summary}</p> : null}
+        {summary ? <p className="mt-2 text-lg text-ink-soft">{summary}</p> : null}
       </header>
 
       <InstallPrompt />
@@ -183,56 +150,14 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
             </div>
           ) : null}
           <MoodCard today={mood ? { ...mood, sleep_hours: mood.sleep_hours === null ? null : Number(mood.sleep_hours) } : null} />
-          {actions.length ? (
-            <div className="panel flex items-center gap-4 p-5">
-              <DayRing counts={counts} total={actions.length} label={t("today.ringLabel")} />
-              <ul className="flex min-w-0 flex-col gap-1.5 text-sm">
-                {BUCKETS.filter((b) => counts[b]).map((b) => (
-                  <li key={b} className="flex items-center gap-2"><span className="dot" style={{ background: b === "open" ? "var(--surface-3)" : BUCKET_COLOR[b] }} /><span className="truncate">{t(`bucket.${b}`)}</span><span className="ml-auto pl-2 font-semibold tabular-nums">{counts[b]}</span></li>
-                ))}
-              </ul>
-            </div>
-          ) : null}
-
-          <Link href="/progress" className="panel block p-5 transition-colors hover:border-line-strong">
-            <div className="flex items-baseline justify-between gap-2">
-              <p className="font-bold">{t("app.weekCard")}</p>
-              <p className="flex items-center gap-1 text-sm font-semibold tabular-nums text-haldi-ink"><Flame size={15} className="text-haldi" aria-hidden="true" />{t("progress.points", { points: stats.points })}</p>
-            </div>
-            <div className="mt-4 grid grid-cols-7 gap-1.5" aria-hidden="true">
-              {week.map((d, i) => {
-                const ratio = d.scheduled ? d.completed / d.scheduled : 0;
-                return (
-                  <div key={d.date} className="flex flex-col items-center gap-1.5">
-                    <div className={`relative h-14 w-full overflow-hidden rounded-lg ${d.date === todayStr ? "ring-2 ring-primary ring-offset-2 ring-offset-surface" : ""}`} style={{ background: "var(--surface-2)" }}>
-                      <div className="absolute inset-x-0 bottom-0" style={{ height: `${d.responded && !ratio ? 18 : ratio * 100}%`, background: ratio ? "var(--st-done)" : d.responded ? "var(--st-skipped)" : "transparent" }} />
-                    </div>
-                    <span className={`text-[0.7rem] ${d.date === todayStr ? "font-bold text-ink" : "text-ink-faint"}`}>{t(`weekday.${i + 1}`)}</span>
-                  </div>
-                );
-              })}
-            </div>
-            <p className="mt-4 text-sm text-ink-soft">{t("progress.activeDays", { days: activeDays(week) })}</p>
-          </Link>
-
           {notices && notices.length > 0 ? (
             <p role="status" className="panel flex items-start gap-3 p-4">
               <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-haldi-soft text-haldi-ink"><Bell size={17} aria-hidden="true" /></span>
               <span className="pt-1.5 text-[0.95rem]">{notices[0].content}</span>
             </p>
           ) : null}
-
-          <div className="panel p-5">
-            <p className="flex items-center gap-2 font-bold"><MessageCircle size={18} className="text-primary" aria-hidden="true" />{t("shell.askTitle")}</p>
-            <ul className="mt-3 flex flex-col gap-2">
-              {suggestions.map((s) => (
-                <li key={s}><Link href={`/chat?q=${encodeURIComponent(s)}`} className="flex min-h-12 items-center rounded-[var(--r-md)] border border-line px-3.5 py-2.5 text-[0.98rem] transition-colors hover:border-primary hover:bg-sky">{s}</Link></li>
-              ))}
-            </ul>
-          </div>
         </aside>
       </div>
-      <p className="hint mt-12 max-w-3xl">{t("common.disclaimer")}</p>
     </>
   );
 }

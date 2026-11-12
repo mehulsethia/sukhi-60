@@ -78,6 +78,9 @@ async function saveProfile(fd: FormData, onboarding: boolean) {
   const p = readProfile(fd);
   if (!p.success) return { error: p.error.issues[0]?.message ?? "invalid_input" } as const;
   const v = p.data;
+  // Voice mode is switched from the chat, not this form: keep the saved choice (off for new accounts).
+  const prev = onboarding ? null : (await supabase.from("profiles").select("accessibility").eq("id", user.id).single()).data;
+  const audioReplies = !!(prev?.accessibility as { audio_replies?: boolean } | null)?.audio_replies;
   const { error } = await supabase
     .from("profiles")
     .update({
@@ -88,7 +91,7 @@ async function saveProfile(fd: FormData, onboarding: boolean) {
       quiet_start: v.quiet_start,
       quiet_end: v.quiet_end,
       reminder_frequency: v.reminder_frequency,
-      accessibility: { large_text: v.large_text, high_contrast: v.high_contrast, reduce_motion: v.reduce_motion, audio_replies: v.audio_replies },
+      accessibility: { large_text: v.large_text, high_contrast: v.high_contrast, reduce_motion: v.reduce_motion, audio_replies: audioReplies },
       limitations: v.limitations || null,
       care_notes: v.care_notes || null,
       ...(onboarding ? { onboarded_at: new Date().toISOString() } : {}),

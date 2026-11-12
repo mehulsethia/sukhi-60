@@ -45,24 +45,21 @@ test.describe.serial("core journey", () => {
     await page.getByRole("button", { name: "Create account" }).click();
     await expect(page).toHaveURL(/\/onboarding/);
 
-    // Onboarding (8 steps). Keep Asia/Kolkata so times below are predictable.
+    // Onboarding (7 steps). Keep Asia/Kolkata so times below are predictable.
     const next = () => page.getByRole("button", { name: "Continue" }).click();
     await expect(page.getByRole("radio", { name: /English/ })).toHaveAttribute("aria-checked", "true");
     await next(); // language
-    await expect(page.getByRole("heading", { name: "Here's how Sukhi helps" })).toBeVisible();
-    await next(); // tour
     await page.getByLabel("What should we call you?").fill("Asha Test");
     await page.getByLabel("Time zone").selectOption("Asia/Kolkata");
     await next(); // about
     await page.locator("#quiet_start").fill("03:00");
     await page.locator("#quiet_end").fill("03:01");
-    await expect(page.getByText(/Sukhi will check in at/)).toBeVisible();
     await next(); // rhythm
-    await page.getByRole("radio", { name: /setting this up for myself/ }).click();
+    await page.getByRole("radio", { name: "Me", exact: true }).click();
     await page.getByRole("radio", { name: /it's for better health/ }).click();
     await next(); // about this plan
     await next(); // comfort
-    await page.getByLabel(/Allow voice notes/).check();
+    await page.getByLabel(/Turns voice notes into text/).check();
     await page.getByLabel(/connect WhatsApp later/).check();
     await next(); // permissions
     await page.getByLabel("I'll set up my plan myself").check();
@@ -76,12 +73,12 @@ test.describe.serial("core journey", () => {
     await page.getByLabel("Plan name").fill("My walking goal");
     await page.getByRole("button", { name: "Create plan" }).click();
     await expect(page.getByRole("heading", { name: "My walking goal" })).toBeVisible();
-    await expect(page.getByText("Personal goal — not medical advice").first()).toBeVisible();
+    await expect(page.getByText("Personal goal").first()).toBeVisible();
     const add = page.locator("section", { has: page.getByRole("heading", { name: "Add an action" }) });
     await add.getByLabel("Action", { exact: true }).fill("Short walk");
     await add.getByLabel("Times").fill(istMinus(10));
     await add.getByRole("button", { name: "Confirm & schedule" }).click();
-    await expect(page.getByText("Confirmed · Version 1")).toBeVisible();
+    await expect(page.getByText("Short walk").first()).toBeVisible();
 
     // Reminder fires via the secured worker endpoint (as Supabase Cron would call it).
     const tick = await page.request.post("/api/worker/tick", { headers: { authorization: `Bearer ${process.env.WORKER_SECRET}` } });

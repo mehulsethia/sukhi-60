@@ -65,7 +65,6 @@ test("full patient journey on production", async ({ page, request }) => {
 
   const next = () => page.getByRole("button", { name: "Continue" }).click();
   await next();
-  await next();
   await page.getByLabel("What should we call you?").fill("Smoke Test");
   await page.getByLabel("Time zone").selectOption("Asia/Kolkata");
   await next();
@@ -76,7 +75,7 @@ test("full patient journey on production", async ({ page, request }) => {
   await next();
   await next();
   await page.getByLabel(/connect WhatsApp later/).check();
-  await page.getByLabel(/invite a family member/).check();
+  await page.getByLabel(/Invite someone to see a weekly summary/).check();
   await next();
   await page.getByLabel("I'll set up my plan myself").check();
   await page.getByRole("button", { name: "Start using Sukhi" }).click();
@@ -90,7 +89,7 @@ test("full patient journey on production", async ({ page, request }) => {
   await add.getByLabel("Action", { exact: true }).fill("Short walk");
   await add.getByLabel("Times").fill(ist(10));
   await add.getByRole("button", { name: "Confirm & schedule" }).click();
-  await expect(page.getByText("Confirmed · Version 1")).toBeVisible();
+  await expect(page.getByText("Short walk").first()).toBeVisible();
 
   // Document extraction must degrade honestly (AI off: "unavailable"; AI on + blank image: "couldn't read").
   await page.locator("#src-file").setInputFiles(path.resolve(__dirname, "../fixtures/tiny.png"));
