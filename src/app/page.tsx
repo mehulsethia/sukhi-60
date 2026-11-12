@@ -3,10 +3,12 @@ import type { Metadata } from "next";
 import { getLocale, getTranslations } from "next-intl/server";
 import {
   ArrowRight, BarChart3, Bell, Camera, Check, CircleCheck, ClipboardList, Clock, Footprints, Heart, Mic,
-  Minus, Moon, Pill, RotateCcw, Salad, Sparkles, Sprout, Target, TrendingUp, Undo2,
+  Minus, Moon, Pill, RotateCcw, Salad, Sparkles, Sprout, Target, TrendingUp, Undo2, Smartphone, QrCode,
 } from "lucide-react";
+import QRCode from "qrcode";
+import { InstallNowButton } from "@/components/landing/InstallNowButton";
 import { getUser } from "@/lib/supabase/server";
-import { features } from "@/lib/config";
+import { features, settings } from "@/lib/config";
 import { SiteHeader } from "@/components/landing/SiteHeader";
 import { SiteFooter } from "@/components/landing/SiteFooter";
 import { HeroIllustration } from "@/components/landing/HeroIllustration";
@@ -57,6 +59,9 @@ export default async function Landing() {
     { Icon: RotateCcw, text: t("feat5") },
   ];
   const days = [1, 2, 3, 4, 5, 6, 7].map((d) => tr(`weekday.${d}`));
+  // Scan from a laptop to open the install steps on a phone (handy for judges and demos).
+  const installUrl = `${settings.appUrl()}/#install`;
+  const qrSvg = await QRCode.toString(installUrl, { type: "svg", margin: 1, width: 200, color: { dark: "#0b3b33", light: "#ffffff" }, errorCorrectionLevel: "M" });
   const roadmap = ([1, 2, 3, 4] as const).map((g) => ({ title: t(`rm${g}Title`), items: ([1, 2, 3, 4, 5] as const).map((i) => t(`rm${g}_${i}`)) }));
 
   return (
@@ -83,6 +88,7 @@ export default async function Landing() {
                 </Link>
                 <Link href={meet} className="btn btn-secondary btn-lg">{t("heroSecondary")}</Link>
               </div>
+              <a href="#install" className="mt-4 inline-flex min-h-11 items-center gap-2 font-semibold text-primary hover:underline"><Smartphone size={19} aria-hidden="true" />{t("heroInstall")}</a>
               <ul className="mt-8 flex flex-wrap gap-x-6 gap-y-2.5">
                 {[t("heroBenefit1"), t("heroBenefit2"), t("heroBenefit3")].map((b) => (
                   <li key={b} className="flex items-center gap-2 font-medium text-ink">
@@ -235,6 +241,42 @@ export default async function Landing() {
                 </li>
               ))}
             </ul>
+          </div>
+        </section>
+
+        {/* Install on your phone */}
+        <section id="install" aria-labelledby="install-title" className="scroll-mt-20 border-t border-line bg-sky py-16 sm:py-24">
+          <div className={container}>
+            <div className="max-w-2xl">
+              <h2 id="install-title" className={h2}>{t("installTitle")}</h2>
+              <p className={lead}>{t("installBody")}</p>
+              <ul className="mt-5 flex flex-wrap gap-2">
+                {[t("installFree"), t("installNoStore"), t("installBoth")].map((c) => <li key={c} className="flex items-center gap-1.5 rounded-full border border-line bg-surface px-3 py-1.5 text-sm font-semibold"><Check size={15} className="text-primary" aria-hidden="true" />{c}</li>)}
+              </ul>
+              <InstallNowButton label={t("installNow")} done={t("installDone")} />
+            </div>
+            <div className="mt-10 grid gap-5 md:grid-cols-2 lg:grid-cols-[1fr_1fr_auto]">
+              {([["iphone", ["ios1", "ios2", "ios3", "ios4"]], ["android", ["and1", "and2", "and3"]]] as const).map(([os, steps]) => (
+                <div key={os} className="card bg-surface p-6">
+                  <h3 className="text-xl font-bold">{t(os === "iphone" ? "installIphone" : "installAndroid")}</h3>
+                  <p className="mt-1 text-sm text-ink-soft">{t(os === "iphone" ? "installIphoneNote" : "installAndroidNote")}</p>
+                  <ol className="mt-4 flex flex-col gap-3">
+                    {steps.map((s, i) => (
+                      <li key={s} className="flex gap-3">
+                        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary text-sm font-bold text-primary-ink">{i + 1}</span>
+                        <span className="pt-0.5">{t(s)}</span>
+                      </li>
+                    ))}
+                  </ol>
+                </div>
+              ))}
+              <div className="card hidden flex-col items-center bg-surface p-6 text-center md:col-span-2 md:flex lg:col-span-1 lg:w-64">
+                <p className="flex items-center gap-2 font-bold"><QrCode size={18} className="text-primary" aria-hidden="true" />{t("installQrTitle")}</p>
+                <div className="mt-3 w-44 overflow-hidden rounded-lg border border-line bg-white p-1 [&>svg]:h-auto [&>svg]:w-full" role="img" aria-label={t("installQrAlt", { url: installUrl })} dangerouslySetInnerHTML={{ __html: qrSvg }} />
+                <p className="mt-3 text-sm text-ink-soft">{t("installQrBody")}</p>
+              </div>
+            </div>
+            <p className="hint mt-8 max-w-3xl">{t("installTip")}</p>
           </div>
         </section>
 
