@@ -30,9 +30,9 @@ export default async function PlanList({ searchParams }: { searchParams: Promise
       </PageHeader>
 
       {(plans ?? []).length === 0 ? (
-        <div className="panel mb-6 flex flex-col items-center px-6 py-12 text-center">
-          <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-primary-soft text-primary"><Leaf size={26} aria-hidden="true" /></span>
-          <p className="mt-4 text-xl font-semibold">{t("plan.empty")}</p>
+        <div className="panel mb-6 flex flex-col items-center px-6 py-10 text-center">
+          <Leaf size={22} strokeWidth={1.6} className="text-ink-faint" aria-hidden="true" />
+          <p className="mt-3 text-[1.05rem] font-medium">{t("plan.empty")}</p>
           <p className="mt-1 max-w-md text-ink-soft">{t("planUi.emptyBody")}</p>
         </div>
       ) : (
@@ -45,9 +45,9 @@ export default async function PlanList({ searchParams }: { searchParams: Promise
               <li key={p.id}>
                 <Link href={`/plan/${p.id}`} className="panel group flex h-full flex-col p-5 transition-colors hover:border-primary">
                   <div className="flex items-start gap-3">
-                    <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${clinical ? "bg-[color-mix(in_srgb,var(--st-review)_14%,var(--surface))] text-st-review" : "bg-primary-soft text-primary"}`}>{clinical ? <Stethoscope size={21} aria-hidden="true" /> : <Leaf size={21} aria-hidden="true" />}</span>
+                    <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${clinical ? "bg-[color-mix(in_srgb,var(--st-review)_14%,var(--surface))] text-st-review" : "bg-primary-soft text-primary"}`}>{clinical ? <Stethoscope size={17} aria-hidden="true" /> : <Leaf size={17} aria-hidden="true" />}</span>
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-lg font-bold group-hover:text-primary">{p.title}</p>
+                      <p className="truncate font-semibold group-hover:text-primary">{p.title}</p>
                       <p className="text-sm text-ink-soft">{clinical ? (p.clinician_name ? t("planUi.fromDoctor", { name: p.clinician_name }) : t(`plan.verification_${p.clinician_verification}`)) : t("today.personalTag")}</p>
                     </div>
                     {p.status !== "active" ? <span className="chip">{t(`plan.status_${p.status}`)}</span> : null}

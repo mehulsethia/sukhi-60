@@ -45,14 +45,14 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       </aside>
 
       <div className="flex min-w-0 flex-col">
-        <header className="sticky top-0 z-30 flex h-16 print:hidden items-center justify-between gap-3 border-b border-line bg-bg/85 px-4 backdrop-blur-md sm:px-6 lg:px-10">
+        <header className="sticky top-0 z-30 flex h-14 print:hidden items-center justify-between gap-3 border-b border-line/70 bg-bg/80 px-4 backdrop-blur-md sm:px-6 lg:px-10">
           <div className="flex min-w-0 items-center gap-3">
-            <span className="lg:hidden"><Logo href="/today" size={26} /></span>
+            <span className="lg:hidden"><Logo href="/today" size={24} /></span>
             <TopTitle />
           </div>
           <div className="flex items-center gap-1.5">
             <NotificationBell />
-            <Link href="/settings" aria-label={t("app.account")} className="flex h-10 w-10 items-center justify-center rounded-full bg-primary-soft text-sm font-bold text-primary lg:hidden">{initial}</Link>
+            <Link href="/settings" aria-label={t("app.account")} className="flex h-9 w-9 items-center justify-center rounded-full bg-primary-soft text-[0.8rem] font-semibold text-primary lg:hidden">{initial}</Link>
           </div>
         </header>
         <main id="main" className="mx-auto w-full max-w-6xl flex-1 px-4 pb-32 pt-6 sm:px-6 lg:px-10 lg:pb-14 lg:pt-8">{children}</main>

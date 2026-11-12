@@ -129,22 +129,22 @@ export function OnboardingForm({ defaults, whatsappLaunched = false }: { default
             </div>
           </div>
 
-          <div key={`m${step}`} className="pop-in mx-auto mt-6 w-full max-w-xs lg:hidden"><Scene /></div>
+          <div key={`m${step}`} className="pop-in mx-auto mt-5 w-full max-w-[220px] lg:hidden"><Scene /></div>
 
           {state?.error ? <div className="mt-6"><Alert tone="danger">{t("common.error")}</Alert></div> : null}
 
           <div className="mt-5 flex-1 lg:min-h-0 lg:overflow-y-auto lg:pb-2">
             {/* 0 Language */}
             <section className={show(0)} aria-labelledby="s0">
-              <h1 id="s0" className="text-[1.7rem] sm:text-[2rem]">{t("onb.langTitle")}</h1>
+              <h1 id="s0" className="text-[1.45rem] sm:text-[1.75rem]">{t("onb.langTitle")}</h1>
               <div role="radiogroup" aria-labelledby="s0" className="mt-5 grid gap-2">
                 {([["en", "English", "Hello"], ["hi", "हिन्दी", "नमस्ते"], ["mr", "मराठी", "नमस्कार"]] as const).map(([code, name, hello]) => (
-                  <button key={code} type="button" role="radio" aria-checked={locale === code} onClick={() => chooseLocale(code)} className={`flex min-h-[68px] items-center justify-between rounded-xl border px-5 text-left transition-colors ${locale === code ? "border-primary bg-surface shadow-[var(--shadow-md)]" : "border-line bg-surface hover:border-ink-soft"}`}>
+                  <button key={code} type="button" role="radio" aria-checked={locale === code} onClick={() => chooseLocale(code)} className={`flex min-h-[60px] items-center justify-between rounded-[var(--r-md)] border px-4 text-left transition-colors ${locale === code ? "border-primary bg-surface " : "border-line bg-surface hover:border-ink-soft"}`}>
                     <span lang={code}>
-                      <span className="display block text-xl font-semibold">{name}</span>
-                      <span className="text-ink-soft">{hello}</span>
+                      <span className="display block text-[1.05rem] font-medium">{name}</span>
+                      <span className="text-sm text-ink-soft">{hello}</span>
                     </span>
-                    <span className={`flex h-8 w-8 items-center justify-center rounded-full ${locale === code ? "bg-primary text-primary-ink" : "border border-line"}`}>{locale === code ? <Check size={18} aria-hidden="true" /> : null}</span>
+                    <span className={`flex h-6 w-6 items-center justify-center rounded-full ${locale === code ? "bg-primary text-primary-ink" : "border border-line"}`}>{locale === code ? <Check size={14} aria-hidden="true" /> : null}</span>
                   </button>
                 ))}
               </div>
@@ -152,11 +152,11 @@ export function OnboardingForm({ defaults, whatsappLaunched = false }: { default
 
             {/* 2 About you */}
             <section className={show(1)} aria-labelledby="s1">
-              <h1 id="s1" className="text-[1.7rem] sm:text-[2rem]">{t("onb.aboutTitle")}</h1>
+              <h1 id="s1" className="text-[1.45rem] sm:text-[1.75rem]">{t("onb.aboutTitle")}</h1>
               <div className="mt-6 flex flex-col gap-5">
                 <div className="field">
                   <label htmlFor="display_name">{t("onboarding.name")}</label>
-                  <input id="display_name" name="display_name" className="input text-lg" maxLength={80} autoComplete="given-name" />
+                  <input id="display_name" name="display_name" className="input" maxLength={80} autoComplete="given-name" />
                 </div>
                 <div className="field">
                   <label htmlFor="timezone">{t("onboarding.timezone")}</label>
@@ -172,7 +172,7 @@ export function OnboardingForm({ defaults, whatsappLaunched = false }: { default
 
             {/* 3 Rhythm */}
             <section className={show(2)} aria-labelledby="s2">
-              <h1 id="s2" className="text-[1.7rem] sm:text-[2rem]">{t("onb.rhythmTitle")}</h1>
+              <h1 id="s2" className="text-[1.45rem] sm:text-[1.75rem]">{t("onb.rhythmTitle")}</h1>
               <fieldset className="mt-5">
                 <legend className="sr-only">{t("onboarding.checkinTimes")}</legend>
                 <div className="grid grid-cols-2 gap-2 xl:grid-cols-4">
@@ -209,7 +209,7 @@ export function OnboardingForm({ defaults, whatsappLaunched = false }: { default
 
             {/* 4 About this plan */}
             <section className={show(3)} aria-labelledby="s3">
-              <h1 id="s3" className="text-[1.7rem] sm:text-[2rem]">{t("intake.title")}</h1>
+              <h1 id="s3" className="text-[1.45rem] sm:text-[1.75rem]">{t("intake.title")}</h1>
 
               <fieldset className="mt-5">
                 <legend className="label mb-2">{t("intake.whoQ")}</legend>
@@ -296,7 +296,7 @@ export function OnboardingForm({ defaults, whatsappLaunched = false }: { default
 
             {/* 5 Comfort */}
             <section className={show(4)} aria-labelledby="s4">
-              <h1 id="s4" className="text-[1.7rem] sm:text-[2rem]">{t("onb.comfortTitle")}</h1>
+              <h1 id="s4" className="text-[1.45rem] sm:text-[1.75rem]">{t("onb.comfortTitle")}</h1>
               <div aria-hidden="true" className={`mt-5 rounded-xl border p-4 transition-all ${a11y.high_contrast ? "border-ink bg-surface" : "border-line bg-surface"}`} style={{ fontSize: a11y.large_text ? "1.2rem" : "1rem" }}>
                 <div className="flex items-start justify-between gap-3">
                   <div>
@@ -330,12 +330,12 @@ export function OnboardingForm({ defaults, whatsappLaunched = false }: { default
 
             {/* 6 Permissions */}
             <section className={show(5)} aria-labelledby="s5">
-              <h1 id="s5" className="text-[1.7rem] sm:text-[2rem]">{t("onb.permTitle")}</h1>
+              <h1 id="s5" className="text-[1.45rem] sm:text-[1.75rem]">{t("onb.permTitle")}</h1>
               <p className="mt-2 text-[1.02rem] text-ink-soft">{t("onb.permBody")}</p>
               <div className="mt-5 grid gap-2 xl:grid-cols-2">
                 {CONSENTS.filter((c) => c.kind !== "whatsapp" || whatsappLaunched).map(({ kind, title, body, Icon }) => (
                   <label key={kind} className={`flex cursor-pointer items-start gap-3 rounded-xl border p-3 transition-colors ${consents[kind] ? "border-primary bg-surface" : "border-line bg-surface"}`}>
-                    <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl ${consents[kind] ? "bg-primary text-primary-ink" : "bg-surface-2 text-ink-soft"}`}><Icon size={21} aria-hidden="true" /></span>
+                    <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${consents[kind] ? "bg-primary-soft text-primary" : "bg-surface-2 text-ink-faint"}`}><Icon size={17} aria-hidden="true" /></span>
                     <span className="flex-1">
                       <span className="block font-bold">{t(`onb.${title}`)}</span>
                       <span className="text-sm leading-snug text-ink-soft">{t(`onboarding.${body}`)}</span>
@@ -348,7 +348,7 @@ export function OnboardingForm({ defaults, whatsappLaunched = false }: { default
 
             {/* 7 First plan */}
             <section className={show(6)} aria-labelledby="s6">
-              <h1 id="s6" className="text-[1.7rem] sm:text-[2rem]">{clinicalFirst ? t("intake.planTitleClinical") : t("onb.routineTitle")}</h1>
+              <h1 id="s6" className="text-[1.45rem] sm:text-[1.75rem]">{clinicalFirst ? t("intake.planTitleClinical") : t("onb.routineTitle")}</h1>
               <div role="radiogroup" aria-labelledby="s6" className="mt-5 grid gap-2 sm:grid-cols-2">
                 {routineOptions.map((k) => (
                   <label key={k} className={`flex cursor-pointer flex-col gap-0.5 rounded-xl border p-3 transition-colors ${template === k ? "border-primary bg-surface shadow-[var(--shadow-sm)]" : "border-line bg-surface hover:border-ink-soft"} ${k === "none" || (k === "clinician" && clinicalFirst) ? "sm:col-span-2" : ""}`}>
@@ -407,11 +407,11 @@ export function OnboardingForm({ defaults, whatsappLaunched = false }: { default
               <button type="button" className={`btn btn-ghost ${step === 0 ? "invisible" : ""}`} onClick={() => go(-1)}><ChevronLeft size={20} aria-hidden="true" />{t("onb.back")}</button>
               {step < TOTAL - 1 ? (
                 <span className="flex flex-col items-end gap-1">
-                  <button type="button" className="btn btn-primary btn-lg min-w-36" disabled={step === 3 && !intakeDone} onClick={() => go(1)}>{t("onb.next")}</button>
+                  <button type="button" className="btn btn-primary min-w-32" disabled={step === 3 && !intakeDone} onClick={() => go(1)}>{t("onb.next")}</button>
                   {step === 3 && !intakeDone ? <span className="text-xs text-ink-soft">{t("intake.required")}</span> : null}
                 </span>
               ) : (
-                <SubmitButton className="btn btn-primary btn-lg" pendingLabel={template === "clinician" && hasFile ? t("onb.uploadReading") : t("common.saving")}>{t("onb.finish")}</SubmitButton>
+                <SubmitButton className="btn btn-primary" pendingLabel={template === "clinician" && hasFile ? t("onb.uploadReading") : t("common.saving")}>{t("onb.finish")}</SubmitButton>
               )}
             </div>
           </div>

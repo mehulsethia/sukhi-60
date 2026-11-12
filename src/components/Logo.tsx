@@ -14,9 +14,9 @@ export function LogoMark({ size = 32 }: { size?: number }) {
 /** Horizontal logo: mark + navy wordmark. `tone="light"` is for use on teal backgrounds. */
 export function Logo({ href = "/", size = 32, tone = "dark" }: { href?: string; size?: number; tone?: "dark" | "light" }) {
   return (
-    <Link href={href} className="inline-flex items-center gap-2.5 rounded-lg" aria-label="Sukhi">
+    <Link href={href} className="inline-flex items-center gap-2 rounded-lg" aria-label="Sukhi">
       <LogoMark size={size} />
-      <span className={`display text-[1.35rem] font-bold leading-none tracking-tight ${tone === "light" ? "text-white" : "text-ink"}`}>Sukhi</span>
+      <span className={`display text-[1.2rem] font-semibold leading-none tracking-tight ${tone === "light" ? "text-white" : "text-ink"}`}>Sukhi</span>
     </Link>
   );
 }

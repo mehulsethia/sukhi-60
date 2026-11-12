@@ -27,6 +27,8 @@ export default defineConfig({
     env: {
       ...testEnv,
       NEXT_PUBLIC_APP_URL: `http://localhost:${PORT}`,
+      // The journey covers WhatsApp end to end, so treat it as launched here (against the loopback mock).
+      WHATSAPP_ENABLED: "true",
       WHATSAPP_ACCESS_TOKEN: "e2e-fake-token-xxxxxxxxxxxxxxxx",
       WHATSAPP_PHONE_NUMBER_ID: "1234567890",
       WHATSAPP_APP_SECRET: "e2e-app-secret-123456",

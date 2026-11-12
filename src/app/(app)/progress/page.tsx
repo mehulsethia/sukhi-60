@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { Metadata } from "next";
 import { getLocale, getTranslations } from "next-intl/server";
-import { Award, Flame, Stethoscope, Target, TrendingUp, Trophy } from "lucide-react";
+import { Award, Flame, Target, TrendingUp, Trophy } from "lucide-react";
 import { requireUser } from "@/lib/supabase/server";
 import { goalProgress } from "@/domain/rewards";
 import { pointsTotal } from "@/server/points";
@@ -119,7 +119,6 @@ export default async function ProgressPage({ searchParams }: { searchParams: Pro
             <Link key={k} href={`/progress?range=${k}`} aria-current={k === range ? "page" : undefined} scroll={false}>{t(`progressUi.range_${k}`)}</Link>
           ))}
         </nav>
-        <Link href="/visit" className="btn btn-secondary"><Stethoscope size={17} aria-hidden="true" />{t("visit.link")}</Link>
       </PageHeader>
 
       <div className="mb-6 grid grid-cols-3 gap-3">
@@ -128,10 +127,10 @@ export default async function ProgressPage({ searchParams }: { searchParams: Pro
           { Icon: Flame, label: t("progressUi.streak"), value: String(current), sub: t("progressUi.bestStreak", { n: best }), color: "var(--haldi)" },
           { Icon: Trophy, label: t("progress.pointsTotal"), value: String(stats.points), sub: t("progressUi.milestonesSub", { n: stats.milestones }), color: "var(--st-unable)" },
         ].map(({ Icon, label, value, sub, color }) => (
-          <div key={label} className="panel p-4 sm:p-5">
-            <p className="flex items-center gap-2 text-sm font-semibold text-ink-soft"><span className="flex h-7 w-7 items-center justify-center rounded-lg" style={{ background: `color-mix(in srgb, ${color} 16%, var(--surface))`, color }}><Icon size={15} aria-hidden="true" /></span>{label}</p>
-            <p className="display mt-2 text-[2.1rem] font-bold tabular-nums leading-none">{value}</p>
-            <p className="mt-1.5 text-xs text-ink-soft">{sub}</p>
+          <div key={label} className="panel p-3.5 sm:p-5">
+            <p className="flex items-center gap-1.5 text-[0.78rem] font-medium text-ink-soft"><Icon size={14} style={{ color }} aria-hidden="true" />{label}</p>
+            <p className="display mt-2 text-[1.6rem] font-semibold tabular-nums leading-none">{value}</p>
+            <p className="mt-1.5 text-[0.72rem] text-ink-faint">{sub}</p>
           </div>
         ))}
       </div>
@@ -147,8 +146,9 @@ export default async function ProgressPage({ searchParams }: { searchParams: Pro
             ) : <p className="py-8 text-center text-ink-soft">{t("progressUi.noData")}</p>}
           </Section>
 
-          <Section title={t("progressUi.byAction")} id="by-action">
-            {items.length ? (
+          {items.length ? <Section title={t("progressUi.byAction")} id="by-action">
+            {(
+
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[480px] text-left text-sm">
                   <caption className="sr-only">{t("progressUi.byAction")}</caption>
@@ -167,8 +167,8 @@ export default async function ProgressPage({ searchParams }: { searchParams: Pro
                   </tbody>
                 </table>
               </div>
-            ) : <p className="text-ink-soft">{t("progressUi.noData")}</p>}
-          </Section>
+            )}
+          </Section> : null}
 
         </div>
 

@@ -89,7 +89,8 @@ test("full patient journey on production", async ({ page, request }) => {
   await add.getByLabel("Action", { exact: true }).fill("Short walk");
   await add.getByLabel("Times").fill(ist(10));
   await add.getByRole("button", { name: "Confirm & schedule" }).click();
-  await expect(page.getByText("Short walk").first()).toBeVisible();
+  // Saved and confirmed: the item row now offers "Pause".
+  await expect(page.getByRole("button", { name: "Pause", exact: true })).toBeVisible();
 
   // Document extraction must degrade honestly (AI off: "unavailable"; AI on + blank image: "couldn't read").
   await page.locator("#src-file").setInputFiles(path.resolve(__dirname, "../fixtures/tiny.png"));

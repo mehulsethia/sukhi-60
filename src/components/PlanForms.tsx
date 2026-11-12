@@ -131,11 +131,12 @@ export function ItemForm({ planId, item, clinical, onDone }: { planId: string; i
 
 export function EditItemToggle({ planId, item, clinical }: { planId: string; item: EditableItem; clinical: boolean }) {
   const t = useTranslations();
-  const [open, setOpen] = useState(item.status === "draft" && (item.unresolved_fields?.length ?? 0) > 0);
+  // Collapsed by default: eight open forms at once was overwhelming. Drafts get a primary button instead.
+  const [open, setOpen] = useState(false);
   return open ? (
     <div className="mt-3 rounded-xl border border-line p-3"><ItemForm planId={planId} item={item} clinical={clinical} onDone={() => setOpen(false)} /></div>
   ) : (
-    <button type="button" className="btn btn-secondary" onClick={() => setOpen(true)}>{t("plan.edit")}</button>
+    <button type="button" className={`btn ${item.status === "draft" ? "btn-primary" : "btn-secondary"}`} onClick={() => setOpen(true)}>{t("plan.edit")}</button>
   );
 }
 

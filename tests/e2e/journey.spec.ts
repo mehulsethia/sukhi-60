@@ -78,7 +78,8 @@ test.describe.serial("core journey", () => {
     await add.getByLabel("Action", { exact: true }).fill("Short walk");
     await add.getByLabel("Times").fill(istMinus(10));
     await add.getByRole("button", { name: "Confirm & schedule" }).click();
-    await expect(page.getByText("Short walk").first()).toBeVisible();
+    // Saved and confirmed: the item row now offers "Pause".
+    await expect(page.getByRole("button", { name: "Pause", exact: true })).toBeVisible();
 
     // Reminder fires via the secured worker endpoint (as Supabase Cron would call it).
     const tick = await page.request.post("/api/worker/tick", { headers: { authorization: `Bearer ${process.env.WORKER_SECRET}` } });
@@ -98,10 +99,10 @@ test.describe.serial("core journey", () => {
     await expect(page.getByText("Recorded by rules (no AI description)")).toBeVisible();
     await expect(page.getByText("This is a description, not a score or proof.").first()).toBeVisible();
 
-    // Progress shows consistency, points and the week table.
+    // Progress shows consistency, points and the per-action table.
     await page.getByRole("link", { name: "Progress" }).first().click();
     await expect(page).toHaveURL(/\/progress/);
-    await expect(page.getByText(/of 7 days active this week/).first()).toBeVisible();
+    await expect(page.getByText(/Active on \d+ of 7 days/).first()).toBeVisible();
     await expect(page.getByRole("table")).toBeVisible();
     await expect(page.getByText("First step").first()).toBeVisible();
 
@@ -172,7 +173,7 @@ test.describe.serial("core journey", () => {
     await page.getByLabel(/I agree to the/).check();
     await page.getByRole("button", { name: "Create account" }).click();
     await expect(page).toHaveURL(/\/onboarding/);
-    for (let i = 0; i < 4; i++) await page.getByRole("button", { name: "Continue" }).click();
+    for (let i = 0; i < 3; i++) await page.getByRole("button", { name: "Continue" }).click();
     await page.getByRole("radio", { name: /Someone I care for/ }).click();
     await page.getByRole("radio", { name: /there's a doctor's plan/ }).click();
     await page.getByRole("button", { name: "Diabetes" }).click();
@@ -183,7 +184,7 @@ test.describe.serial("core journey", () => {
     await page.getByRole("button", { name: "Start using Sukhi" }).click();
     await expect(page).toHaveURL(/\/plan\/[0-9a-f-]{36}\?from=onboarding/);
     await expect(page.getByRole("heading", { level: 1 })).toHaveText("My care team's instructions");
-    await expect(page.getByText("Transcribed by you — not clinician-verified")).toBeVisible();
+    await expect(page.getByText("From Fictional Clinic")).toBeVisible();
     await expect(page.getByText(/Add each instruction from your care team|We drafted your plan/)).toBeVisible();
     await expect(page.getByRole("link", { name: "View source document" })).toBeVisible();
   });

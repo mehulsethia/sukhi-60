@@ -49,7 +49,7 @@ export default async function VisitPage({ searchParams }: { searchParams: Promis
       <header className="mb-6 flex flex-wrap items-start justify-between gap-4">
         <div>
           <p className="flex items-center gap-2 text-sm font-semibold text-primary"><Stethoscope size={16} aria-hidden="true" />{t("eyebrow")}</p>
-          <h1 className="mt-1 text-[1.9rem] sm:text-[2.3rem]">{name ? t("titleFor", { name }) : t("title")}</h1>
+          <h1 className="mt-1 text-[1.5rem] sm:text-[2.3rem]">{name ? t("titleFor", { name }) : t("title")}</h1>
           <p className="mt-1 text-ink-soft">{t("range", { from: fmtDate(from, locale), to: fmtDate(to, locale) })}</p>
         </div>
         <div className="flex flex-wrap gap-2 print:hidden">

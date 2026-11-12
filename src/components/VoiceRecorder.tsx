@@ -25,8 +25,8 @@ export function VoiceRecorder({ enabled, disabledReason, onTranscript, onError, 
   useEffect(() => () => { if (timer.current) clearInterval(timer.current); recRef.current?.stream.getTracks().forEach((tr) => tr.stop()); }, []);
 
   const iconBtn = primary
-    ? "flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-primary text-primary-ink shadow-[var(--shadow-md)] transition-colors hover:bg-[var(--primary-hover)]"
-    : "flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-ink-soft transition-colors hover:bg-surface-2 hover:text-ink";
+    ? "flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary text-primary-ink transition-colors hover:bg-[var(--primary-hover)]"
+    : "flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-ink-soft transition-colors hover:bg-surface-2 hover:text-ink";
   if (!enabled) return compact ? <button type="button" className={`${iconBtn} cursor-not-allowed opacity-40`} aria-label={disabledReason} title={disabledReason} onClick={() => onError(disabledReason)}><Mic size={20} aria-hidden="true" /></button> : <p className="hint">{disabledReason}</p>;
 
   async function start() {

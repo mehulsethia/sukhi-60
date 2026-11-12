@@ -82,9 +82,9 @@ export default async function PlanDetail({ params, searchParams }: { params: Pro
       <Link href="/plan" className="mb-4 inline-flex items-center gap-1 text-sm font-semibold text-ink-soft hover:text-ink"><ChevronLeft size={16} aria-hidden="true" />{t("plan.title")}</Link>
       <header className="mb-6 flex flex-wrap items-start justify-between gap-4">
         <div className="flex min-w-0 items-start gap-4">
-          <span className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl ${clinical ? "bg-[color-mix(in_srgb,var(--st-review)_14%,var(--surface))] text-st-review" : "bg-primary-soft text-primary"}`}>{clinical ? <Stethoscope size={26} aria-hidden="true" /> : <Leaf size={26} aria-hidden="true" />}</span>
+          <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full ${clinical ? "bg-[color-mix(in_srgb,var(--st-review)_14%,var(--surface))] text-st-review" : "bg-primary-soft text-primary"}`}>{clinical ? <Stethoscope size={19} aria-hidden="true" /> : <Leaf size={19} aria-hidden="true" />}</span>
           <div className="min-w-0">
-            <h1 className="text-[1.9rem] sm:text-[2.4rem]">{plan.title}</h1>
+            <h1 className="text-[1.5rem] sm:text-[1.9rem]">{plan.title}</h1>
             <div className="mt-2 flex flex-wrap gap-2">
               {plan.status !== "active" ? <span className="chip">{t(`plan.status_${plan.status}`)}</span> : null}
               <span className="chip">{clinical ? (plan.clinician_name ? t("planUi.fromDoctor", { name: plan.clinician_name }) : t(`plan.verification_${plan.clinician_verification}`)) : t("today.personalTag")}</span>

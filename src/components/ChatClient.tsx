@@ -239,13 +239,13 @@ export function ChatClient({ initial, voice, audioReplies, suggestions, name, au
   const empty = messages.length === 0;
 
   return (
-    <div className="-mx-4 -mb-32 -mt-6 flex h-[calc(100dvh-4rem-62px-env(safe-area-inset-bottom))] flex-col sm:-mx-6 lg:-mx-10 lg:-mb-14 lg:-mt-8 lg:h-[calc(100dvh-4rem)]">
+    <div className="-mx-4 -mb-32 -mt-6 flex h-[calc(100dvh-3.5rem-57px-env(safe-area-inset-bottom))] flex-col sm:-mx-6 lg:-mx-10 lg:-mb-14 lg:-mt-8 lg:h-[calc(100dvh-3.5rem)]">
       <div ref={scroller} className="flex-1 overflow-y-auto">
         <div className="mx-auto w-full max-w-3xl px-4 pb-6 pt-6 sm:px-6">
           {empty ? (
             <div className="flex min-h-[52dvh] flex-col items-center justify-center text-center">
-              <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-primary text-white shadow-[var(--shadow-md)]"><Leaf size={26} aria-hidden="true" /></span>
-              <h1 className="mt-5 text-[1.9rem] sm:text-[2.3rem]">{name ? t("helloName", { name }) : t("hello")}</h1>
+              <span className="flex h-11 w-11 items-center justify-center rounded-full bg-primary-soft text-primary"><Leaf size={20} aria-hidden="true" /></span>
+              <h1 className="mt-4 text-[1.5rem] sm:text-[1.9rem]">{name ? t("helloName", { name }) : t("hello")}</h1>
               <p className="mt-2 max-w-md text-ink-soft">{t("empty")}</p>
               {whatsappLaunched ? <p className="hint mt-1">{t("whatsappNote")}</p> : null}
             </div>
@@ -263,7 +263,7 @@ export function ChatClient({ initial, voice, audioReplies, suggestions, name, au
               if (m.role === "user") {
                 return (
                   <li key={m.id} className="flex flex-col items-end">
-                    <div className={`max-w-[85%] rounded-[22px] rounded-br-md bg-surface-3 px-4 py-2.5 text-[1.02rem] ${m.pending ? "opacity-70" : ""}`}><p className="whitespace-pre-wrap">{m.content}</p></div>
+                    <div className={`max-w-[85%] rounded-[22px] rounded-br-md bg-surface-3 px-4 py-2 text-[0.97rem] ${m.pending ? "opacity-70" : ""}`}><p className="whitespace-pre-wrap">{m.content}</p></div>
                     {m.channel === "whatsapp" ? <p className="mt-1 text-xs text-ink-faint">{t("fromWhatsapp")}</p> : null}
                   </li>
                 );
@@ -278,7 +278,7 @@ export function ChatClient({ initial, voice, audioReplies, suggestions, name, au
                     <span aria-hidden="true" className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-haldi-soft text-haldi-ink"><Bell size={15} /></span>
                     <div className="min-w-0 flex-1 rounded-2xl border border-[color-mix(in_srgb,var(--haldi)_40%,var(--line))] bg-surface px-4 py-3">
                       <p className="text-xs font-bold text-haldi-ink">{t("notice")}</p>
-                      <p className="mt-0.5 text-[1.02rem]">{m.content}</p>
+                      <p className="mt-0.5 text-[0.97rem]">{m.content}</p>
                       {occ && actionable ? <QuickActions occ={occ} onProof={setAttachFor} onMessages={(ms, st) => addMessages(ms, occ.id, st)} /> : occ ? <p className="mt-1 text-sm font-semibold text-st-done">{tr(`status.${statusById[occ.id] ?? occ.display}`)}</p> : null}
                     </div>
                   </li>
@@ -287,7 +287,7 @@ export function ChatClient({ initial, voice, audioReplies, suggestions, name, au
               return (
                 <li key={m.id} className="group flex gap-3">
                   <span aria-hidden="true" className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary-soft text-primary"><Leaf size={16} /></span>
-                  <div className={`min-w-0 flex-1 text-[1.02rem] leading-relaxed ${m.safety === "escalation" ? "rounded-2xl border-2 border-danger-ink bg-danger-bg p-4 text-danger-ink" : ""}`}>
+                  <div className={`min-w-0 flex-1 text-[0.97rem] leading-relaxed ${m.safety === "escalation" ? "rounded-2xl border-2 border-danger-ink bg-danger-bg p-4 text-danger-ink" : ""}`}>
                     {m.safety === "escalation" ? <strong className="mb-1 block">{t("escalation")}</strong> : null}
                     {checkin ? <p className="mb-1 flex items-center gap-1.5 text-xs font-bold text-primary"><Sparkles size={13} aria-hidden="true" />{t("checkinLabel")}</p> : null}
                     <Rich text={shown} />
@@ -344,32 +344,32 @@ export function ChatClient({ initial, voice, audioReplies, suggestions, name, au
           {suggestions.length && !busy && !attachFor ? (
             <div className={`no-scrollbar mb-3 ${empty ? "grid gap-2 sm:grid-cols-2" : "flex gap-2 overflow-x-auto"}`}>
               {suggestions.map((s) => (
-                <button key={s} type="button" onClick={() => send(s)} className={`rounded-2xl border border-line bg-surface text-left transition-colors hover:border-primary hover:bg-primary-soft ${empty ? "px-4 py-3 text-[0.96rem]" : "shrink-0 whitespace-nowrap px-3.5 py-2 text-sm"}`}>{s}</button>
+                <button key={s} type="button" onClick={() => send(s)} className={`rounded-2xl border border-line bg-surface text-left transition-colors hover:border-primary hover:bg-primary-soft ${empty ? "px-4 py-3 text-[0.92rem]" : "shrink-0 whitespace-nowrap px-3.5 py-1.5 text-[0.85rem]"}`}>{s}</button>
               ))}
             </div>
           ) : null}
           {canSpeak ? (
             <div className="mb-2 flex items-center justify-between gap-2">
-              <div role="radiogroup" aria-label={t("modeLabel")} className="inline-flex rounded-full border border-line bg-surface p-0.5 text-sm">
+              <div role="radiogroup" aria-label={t("modeLabel")} className="inline-flex rounded-full bg-surface-2 p-0.5 text-[0.8rem]">
                 {([[false, "modeText", Keyboard], [true, "modeVoice", AudioLines]] as const).map(([on, key, Icon]) => (
-                  <button key={key} type="button" role="radio" aria-checked={voiceMode === on} onClick={() => chooseMode(on)} className={`flex min-h-9 items-center gap-1.5 rounded-full px-3.5 font-medium transition-colors ${voiceMode === on ? "bg-primary text-primary-ink" : "text-ink-soft hover:text-ink"}`}>
-                    <Icon size={15} aria-hidden="true" />{t(key)}
+                  <button key={key} type="button" role="radio" aria-checked={voiceMode === on} onClick={() => chooseMode(on)} className={`flex min-h-8 items-center gap-1.5 rounded-full px-3 font-medium transition-colors ${voiceMode === on ? "bg-surface text-ink shadow-[var(--shadow-sm)]" : "text-ink-faint hover:text-ink"}`}>
+                    <Icon size={14} aria-hidden="true" />{t(key)}
                   </button>
                 ))}
               </div>
               {speaking ? (
-                <button type="button" onClick={stopSpeaking} className="flex min-h-9 items-center gap-1.5 rounded-full border border-line bg-surface px-3.5 text-sm font-medium text-ink hover:bg-surface-2">
+                <button type="button" onClick={stopSpeaking} className="flex min-h-8 items-center gap-1.5 rounded-full border border-line bg-surface px-3 text-[0.8rem] font-medium text-ink hover:bg-surface-2">
                   <Square size={13} aria-hidden="true" className="fill-current" />{t("stopSpeaking")}
                 </button>
               ) : voiceMode ? <span className="text-xs text-ink-faint">{t("voiceModeHint")}</span> : null}
             </div>
           ) : null}
-          <form onSubmit={(e) => { e.preventDefault(); send(); }} className="flex items-end gap-1.5 rounded-[26px] border border-line-strong bg-surface p-2 shadow-[var(--shadow-md)] focus-within:border-primary">
-            <button type="button" disabled={today.length === 0} title={today.length === 0 ? t("noActionsForProof") : undefined} onClick={() => setAttachFor((a) => (a ? null : (openToday[0] ?? today[0])?.id ?? null))} aria-label={t("attachProof")} aria-expanded={!!attachFor} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-ink-soft transition-colors hover:bg-surface-2 hover:text-ink disabled:opacity-30"><Plus size={22} aria-hidden="true" /></button>
+          <form onSubmit={(e) => { e.preventDefault(); send(); }} className="flex items-end gap-1 rounded-[24px] border border-line bg-surface p-1.5 shadow-[var(--shadow-sm)] focus-within:border-line-strong">
+            <button type="button" disabled={today.length === 0} title={today.length === 0 ? t("noActionsForProof") : undefined} onClick={() => setAttachFor((a) => (a ? null : (openToday[0] ?? today[0])?.id ?? null))} aria-label={t("attachProof")} aria-expanded={!!attachFor} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-ink-faint transition-colors hover:bg-surface-2 hover:text-ink disabled:opacity-30"><Plus size={20} aria-hidden="true" /></button>
             <label htmlFor="chat-input" className="sr-only">{t("placeholder")}</label>
-            <textarea ref={input} id="chat-input" rows={1} maxLength={2000} placeholder={t("placeholder")} value={text} onChange={(e) => setText(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); send(); } }} className="max-h-[200px] min-h-[44px] flex-1 resize-none bg-transparent px-1 py-2.5 text-[1.02rem] outline-none placeholder:text-ink-faint" />
+            <textarea ref={input} id="chat-input" rows={1} maxLength={2000} placeholder={t("placeholder")} value={text} onChange={(e) => setText(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); send(); } }} className="max-h-[200px] min-h-[40px] flex-1 resize-none bg-transparent px-1 py-2 text-[0.97rem] outline-none placeholder:text-ink-faint" />
             {text.trim() ? (
-              <button type="submit" aria-label={t("send")} disabled={busy} className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-primary text-primary-ink transition-opacity disabled:opacity-30"><ArrowUp size={21} aria-hidden="true" /></button>
+              <button type="submit" aria-label={t("send")} disabled={busy} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary text-primary-ink transition-opacity disabled:opacity-30"><ArrowUp size={19} aria-hidden="true" /></button>
             ) : (
               // Voice first: with an empty box the main button records a voice message.
               <VoiceRecorder

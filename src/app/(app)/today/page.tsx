@@ -75,20 +75,19 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
 
   return (
     <>
-      <header className="mb-7">
-        <p className="text-sm font-semibold text-ink-soft">{dateLabel}</p>
-        <h1 className="mt-1 text-[2rem] leading-[1.1] sm:text-[2.5rem]">{greet}{first ? `, ${first}` : ""}.</h1>
-        {summary ? <p className="mt-2 text-lg text-ink-soft">{summary}</p> : null}
+      <header className="mb-6">
+        <p className="text-[0.8rem] font-medium uppercase tracking-[0.08em] text-ink-faint">{dateLabel}</p>
+        <h1 className="mt-1.5 text-[1.6rem] leading-tight sm:text-[2rem]">{greet}{first ? `, ${first}` : ""}</h1>
+        {summary ? <p className="mt-1 text-ink-soft">{summary}</p> : null}
       </header>
 
       <InstallPrompt />
       <PushToggle variant="prompt" publicKey={process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || null} />
       {showSupportPrompt ? (
-        <section aria-labelledby="support-prompt" className="mb-6 flex flex-col gap-3 rounded-[var(--r-lg)] border border-line bg-surface p-5 sm:flex-row sm:items-center">
-          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-primary-soft text-primary"><HandHeart size={22} aria-hidden="true" /></span>
+        <section aria-labelledby="support-prompt" className="mb-4 flex flex-col gap-3 rounded-[var(--r-lg)] border border-line bg-surface p-4 sm:flex-row sm:items-center">
           <div className="flex-1">
-            <h2 id="support-prompt" className="text-lg">{t("support.promptTitle")}</h2>
-            <p className="text-ink-soft">{t("support.promptBody")}</p>
+            <h2 id="support-prompt" className="flex items-center gap-2 text-base"><HandHeart size={17} className="shrink-0 text-primary" aria-hidden="true" />{t("support.promptTitle")}</h2>
+            <p className="text-sm text-ink-soft">{t("support.promptBody")}</p>
           </div>
           <div className="flex gap-2">
             <Link href="/settings#support" className="btn btn-primary">{t("support.promptCta")}</Link>
@@ -97,28 +96,28 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
         </section>
       ) : null}
       {welcome ? (
-        <section className="pop-in mb-6 rounded-[var(--r-lg)] border border-line bg-sky p-6">
-          <h2 className="text-2xl">{first ? t("onb.welcomeTitle", { name: first }) : t("onb.welcomeTitleNoName")}</h2>
+        <section className="pop-in mb-4 rounded-[var(--r-lg)] border border-line bg-sky p-5">
+          <h2 className="text-xl">{first ? t("onb.welcomeTitle", { name: first }) : t("onb.welcomeTitleNoName")}</h2>
           <p className="mt-2 max-w-2xl text-ink-soft">{t("onb.welcomeBody")}</p>
           <Link href="/today" className="btn btn-primary mt-4">{t("onb.welcomeDismiss")}</Link>
         </section>
       ) : null}
 
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px] lg:gap-8">
-        <div className="flex min-w-0 flex-col gap-7">
+      <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_320px] lg:gap-8">
+        <div className="flex min-w-0 flex-col gap-6">
           {actions.length === 0 ? (
-            <div className="panel flex flex-col items-center px-6 py-14 text-center">
-              <span className="flex h-14 w-14 items-center justify-center rounded-[var(--r-lg)] bg-sky text-primary"><ClipboardList size={26} aria-hidden="true" /></span>
-              <p className="mt-4 text-xl font-semibold">{t("today.empty")}</p>
-              <p className="mt-1 max-w-sm text-ink-soft">{t("today.emptyBody")}</p>
-              <Link href="/plan" className="btn btn-primary btn-lg mt-6">{t("today.emptyCta")}</Link>
+            <div className="panel flex flex-col items-center px-6 py-10 text-center">
+              <ClipboardList size={22} strokeWidth={1.6} className="text-ink-faint" aria-hidden="true" />
+              <p className="mt-3 text-[1.05rem] font-medium">{t("today.empty")}</p>
+              <p className="mt-1 max-w-sm text-sm text-ink-soft">{t("today.emptyBody")}</p>
+              <Link href="/plan" className="btn btn-primary mt-5">{t("today.emptyCta")}</Link>
             </div>
           ) : heroAction ? (
             <ActionCard variant="hero" action={card(heroAction)} />
           ) : done === actions.length ? (
-            <div className="flex items-center gap-4 rounded-[var(--r-lg)] border border-line bg-surface p-6 shadow-[var(--shadow-sm)]">
-              <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-ok-bg text-[var(--sukhi-success)]"><PartyPopper size={24} aria-hidden="true" /></span>
-              <div><p className="text-xl font-bold">{t("today.allDoneTitle")}</p><p className="text-ink-soft">{t("today.allDoneBody")}</p></div>
+            <div className="flex items-center gap-3 rounded-[var(--r-lg)] border border-line bg-surface p-5">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-ok-bg text-[var(--sukhi-success)]"><PartyPopper size={19} aria-hidden="true" /></span>
+              <div><p className="text-[1.05rem] font-semibold">{t("today.allDoneTitle")}</p><p className="text-ink-soft">{t("today.allDoneBody")}</p></div>
             </div>
           ) : null}
 
@@ -127,20 +126,20 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
             if (!list.length) return null;
             return (
               <section key={key} aria-labelledby={`part-${key}`}>
-                <h2 id={`part-${key}`} className="mb-3 flex items-center gap-2 text-base font-bold text-ink-soft"><Icon size={18} aria-hidden="true" />{t(`today.part_${key}`)}<span className="font-semibold text-ink-faint">· {list.length}</span></h2>
-                <ol className="flex flex-col gap-3">{list.map((a) => <li key={a.id}><ActionCard action={card(a)} /></li>)}</ol>
+                <h2 id={`part-${key}`} className="mb-2.5 flex items-center gap-2 text-[0.8rem] font-medium uppercase tracking-[0.08em] text-ink-faint"><Icon size={15} aria-hidden="true" />{t(`today.part_${key}`)}<span className="text-ink-faint/80">· {list.length}</span></h2>
+                <ol className="flex flex-col gap-2.5">{list.map((a) => <li key={a.id}><ActionCard action={card(a)} /></li>)}</ol>
               </section>
             );
           })}
           {weekly.length ? (
             <section aria-labelledby="part-week">
-              <h2 id="part-week" className="mb-3 flex items-center gap-2 text-base font-bold text-ink-soft"><CalendarRange size={18} aria-hidden="true" />{t("today.part_week")}</h2>
+              <h2 id="part-week" className="mb-2.5 flex items-center gap-2 text-[0.8rem] font-medium uppercase tracking-[0.08em] text-ink-faint"><CalendarRange size={15} aria-hidden="true" />{t("today.part_week")}</h2>
               <ol className="flex flex-col gap-3">{weekly.map((a) => <li key={a.id}><ActionCard action={card(a)} /></li>)}</ol>
             </section>
           ) : null}
         </div>
 
-        <aside className="flex flex-col gap-5">
+        <aside className="flex flex-col gap-4">
           {runningLow.length ? (
             <div className="panel border-[color-mix(in_srgb,var(--st-open)_45%,var(--line))] p-5">
               <p className="flex items-center gap-2 font-bold"><Package size={18} className="text-warn-ink" aria-hidden="true" />{t("companion.lowTitle")}</p>

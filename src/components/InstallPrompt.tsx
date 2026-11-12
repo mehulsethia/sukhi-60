@@ -29,11 +29,11 @@ export function InstallPrompt() {
   if (hidden) return null;
   const dismiss = () => { setHidden(true); try { localStorage.setItem(KEY, "1"); } catch {} };
   return (
-    <div className="pop-in relative mb-5 flex flex-col gap-3 rounded-2xl border border-line bg-surface p-4 pr-12 shadow-[var(--shadow-sm)] sm:flex-row sm:items-center sm:pr-14">
+    <div className="pop-in relative mb-4 flex flex-col gap-3 rounded-[var(--r-lg)] border border-line bg-surface p-4 pr-12 sm:flex-row sm:items-center sm:pr-14">
       <div className="flex min-w-0 flex-1 items-start gap-3">
-        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary-soft text-primary">{ios ? <Share size={19} aria-hidden="true" /> : <Download size={19} aria-hidden="true" />}</span>
+        <span className="mt-0.5 flex shrink-0 text-primary">{ios ? <Share size={18} aria-hidden="true" /> : <Download size={18} aria-hidden="true" />}</span>
         <div className="min-w-0 flex-1">
-          <p className="font-semibold leading-snug">{t("title")}</p>
+          <p className="font-medium leading-snug">{t("title")}</p>
           <p className="text-sm text-ink-soft">{ios ? t("iosSteps") : t("body")}</p>
         </div>
       </div>

@@ -83,7 +83,7 @@ export function MoodCard({ today }: { today: { mood: number; stress: number | nu
 
   return (
     <div className="panel p-5">
-      <p className="font-bold">{t("moodTitle")}</p>
+      <p className="font-semibold">{t("moodTitle")}</p>
       {!editing && today ? (
         <div className="mt-2">
           <p className="flex items-center gap-2">{(() => { const F = FACES[today.mood - 1]; return <F size={22} className="text-primary" aria-hidden="true" />; })()}{t(`mood_${today.mood}`)}{today.sleep_quality ? ` · ${t(`sleep_${today.sleep_quality}`)}` : ""}</p>
@@ -93,10 +93,12 @@ export function MoodCard({ today }: { today: { mood: number; stress: number | nu
         <form action={async (fd) => { await action(fd); setEditing(false); }} className="mt-3 flex flex-col gap-3">
           <div role="radiogroup" aria-label={t("moodTitle")} className="flex justify-between gap-1">
             {FACES.map((F, i) => (
-              <button key={i} type="button" role="radio" aria-checked={mood === i + 1} aria-label={t(`mood_${i + 1}`)} onClick={() => setMood(i + 1)} className={`flex h-12 w-12 items-center justify-center rounded-full border transition-colors ${mood === i + 1 ? "border-primary bg-primary text-primary-ink" : "border-line bg-surface text-ink-soft hover:border-ink-soft"}`}><F size={24} aria-hidden="true" /></button>
+              <button key={i} type="button" role="radio" aria-checked={mood === i + 1} aria-label={t(`mood_${i + 1}`)} onClick={() => setMood(i + 1)} className={`flex h-11 w-11 items-center justify-center rounded-full border transition-colors ${mood === i + 1 ? "border-primary bg-primary text-primary-ink" : "border-line bg-surface text-ink-soft hover:border-ink-soft"}`}><F size={21} strokeWidth={1.6} aria-hidden="true" /></button>
             ))}
           </div>
           {mood ? <input type="hidden" name="mood" value={mood} /> : null}
+          {/* Details appear only once a mood is picked, so the card starts as one simple question. */}
+          {mood ? <>
           <fieldset><legend className="label mb-1 !text-sm">{t("stressQ")} <span className="hint font-normal">({tc("optional")})</span></legend>
             <div className="flex flex-wrap gap-1.5">{[1, 2, 3].map((n) => <button key={n} type="button" aria-pressed={stress === n} onClick={() => setStress(stress === n ? null : n)} className={chip(stress === n)}>{t(`stress_${n}`)}</button>)}</div>
             {stress ? <input type="hidden" name="stress" value={stress} /> : null}
@@ -113,6 +115,7 @@ export function MoodCard({ today }: { today: { mood: number; stress: number | nu
             {sleep ? <input type="hidden" name="sleep_quality" value={sleep} /> : null}
           </fieldset>
           <SubmitButton className="btn btn-primary self-start" pendingLabel={tc("saving")} disabled={!mood}>{tc("save")}</SubmitButton>
+          </> : null}
           {state?.error ? <Alert tone="danger">{tc("error")}</Alert> : null}
         </form>
       )}
