@@ -1,14 +1,14 @@
 import Link from "next/link";
 import type { Metadata } from "next";
 import { getLocale, getTranslations } from "next-intl/server";
-import { Award, CalendarCheck, Flame, Stethoscope, Target, TrendingUp, Trophy } from "lucide-react";
+import { Award, Flame, Stethoscope, Target, TrendingUp, Trophy } from "lucide-react";
 import { requireUser } from "@/lib/supabase/server";
-import { activeDays, goalProgress, summarizeWeek } from "@/domain/rewards";
+import { goalProgress } from "@/domain/rewards";
 import { pointsTotal } from "@/server/points";
 import { addDays, localDateOf, weekStart } from "@/domain/schedule";
 import { GoalForm } from "@/components/GoalForm";
 import { removeRewardGoal } from "@/app/actions";
-import { PageHeader, Section, StatusBadge } from "@/components/ui";
+import { PageHeader, Section } from "@/components/ui";
 import { SubmitButton } from "@/components/SubmitButton";
 import { CategoryIcon } from "@/components/CategoryIcon";
 import { Heatmap, Legend, SegBar, StackedBars, type DayStack } from "@/components/ProgressCharts";
@@ -35,18 +35,16 @@ export default async function ProgressPage({ searchParams }: { searchParams: Pro
   let from = addDays(today, -(span - 1));
   if (range === "all" && joined > from) from = joined;
   const ws = weekStart(today);
-  const weekDates = Array.from({ length: 7 }, (_, i) => addDays(ws, i));
 
-  const [{ data: events }, { data: occ }, { data: weekOcc }, { data: goal }] = await Promise.all([
+  const [{ data: events }, { data: occ }, { data: goal }] = await Promise.all([
     // Only milestones/returns are listed; the points total comes from the profile.
     supabase.from("reward_events").select("kind, points, label, local_date, created_at").in("kind", ["milestone", "return"]).order("created_at", { ascending: false }).limit(100),
     supabase.from("action_occurrences").select("id, local_date, local_time, status, item_id, plan_items!inner(title, category)").gte("local_date", from).lte("local_date", today).order("due_at", { ascending: false }).limit(5000),
-    supabase.from("action_occurrences").select("local_date, status").gte("local_date", ws).lte("local_date", addDays(ws, 6)),
     supabase.from("reward_goals").select("*").eq("active", true).maybeSingle(),
   ]);
-  const rows = (occ ?? []).map((o) => ({ ...o, b: bucketOf(o.status), item: o.plan_items as unknown as { title: string; category: string } }));
+  // Paused slots (paused or deleted items) are left out of progress.
+  const rows = (occ ?? []).filter((o) => o.status !== "paused").map((o) => ({ ...o, b: bucketOf(o.status), item: o.plan_items as unknown as { title: string; category: string } }));
   const stats = { points: await pointsTotal(supabase, user.id), milestones: (events ?? []).filter((e) => e.kind === "milestone").length };
-  const week = summarizeWeek(weekDates, weekOcc ?? []);
   const gp = goalProgress(stats.points, goal ?? null);
   const milestones = (events ?? []).filter((e) => e.kind === "milestone" || e.kind === "return");
   const labels = Object.fromEntries(BUCKETS.map((b) => [b, t(`bucket.${b}`)])) as Record<Bucket, string>;
@@ -64,9 +62,7 @@ export default async function ProgressPage({ searchParams }: { searchParams: Pro
   for (const r of rows) totals[r.b] = (totals[r.b] ?? 0) + 1;
   const closed = rows.filter((r) => r.b !== "open").length;
   const doneN = rows.filter((r) => isDone(r.b)).length;
-  const answeredN = rows.filter((r) => isAnswered(r.b)).length;
   const completion = closed ? Math.round((100 * doneN) / closed) : null;
-  const answerRate = closed ? Math.round((100 * answeredN) / closed) : null;
   const answeredDay = (d: string) => Object.entries(byDay.get(d) ?? {}).some(([b, n]) => n && isAnswered(b as Bucket));
   const active = days.filter(answeredDay).length;
   // Streaks of days with any answer (today doesn't break a streak until it's over).
@@ -113,12 +109,11 @@ export default async function ProgressPage({ searchParams }: { searchParams: Pro
     perItem.set(r.item_id, e);
   }
   const items = [...perItem.values()].sort((a, b) => b.total - a.total);
-  const recent = rows.filter((r) => r.b !== "open" || r.local_date === today).slice(0, 12);
   const present = BUCKETS.filter((b) => totals[b]);
 
   return (
     <>
-      <PageHeader title={t("progress.title")} subtitle={t("progressUi.subtitle")}>
+      <PageHeader title={t("progress.title")}>
         <nav aria-label={t("progressUi.range")} className="seg">
           {(Object.keys(RANGES) as RangeKey[]).map((k) => (
             <Link key={k} href={`/progress?range=${k}`} aria-current={k === range ? "page" : undefined} scroll={false}>{t(`progressUi.range_${k}`)}</Link>
@@ -127,10 +122,9 @@ export default async function ProgressPage({ searchParams }: { searchParams: Pro
         <Link href="/visit" className="btn btn-secondary"><Stethoscope size={17} aria-hidden="true" />{t("visit.link")}</Link>
       </PageHeader>
 
-      <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <div className="mb-6 grid grid-cols-3 gap-3">
         {[
           { Icon: Target, label: t("progressUi.completion"), value: completion === null ? "—" : `${completion}%`, sub: t("progressUi.completionSub", { done: doneN, total: closed }), color: "var(--st-done)" },
-          { Icon: CalendarCheck, label: t("progressUi.answered"), value: answerRate === null ? "—" : `${answerRate}%`, sub: t("progressUi.answeredSub"), color: "var(--st-review)" },
           { Icon: Flame, label: t("progressUi.streak"), value: String(current), sub: t("progressUi.bestStreak", { n: best }), color: "var(--haldi)" },
           { Icon: Trophy, label: t("progress.pointsTotal"), value: String(stats.points), sub: t("progressUi.milestonesSub", { n: stats.milestones }), color: "var(--st-unable)" },
         ].map(({ Icon, label, value, sub, color }) => (
@@ -153,7 +147,7 @@ export default async function ProgressPage({ searchParams }: { searchParams: Pro
             ) : <p className="py-8 text-center text-ink-soft">{t("progressUi.noData")}</p>}
           </Section>
 
-          <Section title={t("progressUi.byAction")} id="by-action" description={t("progressUi.byActionHelp")}>
+          <Section title={t("progressUi.byAction")} id="by-action">
             {items.length ? (
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[480px] text-left text-sm">
@@ -174,40 +168,11 @@ export default async function ProgressPage({ searchParams }: { searchParams: Pro
                 </table>
               </div>
             ) : <p className="text-ink-soft">{t("progressUi.noData")}</p>}
-            <p className="hint mt-4">{t("progress.rule")}</p>
           </Section>
 
-          <Section title={t("progress.historyTitle")} id="hist">
-            {recent.length === 0 ? <p className="text-ink-soft">{t("progressUi.noData")}</p> : (
-              <ul className="divide-y divide-line">
-                {recent.map((h) => (
-                  <li key={h.id} className="flex flex-wrap items-center justify-between gap-2 py-3">
-                    <span className="flex min-w-0 items-center gap-2.5"><CategoryIcon category={h.item.category} /><span className="truncate">{h.item.title}</span><span className="shrink-0 text-sm text-ink-soft">{fmtDate(h.local_date, locale)}{h.local_time ? ` · ${h.local_time}` : ""}</span></span>
-                    <StatusBadge status={h.status} label={t(`status.${h.status}`)} />
-                  </li>
-                ))}
-              </ul>
-            )}
-          </Section>
         </div>
 
         <aside className="flex flex-col">
-          <Section title={t("progress.week")} id="week">
-            <div className="grid grid-cols-7 gap-1.5">
-              {week.map((d, i) => {
-                const ratio = d.scheduled ? d.completed / d.scheduled : 0;
-                return (
-                  <div key={d.date} className="flex flex-col items-center gap-1.5" title={`${fmtDate(d.date, locale)}: ${d.completed}/${d.scheduled}`}>
-                    <div className={`relative h-16 w-full overflow-hidden rounded-lg bg-surface-2 ${d.date === today ? "ring-2 ring-primary ring-offset-2 ring-offset-surface" : ""}`}>
-                      <div className="absolute inset-x-0 bottom-0" style={{ height: `${d.responded && !ratio ? 18 : ratio * 100}%`, background: ratio ? "var(--st-done)" : d.responded ? "var(--st-skipped)" : "transparent" }} />
-                    </div>
-                    <span className={`text-xs ${d.date === today ? "font-bold text-ink" : "text-ink-faint"}`}>{t(`weekday.${i + 1}`)}</span>
-                  </div>
-                );
-              })}
-            </div>
-            <p className="mt-4 text-sm font-semibold">{t("progress.activeDays", { days: activeDays(week) })}</p>
-          </Section>
 
           {days.length > 7 ? (
             <Section title={t("progressUi.calendar")} id="cal" description={t("progressUi.calendarHelp")}>
@@ -229,7 +194,7 @@ export default async function ProgressPage({ searchParams }: { searchParams: Pro
             )}
           </Section>
 
-          <Section title={t("progress.goal")} id="goal" icon={<Target size={20} aria-hidden="true" />} description={t("progress.goalHelp")}>
+          <Section title={t("progress.goal")} id="goal" icon={<Target size={20} aria-hidden="true" />} description={goal ? undefined : t("progress.goalHelp")}>
             {goal && gp ? (
               <div className="flex flex-col gap-2">
                 <div className="flex items-baseline justify-between gap-2">

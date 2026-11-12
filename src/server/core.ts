@@ -164,6 +164,8 @@ export async function getToday(db: AdminClient, userId: string, tz: string, now 
     .order("due_at");
   return (data ?? [])
     .filter((o) => o.local_date === today || (o.target_count > 1 && new Date(o.window_end_at) > now))
+    // Paused slots (paused or deleted items, or slots left at an old time after an edit) are not shown on Today.
+    .filter((o) => o.status !== "paused")
     .map((o) => {
       const { plan_items, ...occ } = o as typeof o & { plan_items: PlanItem & { care_plans: { mode: string; title: string } } };
       return {

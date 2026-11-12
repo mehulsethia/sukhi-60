@@ -2,11 +2,11 @@
 import { Fragment, useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { ArrowUp, Bell, Camera, Check, Clock, Copy, Leaf, Moon, Plus, SkipForward, Sparkles, Volume2, X } from "lucide-react";
+import { ArrowUp, Bell, Camera, Check, Clock, Copy, Leaf, Moon, Plus, SkipForward, Keyboard, Sparkles, Square, AudioLines, Volume2, X } from "lucide-react";
 import { Alert } from "@/components/ui";
 import { VoiceRecorder } from "@/components/VoiceRecorder";
 import { EvidenceCapture } from "@/components/EvidenceCapture";
-import { chatQuickAction, markChatSeen } from "@/app/actions";
+import { chatQuickAction, markChatSeen, setChatVoiceMode } from "@/app/actions";
 import { SupportFlow } from "@/components/SupportFlow";
 
 export interface ChatMessage {
@@ -141,6 +141,54 @@ export function ChatClient({ initial, voice, audioReplies, suggestions, name, au
     el.style.height = `${Math.min(el.scrollHeight, 200)}px`;
   }, [text]);
 
+  const [speaking, setSpeaking] = useState(false);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  // Only one reply speaks at a time. Each call takes a ticket; a fetch that resolves after a newer call
+  // (e.g. the auto read-aloud still loading when the speaker button is tapped) is dropped, not played on top.
+  const playTicket = useRef(0);
+  const playingText = useRef<string | null>(null);
+  const stopSpeaking = useCallback(() => {
+    playTicket.current++;
+    audioRef.current?.pause();
+    audioRef.current = null;
+    playingText.current = null;
+    setSpeaking(false);
+  }, []);
+  const play = useCallback(async (content: string, quiet = false) => {
+    // Tapping the speaker on the reply that is already loading/speaking stops it instead of starting it twice.
+    if (playingText.current === content && !quiet) return stopSpeaking();
+    const ticket = ++playTicket.current;
+    audioRef.current?.pause();
+    audioRef.current = null;
+    playingText.current = content;
+    setSpeaking(true);
+    const done = () => { if (ticket === playTicket.current) { playingText.current = null; setSpeaking(false); } };
+    try {
+      const res = await fetch("/api/voice/speak", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text: content }) });
+      if (ticket !== playTicket.current) return;
+      if (!res.ok) { done(); if (!quiet) setError(t("voiceUnavailable")); return; }
+      const j = await res.json();
+      if (ticket !== playTicket.current) return;
+      const audio = new Audio(j.audio);
+      audio.onended = done;
+      audioRef.current = audio;
+      await audio.play();
+    } catch {
+      if (!quiet && ticket === playTicket.current) setError(t("voiceUnavailable"));
+      done();
+    }
+  }, [t, stopSpeaking]);
+  // Two chat modes, like other assistants: Text (read replies yourself, tap the speaker to hear one)
+  // and Voice (every reply is read aloud). The choice is saved to the profile.
+  const canSpeak = voice.configured && voice.consent;
+  const [voiceMode, setVoiceMode] = useState(audioReplies && canSpeak);
+  function chooseMode(on: boolean) {
+    if (on === voiceMode) return;
+    setVoiceMode(on);
+    if (!on) stopSpeaking();
+    void setChatVoiceMode(on).catch(() => {});
+  }
+
   const send = useCallback(async (raw?: string) => {
     const body = (raw ?? text).trim();
     if (!body || busy) return;
@@ -163,8 +211,8 @@ export function ChatClient({ initial, voice, audioReplies, suggestions, name, au
       const id = j.id ?? `a-${Date.now()}`;
       setMessages((m) => [...m.map((x) => (x.id === tempId ? { ...x, pending: false } : x)), { id, role: "assistant", channel: "web", content: j.text, sources: j.sources ?? [], safety: j.safety }]);
       setReveal({ id, n: 0 });
-      // Spoken replies: read the answer aloud right after the person sends (a user gesture, so autoplay is allowed).
-      if (audioReplies && voice.configured && voice.consent && j.text) void play(j.text, true);
+      // Voice mode: read the answer aloud right after the person sends (a user gesture, so autoplay is allowed).
+      if (voiceMode && j.text) void play(j.text, true);
     } catch {
       setMessages((m) => m.filter((x) => x.id !== tempId));
       setText(body);
@@ -173,8 +221,7 @@ export function ChatClient({ initial, voice, audioReplies, suggestions, name, au
       setBusy(false);
       input.current?.focus();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [text, busy, t, tc, audioReplies, voice.configured, voice.consent]);
+  }, [text, busy, t, tc, voiceMode, play]);
 
   // A suggestion tapped elsewhere (e.g. on Today) arrives as ?q= and is sent once.
   useEffect(() => {
@@ -185,19 +232,6 @@ export function ChatClient({ initial, voice, audioReplies, suggestions, name, au
     }
   }, [autoSend, router, send]);
 
-  const audioRef = useRef<HTMLAudioElement | null>(null);
-  async function play(content: string, quiet = false) {
-    try {
-      audioRef.current?.pause();
-      const res = await fetch("/api/voice/speak", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text: content }) });
-      if (!res.ok) { if (!quiet) setError(t("voiceUnavailable")); return; }
-      const j = await res.json();
-      audioRef.current = new Audio(j.audio);
-      await audioRef.current.play();
-    } catch {
-      if (!quiet) setError(t("voiceUnavailable"));
-    }
-  }
   async function copy(m: ChatMessage) {
     try { await navigator.clipboard.writeText(m.content); setCopied(m.id); setTimeout(() => setCopied(null), 1500); } catch {}
   }
@@ -274,7 +308,7 @@ export function ChatClient({ initial, voice, audioReplies, suggestions, name, au
                     {!isRevealing ? (
                       <div className="mt-1.5 flex gap-1 text-ink-faint opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100 sm:focus-within:opacity-100">
                         <button type="button" onClick={() => copy(m)} className="flex h-8 w-8 items-center justify-center rounded-lg hover:bg-surface-2 hover:text-ink" aria-label={t("copy")}>{copied === m.id ? <Check size={15} /> : <Copy size={15} />}</button>
-                        {audioReplies && voice.configured && voice.consent ? <button type="button" onClick={() => play(m.content)} className="flex h-8 w-8 items-center justify-center rounded-lg hover:bg-surface-2 hover:text-ink" aria-label={t("play")}><Volume2 size={15} /></button> : null}
+                        {voiceMode ? <button type="button" onClick={() => play(m.content)} className="flex h-8 w-8 items-center justify-center rounded-lg hover:bg-surface-2 hover:text-ink" aria-label={t("play")}><Volume2 size={15} /></button> : null}
                       </div>
                     ) : null}
                   </div>
@@ -312,6 +346,22 @@ export function ChatClient({ initial, voice, audioReplies, suggestions, name, au
               {suggestions.map((s) => (
                 <button key={s} type="button" onClick={() => send(s)} className={`rounded-2xl border border-line bg-surface text-left transition-colors hover:border-primary hover:bg-primary-soft ${empty ? "px-4 py-3 text-[0.96rem]" : "shrink-0 whitespace-nowrap px-3.5 py-2 text-sm"}`}>{s}</button>
               ))}
+            </div>
+          ) : null}
+          {canSpeak ? (
+            <div className="mb-2 flex items-center justify-between gap-2">
+              <div role="radiogroup" aria-label={t("modeLabel")} className="inline-flex rounded-full border border-line bg-surface p-0.5 text-sm">
+                {([[false, "modeText", Keyboard], [true, "modeVoice", AudioLines]] as const).map(([on, key, Icon]) => (
+                  <button key={key} type="button" role="radio" aria-checked={voiceMode === on} onClick={() => chooseMode(on)} className={`flex min-h-9 items-center gap-1.5 rounded-full px-3.5 font-medium transition-colors ${voiceMode === on ? "bg-primary text-primary-ink" : "text-ink-soft hover:text-ink"}`}>
+                    <Icon size={15} aria-hidden="true" />{t(key)}
+                  </button>
+                ))}
+              </div>
+              {speaking ? (
+                <button type="button" onClick={stopSpeaking} className="flex min-h-9 items-center gap-1.5 rounded-full border border-line bg-surface px-3.5 text-sm font-medium text-ink hover:bg-surface-2">
+                  <Square size={13} aria-hidden="true" className="fill-current" />{t("stopSpeaking")}
+                </button>
+              ) : voiceMode ? <span className="text-xs text-ink-faint">{t("voiceModeHint")}</span> : null}
             </div>
           ) : null}
           <form onSubmit={(e) => { e.preventDefault(); send(); }} className="flex items-end gap-1.5 rounded-[26px] border border-line-strong bg-surface p-2 shadow-[var(--shadow-md)] focus-within:border-primary">

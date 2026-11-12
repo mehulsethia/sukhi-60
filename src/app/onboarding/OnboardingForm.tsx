@@ -60,7 +60,7 @@ export function OnboardingForm({ defaults, whatsappLaunched = false }: { default
   const [relation, setRelation] = useState<string>("parent");
   const [health, setHealth] = useState<"diagnosed" | "wellness" | "prefer_not" | "">("");
   const [conditions, setConditions] = useState<string[]>([]);
-  const [a11y, setA11y] = useState({ large_text: false, high_contrast: false, reduce_motion: false, audio_replies: true });
+  const [a11y, setA11y] = useState({ large_text: false, high_contrast: false, reduce_motion: false, audio_replies: false });
   const [style, setStyle] = useState<"normal" | "gentle">("normal");
   const [consents, setConsents] = useState<Record<string, boolean>>(Object.fromEntries(CONSENTS.map((c) => [c.kind, c.def])));
   const [template, setTemplate] = useState<TemplateKey>("walk");

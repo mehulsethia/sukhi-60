@@ -409,6 +409,14 @@ export async function markChatSeen() {
   (await cookies()).set("sukhi_chat_seen", new Date().toISOString(), { path: "/", sameSite: "lax", httpOnly: true, secure: process.env.NODE_ENV === "production", maxAge: 60 * 60 * 24 * 365 });
 }
 
+/** Chat mode toggle (Text / Voice). Stored as accessibility.audio_replies so Settings stays in sync. */
+export async function setChatVoiceMode(on: boolean) {
+  const { supabase, user } = await requireUser();
+  const { data } = await supabase.from("profiles").select("accessibility").eq("id", user.id).single();
+  const accessibility = { ...((data?.accessibility as Record<string, unknown> | null) ?? {}), audio_replies: z.boolean().parse(on) };
+  await supabase.from("profiles").update({ accessibility }).eq("id", user.id);
+}
+
 /** Read a plan's source document again (after a failure or a stalled read), in the background. */
 export async function retryPlanReading(fd: FormData) {
   const { supabase, user } = await requireUser();

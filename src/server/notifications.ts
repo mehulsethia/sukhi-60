@@ -36,7 +36,7 @@ export async function getNotifications(db: AdminClient, userId: string, tz: stri
     db.from("action_occurrences").select("id, due_at, status, snooze_until, plan_items!inner(title)").eq("user_id", userId).eq("local_date", today).in("status", ["pending", "due", "awaiting_response", "later"]).lte("due_at", now.toISOString()).gt("window_end_at", now.toISOString()).order("due_at"),
     db.from("action_occurrences").select("id", { count: "exact", head: true }).eq("user_id", userId).eq("local_date", yesterday).eq("status", "no_response"),
     db.from("plan_items").select("id, plan_id, created_at").eq("user_id", userId).eq("status", "draft").order("created_at", { ascending: false }),
-    db.from("evaluations").select("id, occurrence_id, outcome, created_at, action_occurrences!inner(plan_items!inner(title))").eq("user_id", userId).gte("created_at", since3d).order("created_at", { ascending: false }).limit(5),
+    db.from("evaluations").select("id, occurrence_id, outcome, created_at, action_occurrences!inner(plan_items!inner(title)), evidence!inner(kind)").eq("user_id", userId).in("evidence.kind", ["photo", "document", "video"]).gte("created_at", since3d).order("created_at", { ascending: false }).limit(5),
     db.from("reward_events").select("id, kind, label, created_at").eq("user_id", userId).in("kind", ["milestone", "return"]).gte("created_at", since7d).order("created_at", { ascending: false }).limit(5),
     db.from("change_proposals").select("id, summary, created_at").eq("user_id", userId).eq("status", "pending").gt("expires_at", now.toISOString()),
     db.from("family_access").select("id, invitee_label, accepted_at").eq("patient_id", userId).eq("status", "active").gte("accepted_at", since7d),

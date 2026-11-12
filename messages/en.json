@@ -215,7 +215,7 @@
     "largeText": "Larger text",
     "highContrast": "Higher contrast",
     "reduceMotion": "Reduce motion",
-    "audioReplies": "Offer audio playback of replies",
+    "audioReplies": "Read chat replies aloud (voice mode)",
     "context": "Anything that helps (optional)",
     "limitations": "Limitations we should keep in mind",
     "limitationsHint": "For example: difficulty with stairs, low vision. Only share what you are comfortable with.",
@@ -331,6 +331,11 @@
     "selfReportNote": "Self-reports and evidence are shown separately."
   },
   "chat": {
+    "modeLabel": "Chat mode",
+    "modeText": "Text",
+    "modeVoice": "Voice",
+    "stopSpeaking": "Stop",
+    "voiceModeHint": "Replies are read aloud",
     "title": "Assistant",
     "placeholder": "Type a message…",
     "send": "Send",
