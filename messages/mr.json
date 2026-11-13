@@ -504,7 +504,8 @@
     "activeDays": "या आठवड्यात 7 पैकी {days} दिवस सक्रिय",
     "rule": "प्रत्येक प्रामाणिक चेक-इन मोजले जाते. चुकलेले दिवस प्रगती कमी करत नाहीत, आणि विश्रांतीनंतर परत आल्यावर बोनस मिळतो.",
     "pointsTotal": "एकूण गुण",
-    "milestonesEarned": "{count} टप्पे मिळाले"
+    "milestonesEarned": "{count} टप्पे मिळाले",
+    "goalProgressSince": "{date} पासून {target} पैकी {earned} points"
   },
   "settings": {
     "title": "सेटिंग्ज",

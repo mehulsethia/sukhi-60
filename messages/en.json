@@ -504,7 +504,8 @@
     "activeDays": "{days} of 7 days active this week",
     "rule": "Every honest check-in counts. Missed days never take progress away, and coming back after a break earns a bonus.",
     "pointsTotal": "Total points",
-    "milestonesEarned": "{count} milestones earned"
+    "milestonesEarned": "{count} milestones earned",
+    "goalProgressSince": "{earned} of {target} points since {date}"
   },
   "settings": {
     "title": "Settings",

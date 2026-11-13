@@ -199,7 +199,7 @@ export default async function ProgressPage({ searchParams }: { searchParams: Pro
               <div className="flex flex-col gap-2">
                 <div className="flex items-baseline justify-between gap-2">
                   <p className="font-semibold">{goal.title}</p>
-                  <p className="text-sm tabular-nums text-ink-soft">{gp.done ? t("progress.goalDone") : t("progress.goalProgress", { earned: gp.earned, target: gp.target })}</p>
+                  <p className="text-sm tabular-nums text-ink-soft">{gp.done ? t("progress.goalDone") : t("progress.goalProgressSince", { earned: gp.earned, target: gp.target, date: fmtDate(localDateOf(new Date(goal.created_at), tz), locale) })}</p>
                 </div>
                 <div className="h-3 overflow-hidden rounded-full bg-surface-2" role="progressbar" aria-valuemin={0} aria-valuemax={gp.target} aria-valuenow={Math.min(gp.earned, gp.target)} aria-label={goal.title}><div className="h-full rounded-full bg-[linear-gradient(90deg,var(--haldi),var(--st-done))]" style={{ width: `${Math.round(gp.ratio * 100)}%` }} /></div>
                 <form action={removeRewardGoal}><SubmitButton className="btn btn-ghost mt-1 px-0 text-sm underline">{t("progress.removeGoal")}</SubmitButton></form>

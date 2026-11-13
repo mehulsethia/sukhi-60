@@ -504,7 +504,8 @@
     "activeDays": "इस हफ़्ते 7 में से {days} दिन सक्रिय",
     "rule": "हर सच्चा चेक-इन गिना जाता है। छूटे दिन प्रगति कम नहीं करते, और ब्रेक के बाद लौटने पर बोनस मिलता है।",
     "pointsTotal": "कुल अंक",
-    "milestonesEarned": "{count} उपलब्धियाँ मिलीं"
+    "milestonesEarned": "{count} उपलब्धियाँ मिलीं",
+    "goalProgressSince": "{date} से {target} में से {earned} points"
   },
   "settings": {
     "title": "सेटिंग्स",
