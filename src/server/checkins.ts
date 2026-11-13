@@ -1,4 +1,5 @@
 import "server-only";
+import { languageInstruction } from "@/domain/language";
 // Proactive assistant check-ins. At each of the user's preferred check-in times (outside
 // quiet hours) Sukhi writes one short, personal message into the chat: today's plan in the
 // morning, what's done and what's left later on, a gentle restart after missed days, and a
@@ -18,7 +19,8 @@ import hi from "../../messages/hi.json";
 import mr from "../../messages/mr.json";
 
 const DICT = { en, hi, mr } as const;
-const LANG: Record<string, string> = { en: "English", hi: "Hindi (Devanagari script)", mr: "Marathi (Devanagari script)" };
+// Everyday, English-mixed register for Hindi/Marathi (see domain/language.ts).
+const LANG: Record<string, string> = { en: languageInstruction("en"), hi: languageInstruction("hi"), mr: languageInstruction("mr") };
 const WINDOW_MIN = 120;
 
 function msg(locale: string, key: keyof typeof en.checkin, vars: Record<string, string | number> = {}) {

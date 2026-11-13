@@ -1,4 +1,5 @@
 import "server-only";
+import { languageInstruction } from "@/domain/language";
 // Gentle Restart Engine (server side). Callers pass a userId established from a verified
 // session; ownership is re-checked on every row. Nothing here changes a plan unless the
 // user explicitly accepts a suggestion, and a barrier report never changes an
@@ -22,7 +23,8 @@ import hi from "../../messages/hi.json";
 import mr from "../../messages/mr.json";
 
 const DICT = { en: en.support, hi: hi.support, mr: mr.support } as const;
-const LANG: Record<string, string> = { en: "English", hi: "Hindi (Devanagari script)", mr: "Marathi (Devanagari script)" };
+// Everyday, English-mixed register for Hindi/Marathi (see domain/language.ts).
+const LANG: Record<string, string> = { en: languageInstruction("en"), hi: languageInstruction("hi"), mr: languageInstruction("mr") };
 const loc = (l: string): Locale => (l === "hi" || l === "mr" ? l : "en");
 const ui = (l: string, key: keyof typeof en.support, vars: Record<string, string | number> = {}) => fill(String((DICT[loc(l)] as Record<string, unknown>)[key] ?? en.support[key]), vars);
 const tplDict = (l: string) => DICT[loc(l)].tpl as unknown as TemplateDict;

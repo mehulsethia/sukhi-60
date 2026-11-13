@@ -118,7 +118,7 @@ test.describe.serial("core journey", () => {
     expect((await signedWebhook(page, code, `wamid.e2e.link2.${Date.now()}`)).status()).toBe(200);
 
     expect((await signedWebhook(page, "Feeling good after the walk", `wamid.e2e.msg.${Date.now()}`)).status()).toBe(200);
-    await page.getByRole("link", { name: "Assistant" }).first().click();
+    await page.getByRole("link", { name: "Buddy" }).first().click();
     await expect(page).toHaveURL(/\/chat/);
     await expect.poll(async () => { await page.reload(); return page.getByText("Feeling good after the walk").count(); }, { timeout: 15_000 }).toBeGreaterThan(0);
     await expect(page.getByText("via WhatsApp").first()).toBeVisible();

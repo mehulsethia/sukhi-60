@@ -8,7 +8,7 @@ import { getToday } from "@/server/core";
 import { fmtTime, hoursAgoIso } from "@/lib/format";
 import { getLocale } from "next-intl/server";
 
-export const metadata: Metadata = { title: "Assistant" };
+export const metadata: Metadata = { title: "Buddy" };
 
 export default async function ChatPage({ searchParams }: { searchParams: Promise<{ q?: string }> }) {
   const { q } = await searchParams;

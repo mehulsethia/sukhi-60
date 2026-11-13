@@ -26,7 +26,7 @@ test("mobile: landing fits, bottom nav after sign-up, microphone denial falls ba
   expect(box!.y + box!.height).toBeGreaterThan((page.viewportSize()!.height) - 5); // pinned to bottom
   const overflow2 = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
   expect(overflow2).toBeLessThanOrEqual(1);
-  await nav.getByRole("link", { name: "Assistant" }).click();
+  await nav.getByRole("link", { name: "Buddy" }).click();
   await expect(page).toHaveURL(/\/chat/);
   await page.getByRole("button", { name: /Record voice note/ }).click();
   await expect(page.getByText(/Microphone access is blocked|isn't supported in this browser/)).toBeVisible();

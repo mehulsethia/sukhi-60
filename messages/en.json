@@ -32,7 +32,7 @@
   },
   "nav": {
     "today": "Today",
-    "chat": "Assistant",
+    "chat": "Buddy",
     "plan": "My Plan",
     "progress": "Progress",
     "settings": "Settings",
@@ -336,7 +336,7 @@
     "modeVoice": "Voice",
     "stopSpeaking": "Stop",
     "voiceModeHint": "Replies are read aloud",
-    "title": "Assistant",
+    "title": "Buddy",
     "placeholder": "Type a message…",
     "send": "Send",
     "sending": "Sending…",
