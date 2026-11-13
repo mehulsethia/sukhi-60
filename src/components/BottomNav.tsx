@@ -20,6 +20,14 @@ export function BottomNav({ variant = "tabs", badges = {} }: { variant?: "tabs" 
   // Highlight the tapped tab immediately, before the server responds. The pending tap only
   // applies while we're still on the page it was made from, so no effect is needed to clear it.
   const [tapped, setTapped] = useState<{ href: string; from: string } | null>(null);
+  // Forget the tap once the route changes (React's "adjust state during render" pattern). Otherwise a tap on
+  // Today made from /chat lit Today up again when the person later came back to /chat another way
+  // (a notification, a link, the back button).
+  const [seenPath, setSeenPath] = useState(path);
+  if (seenPath !== path) {
+    setSeenPath(path);
+    if (tapped) setTapped(null);
+  }
   const pending = tapped && tapped.from === path ? tapped.href : null;
   const isActive = (href: string) => (pending ? href === pending : path === href || path.startsWith(`${href}/`) || (href === "/today" && path.startsWith("/actions")));
   const tap = (href: string) => () => { if (href !== path) setTapped({ href, from: path }); };

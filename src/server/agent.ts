@@ -3,6 +3,7 @@ import "server-only";
 // verified WhatsApp binding). The model can only act through tools closed over that
 // identity; consequential changes require explicit user confirmation codes.
 import { generateText, isStepCount, Output, tool } from "ai";
+import { pointsTotal } from "@/server/points";
 import { z } from "zod";
 import type { AdminClient } from "@/lib/supabase/admin";
 import type { Json } from "@/lib/database.types";
@@ -50,7 +51,9 @@ Rules you must follow:
 - Encourage gently. Honest "I skipped" answers deserve thanks, never criticism. No guilt, no pressure.
 - Reply in the person's language ({locale}); natural mixing with English is fine. Keep replies under 80 words.
 - In Hindi and Marathi, do not assume the person's gender: use respectful, gender-neutral phrasing (e.g. आप + neutral constructions) unless they have told you otherwise.
-- In "sources", list the ids of plan items / occurrences / check-ins / memory facts your reply relies on (ids from tool results only).`;
+- In "sources", list the ids of plan items / occurrences / check-ins / memory facts your reply relies on (ids from tool results only).
+- Never talk about your own earlier messages being wrong, never apologise for them and never issue "corrections". Earlier messages may come from automatic check-ins. Simply answer the current question from the records; if something is not in the records, leave it out.
+- Points and milestones are in CONTEXT.progress; use those numbers rather than guessing.`;
 
 async function buildContext(admin: AdminClient, userId: string) {
   const profile = await getProfile(admin, userId);
@@ -62,8 +65,12 @@ async function buildContext(admin: AdminClient, userId: string) {
       .in("status", ["active", "paused"]),
     admin.from("memory_facts").select("id, kind, content, status, source_type").eq("user_id", userId).in("status", ["confirmed", "proposed"]).order("created_at", { ascending: false }).limit(15),
   ]);
-  const today = await getToday(admin, userId, profile.timezone);
-  return { profile, plans: plans ?? [], memory: memory ?? [], today };
+  const [today, points, { data: milestones }] = await Promise.all([
+    getToday(admin, userId, profile.timezone),
+    pointsTotal(admin, userId),
+    admin.from("reward_events").select("kind, label, local_date").eq("user_id", userId).in("kind", ["milestone", "return"]).order("created_at", { ascending: false }).limit(5),
+  ]);
+  return { profile, plans: plans ?? [], memory: memory ?? [], today, points, milestones: milestones ?? [] };
 }
 
 function compactContext(ctx: Awaited<ReturnType<typeof buildContext>>) {
@@ -78,6 +85,7 @@ function compactContext(ctx: Awaited<ReturnType<typeof buildContext>>) {
     })),
     today: ctx.today.map((a) => ({ occurrence_id: a.id, item_id: a.item_id, title: a.item.title, local_time: a.local_time, status: a.display, progress: a.target_count > 1 ? `${a.completed_count}/${a.target_count} this week` : undefined })),
     memory: ctx.memory.map((m) => ({ id: m.id, kind: m.kind, content: m.content, status: m.status === "confirmed" ? "confirmed by person" : "unconfirmed" })),
+    progress: { points_total: ctx.points, recent_milestones: ctx.milestones.map((r) => ({ label: r.kind === "return" ? "Welcome back" : r.label, date: r.local_date })) },
   };
 }
 

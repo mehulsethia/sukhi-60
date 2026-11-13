@@ -22,7 +22,6 @@ export interface ChatMessage {
 export interface TodayRef { id: string; title: string; time: string | null; display: string }
 const OPEN = ["pending", "due", "awaiting_response", "later", "no_response"];
 // Internal references that drive cards/buttons; not shown as "based on" chips.
-const HIDDEN_REFS = ["checkin", "occurrence", "evidence", "restart", "nudge"];
 
 /** Minimal, safe formatting for assistant text: paragraphs, bullet/numbered lists, **bold**. */
 function inline(text: string): ReactNode[] {
@@ -304,7 +303,6 @@ export function ChatClient({ initial, voice, audioReplies, suggestions, name, au
                       </div>
                     )) : null}
                     {m.channel === "whatsapp" ? <p className="mt-1 text-xs text-ink-faint">{t("fromWhatsapp")}</p> : null}
-                    {!isRevealing && m.sources.some((x) => !HIDDEN_REFS.includes(x.type)) ? <p className="mt-2 flex flex-wrap gap-1.5">{m.sources.filter((x) => !HIDDEN_REFS.includes(x.type)).map((s) => <span key={`${s.type}-${s.id}`} className="chip">{s.label}</span>)}</p> : null}
                     {!isRevealing ? (
                       <div className="mt-1.5 flex gap-1 text-ink-faint opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100 sm:focus-within:opacity-100">
                         <button type="button" onClick={() => copy(m)} className="flex h-8 w-8 items-center justify-center rounded-lg hover:bg-surface-2 hover:text-ink" aria-label={t("copy")}>{copied === m.id ? <Check size={15} /> : <Copy size={15} />}</button>
