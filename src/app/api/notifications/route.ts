@@ -1,3 +1,4 @@
+import { intlLocale } from "@/lib/format";
 import { getLocale, getTranslations } from "next-intl/server";
 import { getUser } from "@/lib/supabase/server";
 import { getNotifications } from "@/server/notifications";
@@ -8,7 +9,7 @@ export const dynamic = "force-dynamic";
 
 function relative(at: string, locale: string, now: number) {
   const diff = (new Date(at).getTime() - now) / 1000;
-  const rtf = new Intl.RelativeTimeFormat(locale === "en" ? "en-IN" : `${locale}-IN`, { numeric: "auto" });
+  const rtf = new Intl.RelativeTimeFormat(intlLocale(locale), { numeric: "auto" });
   const abs = Math.abs(diff);
   if (abs < 60) return rtf.format(Math.round(diff), "second");
   if (abs < 3600) return rtf.format(Math.round(diff / 60), "minute");

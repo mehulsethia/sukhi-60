@@ -6,7 +6,7 @@ import { Bell, ClipboardList, HandHeart, Moon, PartyPopper, Sun, Sunrise, Sunset
 import { dismissSupportPrompt } from "@/app/actions";
 import { requireUser } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { getToday, materializeOccurrences } from "@/server/core";
+import { getToday, materializeOccurrences, nextUpcoming } from "@/server/core";
 import { localDateOf } from "@/domain/schedule";
 import { ActionCard } from "@/components/ActionCard";
 import { InstallPrompt } from "@/components/InstallPrompt";
@@ -14,7 +14,7 @@ import { PushToggle } from "@/components/PushToggle";
 import { MoodCard } from "@/components/CompanionForms";
 import { COMPANION_POLICY, daysLeft } from "@/server/companion";
 import { Package } from "lucide-react";
-import { fmtTime, hoursAgoIso, nowMs } from "@/lib/format";
+import { fmtTime, fmtWhen, hoursAgoIso, nowMs, intlLocale } from "@/lib/format";
 import { bucketOf, isDone } from "@/lib/status";
 
 export const metadata: Metadata = { title: "Today" };
@@ -31,9 +31,10 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
   const { supabase, user } = await requireUser();
   const t = await getTranslations();
   const locale = await getLocale();
-  const { data: profile } = await supabase.from("profiles").select("display_name, timezone, behaviour_prefs_updated_at").eq("id", user.id).single();
-  // Existing accounts: offer the new support-style questions without forcing anything.
-  const showSupportPrompt = !welcome && !profile?.behaviour_prefs_updated_at && (await cookies()).get("sukhi_support_prompt")?.value !== "dismissed";
+  const { data: profile } = await supabase.from("profiles").select("display_name, timezone, behaviour_prefs_updated_at, onboarded_at").eq("id", user.id).single();
+  // Offer the support-style questions once someone has settled in (not on day one, on top of everything else).
+  const settledIn = !!profile?.onboarded_at && nowMs() - new Date(profile.onboarded_at).getTime() > 3 * 86_400_000;
+  const showSupportPrompt = !welcome && settledIn && !profile?.behaviour_prefs_updated_at && (await cookies()).get("sukhi_support_prompt")?.value !== "dismissed";
   const tz = profile?.timezone ?? "UTC";
   const [firstActions, { data: notices }] = await Promise.all([
     getToday(supabase, user.id, tz),
@@ -57,7 +58,7 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
   const hour = Number(new Intl.DateTimeFormat("en-GB", { timeZone: tz, hour: "2-digit", hourCycle: "h23" }).format(new Date(now)));
   const greet = hour < 12 ? t("app.morning") : hour < 17 ? t("app.afternoon") : t("app.evening");
   const first = profile?.display_name?.split(" ")[0];
-  const dateLabel = new Intl.DateTimeFormat(locale === "en" ? "en-IN" : `${locale}-IN`, { timeZone: tz, weekday: "long", day: "numeric", month: "long" }).format(new Date(now));
+  const dateLabel = new Intl.DateTimeFormat(intlLocale(locale), { timeZone: tz, weekday: "long", day: "numeric", month: "long" }).format(new Date(now));
   const done = actions.filter((a) => isDone(bucketOf(a.display))).length;
   // Up next: whatever needs an answer now, else the next one coming up.
   const heroAction =
@@ -71,7 +72,12 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
     canTellFamily: (alertMembers ?? 0) > 0,
   });
   const hourOf = (a: (typeof actions)[number]) => Number((a.local_time ?? "00:00").slice(0, 2));
-  const summary = actions.length === 0 ? null : done === actions.length ? t("app.allDone") : done === 0 ? t("app.nothingYet") : t("app.progressToday", { done, total: actions.length });
+  const allDone = actions.length > 0 && done === actions.length;
+  // Nothing (left) today: show what's next instead of "set up your plan" or a dead end.
+  const upcoming = actions.length === 0 || allDone ? await nextUpcoming(supabase, user.id).catch(() => null) : null;
+  const whenNext = upcoming ? fmtWhen(upcoming.due_at, upcoming.local_date, localDateOf(new Date(), tz), t("today.tomorrow"), tz, locale) : "";
+  // When everything is done, the "All done" card says it; the header line would only repeat it.
+  const summary = actions.length === 0 || allDone ? null : done === 0 ? t("app.nothingYet") : t("app.progressToday", { done, total: actions.length });
 
   return (
     <>
@@ -105,7 +111,13 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
 
       <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_320px] lg:gap-8">
         <div className="flex min-w-0 flex-col gap-6">
-          {actions.length === 0 ? (
+          {actions.length === 0 && upcoming ? (
+            <div className="panel flex flex-col items-center px-6 py-10 text-center">
+              <PartyPopper size={22} strokeWidth={1.6} className="text-ink-faint" aria-hidden="true" />
+              <p className="mt-3 text-[1.05rem] font-medium">{t("today.nothingLeftTitle")}</p>
+              <p className="mt-1 max-w-sm text-sm text-ink-soft">{t("today.nextUp", { title: upcoming.title, when: whenNext })}</p>
+            </div>
+          ) : actions.length === 0 ? (
             <div className="panel flex flex-col items-center px-6 py-10 text-center">
               <ClipboardList size={22} strokeWidth={1.6} className="text-ink-faint" aria-hidden="true" />
               <p className="mt-3 text-[1.05rem] font-medium">{t("today.empty")}</p>
@@ -117,7 +129,7 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
           ) : done === actions.length ? (
             <div className="flex items-center gap-3 rounded-[var(--r-lg)] border border-line bg-surface p-5">
               <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-ok-bg text-[var(--sukhi-success)]"><PartyPopper size={19} aria-hidden="true" /></span>
-              <div><p className="text-[1.05rem] font-semibold">{t("today.allDoneTitle")}</p><p className="text-ink-soft">{t("today.allDoneBody")}</p></div>
+              <div><p className="text-[1.05rem] font-semibold">{t("today.allDoneTitle")}</p><p className="text-ink-soft">{upcoming ? t("today.nextUp", { title: upcoming.title, when: whenNext }) : t("today.allDoneBody")}</p></div>
             </div>
           ) : null}
 

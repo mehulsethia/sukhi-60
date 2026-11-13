@@ -176,6 +176,21 @@ export async function getToday(db: AdminClient, userId: string, tz: string, now 
     });
 }
 
+/** The next scheduled slot after now, on any day (Today and the welcome message use it when nothing is left today). */
+export async function nextUpcoming(db: AdminClient, userId: string, now = new Date()): Promise<{ title: string; local_date: string; local_time: string | null; due_at: string } | null> {
+  const { data } = await db
+    .from("action_occurrences")
+    .select("local_date, local_time, due_at, plan_items!inner(title)")
+    .eq("user_id", userId)
+    .eq("status", "pending")
+    .gt("due_at", now.toISOString())
+    .order("due_at")
+    .limit(1)
+    .maybeSingle();
+  if (!data) return null;
+  return { title: (data.plan_items as unknown as { title: string }).title, local_date: data.local_date, local_time: data.local_time, due_at: data.due_at };
+}
+
 /** The occurrence a short reply ("done", a photo) most plausibly refers to. */
 export function pickRelevantOccurrence(actions: TodayAction[], forEvidence = false, now = new Date()): TodayAction | null {
   const open = actions.filter((a) => ["due", "awaiting_response", "later"].includes(a.display));

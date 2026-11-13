@@ -12,7 +12,9 @@ describe("UI dictionaries", () => {
     expect(keys(mr).sort()).toEqual(keys(en).sort());
   });
   it("placeholders match across languages", () => {
-    const ph = (s: string) => (s.match(/\{\w+\}/g) ?? []).sort().join();
+    // Variable names only: drop ICU plural branches ("one {day}") so "{n, plural, ...}" in English still
+    // matches a plain "{n}" in Hindi/Marathi.
+    const ph = (s: string) => [...new Set((s.replace(/\b(zero|one|two|few|many|other|=\d+)\s*\{[^{}]*\}/g, "").match(/\{(\w+)/g) ?? []))].sort().join();
     const get = (o: Record<string, unknown>, k: string) => k.split(".").reduce<unknown>((a, p) => (a as Record<string, unknown>)[p], o) as string;
     for (const k of keys(en)) {
       expect(ph(get(hi, k)), `hi:${k}`).toBe(ph(get(en, k)));

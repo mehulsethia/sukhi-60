@@ -1,3 +1,4 @@
+import { ToastHost } from "@/components/Toast";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getTranslations } from "next-intl/server";
@@ -59,6 +60,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       </div>
       <div className="lg:hidden print:hidden"><BottomNav badges={{ chat: unreadChat }} /></div>
       <ActivityPing />
+      <ToastHost />
     </div>
   );
 }

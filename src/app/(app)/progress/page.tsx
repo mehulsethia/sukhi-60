@@ -13,7 +13,7 @@ import { SubmitButton } from "@/components/SubmitButton";
 import { CategoryIcon } from "@/components/CategoryIcon";
 import { Heatmap, Legend, SegBar, StackedBars, type DayStack } from "@/components/ProgressCharts";
 import { BUCKETS, bucketOf, isAnswered, isDone, type Bucket } from "@/lib/status";
-import { fmtDate } from "@/lib/format";
+import { fmtDate, intlLocale } from "@/lib/format";
 
 export const metadata: Metadata = { title: "Progress" };
 
@@ -26,7 +26,7 @@ export default async function ProgressPage({ searchParams }: { searchParams: Pro
   const { supabase, user } = await requireUser();
   const t = await getTranslations();
   const locale = await getLocale();
-  const loc = locale === "en" ? "en-IN" : `${locale}-IN`;
+  const loc = intlLocale(locale);
   const { data: profile } = await supabase.from("profiles").select("timezone, created_at").eq("id", user.id).single();
   const tz = profile?.timezone ?? "UTC";
   const today = localDateOf(new Date(), tz);

@@ -14,7 +14,7 @@ const en: Dict = {
   already_counted: "Today already counts toward “{title}”. Nothing extra was added.",
   no_open_action: "I don't see an action waiting right now. You can open Today to see your plan.",
   points: "+{points} points ({labels}).",
-  ai_unconfigured: "The conversational assistant isn't set up yet. You can still reply: done, later, skip, or unwell — or use the Today screen.",
+  ai_unconfigured: "Chat isn't available yet. You can still reply done, later, skip or unwell — or use the Today screen.",
   ai_no_consent: "You haven't allowed AI processing, so I can only handle quick replies (done, later, skip, unwell). You can change this in Settings.",
   ai_error: "Sorry — I couldn't answer just now. Nothing was changed unless listed below. Please try again.",
   not_linked: "This WhatsApp number isn't connected to a Sukhi account. Open Sukhi → Settings → WhatsApp to get a link code.",

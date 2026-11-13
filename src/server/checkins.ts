@@ -1,4 +1,5 @@
 import "server-only";
+import { fmtWhen, intlLocale } from "@/lib/format";
 import { languageInstruction } from "@/domain/language";
 // Proactive assistant check-ins. At each of the user's preferred check-in times (outside
 // quiet hours) Sukhi writes one short, personal message into the chat: today's plan in the
@@ -7,7 +8,7 @@ import { languageInstruction } from "@/domain/language";
 import { generateText } from "ai";
 import type { AdminClient } from "@/lib/supabase/admin";
 import { getModel } from "./providers";
-import { getConsents, getToday } from "./core";
+import { getConsents, getToday, nextUpcoming } from "./core";
 import { pointsTotal } from "./points";
 import { addDays, inQuietHours, localDateOf, localTimeOf } from "@/domain/schedule";
 import { quoteUntrusted } from "@/domain/safety";
@@ -32,7 +33,7 @@ const mins = (hhmm: string) => Number(hhmm.slice(0, 2)) * 60 + Number(hhmm.slice
 function clock(hhmm: string | null, locale: string) {
   if (!hhmm) return "";
   const [h, m] = hhmm.split(":").map(Number);
-  return new Intl.DateTimeFormat(locale === "en" ? "en-IN" : `${locale}-IN`, { hour: "numeric", minute: "2-digit", timeZone: "UTC" }).format(new Date(Date.UTC(2026, 0, 1, h, m)));
+  return new Intl.DateTimeFormat(intlLocale(locale), { hour: "numeric", minute: "2-digit", timeZone: "UTC" }).format(new Date(Date.UTC(2026, 0, 1, h, m)));
 }
 
 type Profile = { id: string; display_name: string | null; locale: string; timezone: string; checkin_times: string[]; quiet_start: string; quiet_end: string; reminder_frequency: string; setup_for: string | null; care_recipient_name: string | null; created_at: string; communication_styles: string[] | null; restart_preference: string | null };
@@ -191,11 +192,19 @@ export async function sendWelcome(admin: AdminClient, userId: string) {
   if (!p) return;
   const today = await getToday(admin, userId, p.timezone).catch(() => []);
   const next = today.find((a) => ["pending", "due", "awaiting_response"].includes(a.display));
+  // Nothing left today (e.g. the routine's time has passed): point to the first upcoming slot instead of
+  // telling someone who just set up a routine to "add your first routine".
+  const upcoming = next ? null : await nextUpcoming(admin, userId).catch(() => null);
+  const todayStr = localDateOf(new Date(), p.timezone);
   const name = p.display_name?.split(" ")[0] ?? "";
   const parts = [
     msg(p.locale, name ? "welcomeName" : "welcome", { name }),
     p.setup_for === "caregiver" ? msg(p.locale, "welcomeCaregiver", { name: p.care_recipient_name || msg(p.locale, "them") }) : null,
-    next ? msg(p.locale, "next", { title: next.item.title, time: clock(next.local_time, p.locale) }) : msg(p.locale, "welcomeNoPlan"),
+    next
+      ? msg(p.locale, "next", { title: next.item.title, time: clock(next.local_time, p.locale) })
+      : upcoming
+        ? msg(p.locale, "firstReminder", { title: upcoming.title, when: fmtWhen(upcoming.due_at, upcoming.local_date, todayStr, (DICT[p.locale as keyof typeof DICT] ?? en).today.tomorrow, p.timezone, p.locale) })
+        : msg(p.locale, "welcomeNoPlan"),
     msg(p.locale, "welcomeHow"),
   ].filter(Boolean);
   await admin.from("messages").upsert(

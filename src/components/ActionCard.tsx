@@ -8,6 +8,7 @@ import { Alert, StatusBadge } from "@/components/ui";
 import { bucketOf, BUCKET_COLOR } from "@/lib/status";
 import { SupportFlow } from "@/components/SupportFlow";
 import { TellFamilyButton } from "@/components/CompanionForms";
+import { showToast } from "@/components/Toast";
 import { BARRIER_CODES, type BarrierCode } from "@/domain/behaviour";
 import type { SupportResult } from "@/server/support";
 
@@ -27,6 +28,9 @@ export function ActionCard({ action, variant = "row" }: Props) {
   const [state, formAction, pending] = useActionState(async (prev: Awaited<ReturnType<typeof checkIn>>, fd: FormData) => {
     const r = await checkIn(prev, fd);
     if (r?.ok) {
+      // The card may re-mount elsewhere after the refresh (hero → list), so confirm via the app-level toast.
+      const earned = ((r.data?.rewards as { points: number }[] | undefined) ?? []).reduce((s, x) => s + x.points, 0);
+      if (earned > 0) showToast(t("today.pointsEarned", { points: earned }));
       setKey(crypto.randomUUID());
       setSkipOpen(false);
       setBarrier(null);
@@ -34,8 +38,6 @@ export function ActionCard({ action, variant = "row" }: Props) {
     return r;
   }, null);
 
-  const rewards = (state?.data?.rewards as { points: number }[] | undefined) ?? [];
-  const points = rewards.reduce((s, r) => s + r.points, 0);
   const result = state?.data?.result as string | undefined;
   const lastKind = state?.data ? (state.data.status as string) : null;
   const support = (state?.data?.support as SupportResult | null | undefined) ?? null;
@@ -47,7 +49,6 @@ export function ActionCard({ action, variant = "row" }: Props) {
   const feedback = (
     <div aria-live="polite" className="empty:hidden [&>*]:mt-3">
       {state?.error ? <Alert tone="danger">{t("common.error")}</Alert> : null}
-      {state?.ok && points > 0 ? <div className="pop-in"><Alert tone="ok">{t("today.pointsEarned", { points })}</Alert></div> : null}
       {state?.ok && (result === "already_recorded" || result === "already_counted") ? <Alert tone="info">{t("today.alreadyRecorded")}</Alert> : null}
       {state?.ok && lastKind === "unable" ? <Alert tone="info">{t("today.unwellNote")}</Alert> : null}
       {state?.ok && lastKind === "unable" && action.canTellFamily ? <TellFamilyButton /> : null}

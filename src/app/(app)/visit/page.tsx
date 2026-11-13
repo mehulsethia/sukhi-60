@@ -23,10 +23,12 @@ export default async function VisitPage({ searchParams }: { searchParams: Promis
   const t = await getTranslations("visit");
   const tr = await getTranslations();
   const locale = await getLocale();
-  const { data: profile } = await supabase.from("profiles").select("display_name, timezone, setup_for, care_recipient_name").eq("id", user.id).single();
+  const { data: profile } = await supabase.from("profiles").select("display_name, timezone, setup_for, care_recipient_name, created_at").eq("id", user.id).single();
   const tz = profile?.timezone ?? "Asia/Kolkata";
   const to = localDateOf(new Date(), tz);
-  const from = addDays(to, -(days - 1));
+  // Don't show weeks before the account existed.
+  const joined = profile?.created_at ? localDateOf(new Date(profile.created_at), tz) : null;
+  const from = joined && joined > addDays(to, -(days - 1)) ? joined : addDays(to, -(days - 1));
   const [{ data: plans }, { data: occ }, { data: barriers }, { data: moods }, { data: questions }] = await Promise.all([
     supabase.from("care_plans").select("id, title, mode, status, clinician_name, paused_until, plan_items(id, title, category, schedule_kind, times, weekdays, weekly_target, instructions, status, stock_count, units_per_dose)").in("status", ["active", "paused"]).order("created_at"),
     supabase.from("action_occurrences").select("item_id, status").gte("local_date", from).lte("local_date", to).eq("target_count", 1).lt("window_end_at", new Date().toISOString()),
@@ -49,12 +51,15 @@ export default async function VisitPage({ searchParams }: { searchParams: Promis
       <header className="mb-6 flex flex-wrap items-start justify-between gap-4">
         <div>
           <p className="flex items-center gap-2 text-sm font-semibold text-primary"><Stethoscope size={16} aria-hidden="true" />{t("eyebrow")}</p>
-          <h1 className="mt-1 text-[1.5rem] sm:text-[2.3rem]">{name ? t("titleFor", { name }) : t("title")}</h1>
+          <h1 className="mt-1 text-[1.5rem] sm:text-[1.9rem]">{name ? t("titleFor", { name }) : t("title")}</h1>
           <p className="mt-1 text-ink-soft">{t("range", { from: fmtDate(from, locale), to: fmtDate(to, locale) })}</p>
         </div>
-        <div className="flex flex-wrap gap-2 print:hidden">
-          <Link href="?days=14" className={`pill-btn ${days === 14 ? "pill-btn-primary" : ""}`}>{t("days", { n: 14 })}</Link>
-          <Link href="?days=28" className={`pill-btn ${days === 28 ? "pill-btn-primary" : ""}`}>{t("days", { n: 28 })}</Link>
+        <div className="flex flex-wrap items-center gap-2 print:hidden">
+          {/* A range switch, styled like Progress's, so it doesn't read as an action button. */}
+          <nav aria-label={t("eyebrow")} className="seg">
+            <Link href="?days=14" aria-current={days === 14 ? "page" : undefined}>{t("days", { n: 14 })}</Link>
+            <Link href="?days=28" aria-current={days === 28 ? "page" : undefined}>{t("days", { n: 28 })}</Link>
+          </nav>
           <PrintButton />
         </div>
       </header>

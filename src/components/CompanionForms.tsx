@@ -49,7 +49,8 @@ export function PauseUntilForm({ planId, minDate, maxDate }: { planId: string; m
   const tc = useTranslations("common");
   const [state, action] = useActionState(pausePlanUntil, null);
   const [open, setOpen] = useState(false);
-  if (!open) return <button type="button" className="btn btn-secondary" onClick={() => setOpen(true)}>{t("pauseUntil")}</button>;
+  // Secondary to "Pause plan": a quiet text button, so the two pause options don't compete.
+  if (!open) return <button type="button" className="btn btn-ghost px-2 text-sm" onClick={() => setOpen(true)}>{t("pauseUntil")}</button>;
   return (
     <form action={action} className="flex w-full flex-wrap items-end gap-3 rounded-xl border border-line bg-surface p-3">
       <input type="hidden" name="plan_id" value={planId} />
