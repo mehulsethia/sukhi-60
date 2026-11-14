@@ -1,96 +1,95 @@
 import Link from "next/link";
 import type { Metadata } from "next";
 import { getTranslations } from "next-intl/server";
-import { AlertCircle, Droplets, Footprints, Leaf, Plus, Stethoscope, StretchHorizontal } from "lucide-react";
+import { AlertCircle, Leaf, Stethoscope } from "lucide-react";
 import { requireUser } from "@/lib/supabase/server";
-import { addTemplate } from "@/app/actions";
+import { features } from "@/lib/config";
 import { CreatePlanForm } from "@/components/PlanForms";
-import { PageHeader, Section } from "@/components/ui";
-import { SubmitButton } from "@/components/SubmitButton";
+import { PackGrid } from "@/components/PackGrid";
+import { QuickPlan } from "@/components/QuickPlan";
+import { DoctorUpload } from "@/components/DoctorUpload";
 import { CategoryIcon } from "@/components/CategoryIcon";
+import { TEMPLATES, PACK_KEYS } from "@/domain/templates";
 
 export const metadata: Metadata = { title: "My plan" };
 
-const TPL_ICON = { walk: Footprints, water: Droplets, stretch: StretchHorizontal } as const;
+const eyebrow = "mb-2.5 text-[0.75rem] font-medium uppercase tracking-[0.08em] text-ink-faint";
 
 export default async function PlanList({ searchParams }: { searchParams: Promise<{ new?: string }> }) {
   const sp = await searchParams;
-  const { supabase } = await requireUser();
+  const { supabase, user } = await requireUser();
   const t = await getTranslations();
-  const { data: plans } = await supabase
-    .from("care_plans")
-    .select("id, title, mode, status, clinician_verification, clinician_name, plan_items(id, status, title, times, category, schedule_kind, weekly_target)")
-    .neq("status", "archived")
-    .order("created_at");
+  const [{ data: plans }, { data: consents }] = await Promise.all([
+    supabase
+      .from("care_plans")
+      .select("id, title, mode, status, clinician_verification, clinician_name, plan_items(id, status, title, times, category, schedule_kind, weekly_target)")
+      .neq("status", "archived")
+      .order("created_at"),
+    supabase.from("consents").select("kind, granted").eq("user_id", user.id).eq("kind", "voice_processing").maybeSingle(),
+  ]);
+  const list = plans ?? [];
+  // Packs already added (by their plan name) aren't offered again.
+  const added = PACK_KEYS.filter((k) => list.some((p) => p.title === TEMPLATES[k].plan && p.status !== "archived"));
   return (
     <>
-      <PageHeader title={t("plan.title")}>
-        <Link href="/visit" className="btn btn-secondary"><Stethoscope size={18} aria-hidden="true" />{t("visit.link")}</Link>
-        <a href="#new-plan" className="btn btn-primary"><Plus size={18} aria-hidden="true" />{t("plan.newPlan")}</a>
-      </PageHeader>
+      <header className="mb-6 flex items-end justify-between gap-3">
+        <h1 className="text-[1.6rem] sm:text-[2rem]">{t("plan.title")}</h1>
+        <Link href="/visit" className="pill-btn text-sm"><Stethoscope size={15} aria-hidden="true" />{t("visit.link")}</Link>
+      </header>
 
-      {(plans ?? []).length === 0 ? (
-        <div className="panel mb-6 flex flex-col items-center px-6 py-10 text-center">
-          <Leaf size={22} strokeWidth={1.6} className="text-ink-faint" aria-hidden="true" />
-          <p className="mt-3 text-[1.05rem] font-medium">{t("plan.empty")}</p>
-          <p className="mt-1 max-w-md text-ink-soft">{t("planUi.emptyBody")}</p>
-        </div>
-      ) : (
-        <ul className="mb-8 grid gap-4 md:grid-cols-2">
-          {(plans ?? []).map((p) => {
+      {list.length ? (
+        <ul className="mb-8 grid gap-3 md:grid-cols-2">
+          {list.map((p) => {
             const items = (p.plan_items ?? []).filter((i) => i.status !== "retired");
             const drafts = items.filter((i) => i.status === "draft").length;
             const clinical = p.mode === "clinician_instructions";
             return (
               <li key={p.id}>
-                <Link href={`/plan/${p.id}`} className="panel group flex h-full flex-col p-5 transition-colors hover:border-primary">
-                  <div className="flex items-start gap-3">
-                    <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${clinical ? "bg-[color-mix(in_srgb,var(--st-review)_14%,var(--surface))] text-st-review" : "bg-primary-soft text-primary"}`}>{clinical ? <Stethoscope size={17} aria-hidden="true" /> : <Leaf size={17} aria-hidden="true" />}</span>
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate font-semibold group-hover:text-primary">{p.title}</p>
-                      <p className="text-sm text-ink-soft">{clinical ? (p.clinician_name ? t("planUi.fromDoctor", { name: p.clinician_name }) : t(`plan.verification_${p.clinician_verification}`)) : t("today.personalTag")}</p>
-                    </div>
+                <Link href={`/plan/${p.id}`} className="panel group flex h-full flex-col p-4 transition-colors hover:border-primary">
+                  <div className="flex items-center gap-2.5">
+                    {clinical ? <Stethoscope size={16} className="shrink-0 text-st-review" aria-hidden="true" /> : <Leaf size={16} className="shrink-0 text-primary" aria-hidden="true" />}
+                    <p className="min-w-0 flex-1 truncate font-semibold group-hover:text-primary">{p.title}</p>
                     {p.status !== "active" ? <span className="chip">{t(`plan.status_${p.status}`)}</span> : null}
+                    {drafts ? <span className="chip bg-warn-bg text-warn-ink"><AlertCircle size={13} aria-hidden="true" />{drafts}</span> : null}
                   </div>
-                  <ul className="mt-4 flex flex-1 flex-col gap-2">
-                    {items.slice(0, 4).map((i) => (
-                      <li key={i.id} className="flex items-center gap-2.5 text-[0.95rem]">
+                  <ul className="mt-3 flex flex-col gap-1.5">
+                    {items.slice(0, 3).map((i) => (
+                      <li key={i.id} className="flex items-center gap-2.5 text-[0.9rem]">
                         <CategoryIcon category={i.category} />
                         <span className="min-w-0 flex-1 truncate">{i.title}</span>
-                        <span className="shrink-0 text-xs font-semibold tabular-nums text-ink-soft">{i.schedule_kind === "weekly_target" ? t("planUi.perWeek", { n: i.weekly_target ?? 1 }) : i.times.slice(0, 2).join(", ")}</span>
+                        <span className="shrink-0 text-xs tabular-nums text-ink-faint">{i.schedule_kind === "weekly_target" ? t("planUi.perWeek", { n: i.weekly_target ?? 1 }) : i.times.slice(0, 2).join(", ")}</span>
                       </li>
                     ))}
-                    {items.length === 0 ? <li className="text-sm text-ink-soft">{t("plan.noItems")}</li> : null}
-                    {items.length > 4 ? <li className="text-sm font-semibold text-ink-soft">{t("planUi.more", { n: items.length - 4 })}</li> : null}
+                    {items.length > 3 ? <li className="text-xs text-ink-faint">{t("planUi.more", { n: items.length - 3 })}</li> : null}
                   </ul>
-                  {drafts ? <div className="mt-4 border-t border-line pt-3 text-sm"><span className="chip bg-warn-bg text-warn-ink"><AlertCircle size={13} aria-hidden="true" />{t("planUi.draftsToCheck", { n: drafts })}</span></div> : null}
                 </Link>
               </li>
             );
           })}
         </ul>
-      )}
+      ) : null}
 
-      <div className="grid gap-5 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]">
-        <Section title={t("plan.newPlan")} id="new-plan" icon={<Plus size={20} aria-hidden="true" />}>
-          <CreatePlanForm defaultMode={sp.new === "clinician" ? "clinician_instructions" : "personal_goal"} />
-        </Section>
-        <Section title={t("plan.useTemplate")} id="tpl" icon={<Leaf size={20} aria-hidden="true" />}>
-          <div className="flex flex-col gap-2.5">
-            {(["walk", "water", "stretch"] as const).map((k) => {
-              const Icon = TPL_ICON[k];
-              return (
-                <form key={k} action={addTemplate} className="flex items-center gap-3 rounded-2xl border border-line p-3.5">
-                  <input type="hidden" name="template" value={k} />
-                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-surface-2 text-primary"><Icon size={19} aria-hidden="true" /></span>
-                  <span className="min-w-0 flex-1"><span className="block font-semibold">{t(`templates.${k}`)}</span><span className="text-sm text-ink-soft">{t(`templates.${k}Desc`)}</span></span>
-                  <SubmitButton className="pill-btn" pendingLabel={t("common.saving")}><Plus size={16} aria-hidden="true" /><span className="sr-only sm:not-sr-only">{t("planUi.add")}</span></SubmitButton>
-                </form>
-              );
-            })}
-          </div>
-        </Section>
-      </div>
+      <section aria-labelledby="quick" className="mb-7">
+        <h2 id="quick" className={eyebrow}>{t("quickPlan.title")}</h2>
+        <QuickPlan voiceEnabled={features.speech() && !!consents?.granted} />
+      </section>
+
+      {added.length < PACK_KEYS.length ? (
+        <section aria-labelledby="packs" className="mb-7">
+          <h2 id="packs" className={eyebrow}>{t("quickPlan.packs")}</h2>
+          <PackGrid exclude={added} />
+        </section>
+      ) : null}
+
+      <details className="mb-3 rounded-[var(--r-md)] border border-line bg-surface p-4">
+        <summary className="flex cursor-pointer items-center gap-2 text-sm font-medium"><Stethoscope size={15} className="text-primary" aria-hidden="true" />{t("quickPlan.doctorCta")}</summary>
+        <div className="mt-4"><DoctorUpload /></div>
+      </details>
+
+      <details className="mb-4 rounded-[var(--r-md)] border border-line bg-surface p-4" open={sp.new === "clinician"}>
+        <summary className="cursor-pointer text-sm font-medium text-ink-soft">{t("quickPlan.manual")}</summary>
+        <div className="mt-4"><CreatePlanForm defaultMode={sp.new === "clinician" ? "clinician_instructions" : "personal_goal"} /></div>
+      </details>
     </>
   );
 }

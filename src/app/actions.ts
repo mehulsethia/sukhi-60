@@ -15,11 +15,14 @@ import { LIMITS, settings } from "@/lib/config";
 import { materializeOccurrences, scheduleSnoozeReminder } from "@/server/core";
 import { isValidTime, isValidTimeZone } from "@/domain/schedule";
 import { generateLinkCode, hashLinkCode, randomToken, sha256Hex } from "@/domain/router";
-import { TEMPLATES } from "@/domain/templates";
+import { TEMPLATES, isPackKey } from "@/domain/templates";
 import type { DraftItem } from "@/domain/extraction";
 import { CONSENT_KINDS, writeConsentChoices } from "@/server/consents";
 import { validateUpload } from "@/server/files";
 import { sendWelcome } from "@/server/checkins";
+import { draftQuickPlan } from "@/server/quick-plan";
+import { afterDone, joinCircle, leaveCircle, react, REACTIONS, type Reaction } from "@/server/circle";
+import { INVITE_COOKIE } from "@/lib/invite";
 import { decideSuggestion, reportBarrier, respondToNudge, type SupportResult, type SuggestionOutcome } from "@/server/support";
 import { removeSubscription, saveSubscription, sendPush } from "@/server/push";
 import { ctext, notifyFamily } from "@/server/companion";
@@ -236,13 +239,22 @@ export async function completeOnboarding(_prev: ActionState, fd: FormData): Prom
     }
     const confidence = parseConfidence(fd.get("habit_confidence"));
     const tpl = String(fd.get("template") ?? "none");
-    if (tpl === "walk" || tpl === "water" || tpl === "stretch") {
-      const created = await createTemplatePlan(supabase, user.id, tpl);
+    // Ready-made packs (one tap each) plus the older single-template field.
+    const packs = [...new Set([...fd.getAll("packs").map(String), tpl])].filter(isPackKey).slice(0, 4);
+    for (const key of packs) {
+      const created = await createTemplatePlan(supabase, user.id, key);
       if (confidence !== null) await supabase.from("habit_confidence").insert({ user_id: user.id, plan_id: created.planId, item_id: created.itemId, confidence });
-      await materializeOccurrences(createAdminClient(), user.id, 7);
     }
+    if (packs.length) await materializeOccurrences(createAdminClient(), user.id, 7);
     // The assistant says hello first, so the chat is never empty.
     await sendWelcome(createAdminClient(), user.id).catch(() => undefined);
+    // Came from a friend's invite link: join their circle now.
+    const jar = await cookies();
+    const invite = jar.get(INVITE_COOKIE)?.value;
+    if (invite) {
+      await joinCircle(createAdminClient(), user.id, invite).catch(() => undefined);
+      jar.delete(INVITE_COOKIE);
+    }
     if (tpl === "clinician") {
       const { data: plan, error: planErr } = await supabase
         .from("care_plans")
@@ -279,7 +291,7 @@ export async function completeOnboarding(_prev: ActionState, fd: FormData): Prom
     if (e && typeof e === "object" && "digest" in e) throw e; // let redirect() through
     return { error: "save_failed" };
   }
-  redirect("/today?welcome=1");
+  redirect("/today");
 }
 
 export async function savePreferences(_prev: ActionState, fd: FormData): Promise<ActionState> {
@@ -384,7 +396,8 @@ export async function chatQuickAction(occurrenceId: string, kind: "done" | "late
   const { data, error } = await supabase.rpc("record_check_in", { p_occurrence: occurrenceId, p_kind: kind, p_idempotency_key: key });
   if (error) return { ok: false, error: error.message.includes("not_yet_due") ? "not_yet_due" : "save_failed" };
   if (kind === "later") await scheduleSnoozeReminder(createAdminClient(), user.id, occurrenceId);
-  const r = (data ?? {}) as { result?: string; rewards?: { points: number; label: string }[] };
+  const r = (data ?? {}) as { result?: string; rewards?: { kind: string; points: number; label: string }[] };
+  if (kind === "done") after(() => afterDone(createAdminClient(), user.id, r.rewards ?? []).catch(() => undefined));
   const { data: profile } = await supabase.from("profiles").select("locale").eq("id", user.id).single();
   const locale = profile?.locale ?? "en";
   const { reply, rewardLine } = await import("@/domain/replies");
@@ -460,11 +473,52 @@ export async function createPlan(_prev: ActionState, fd: FormData): Promise<Acti
 export async function addTemplate(fd: FormData) {
   const { supabase, user } = await requireUser();
   const key = String(fd.get("template"));
-  if (key !== "walk" && key !== "water" && key !== "stretch") return;
+  if (!isPackKey(key)) return;
   await createTemplatePlan(supabase, user.id, key);
+  // A pack brings its "why": keep it as the person's goal if they haven't told us one.
+  const { data: prof } = await supabase.from("profiles").select("personal_motivation").eq("id", user.id).single();
+  if (!prof?.personal_motivation) await supabase.from("profiles").update({ personal_motivation: TEMPLATES[key].motivation }).eq("id", user.id);
   await materializeOccurrences(createAdminClient(), user.id, 7);
   revalidatePath("/plan");
   revalidatePath("/today");
+}
+
+/** "Tell Sukhi" (typed or spoken) → a ready personal plan, scheduled at once. */
+export async function createQuickPlan(_prev: ActionState, fd: FormData): Promise<ActionState> {
+  const { supabase, user } = await requireUser();
+  const text = String(fd.get("wish") ?? "").trim().slice(0, 1000);
+  if (text.length < 3) return { error: "empty" };
+  const r = await draftQuickPlan(text);
+  if (!r.ok) return { error: r.error };
+  const { data: plan, error } = await supabase.from("care_plans").insert({ user_id: user.id, title: r.plan.title, mode: "personal_goal", status: "active", source_description: "Made by Sukhi from your words (personal goal)" }).select("id").single();
+  if (error || !plan) return { error: "save_failed" };
+  const { error: itemErr } = await supabase.from("plan_items").insert(r.plan.items.map((i) => ({ ...i, instructions: null, weekdays: [], plan_id: plan.id, user_id: user.id, status: "confirmed" as const, provenance: "manual" as const })));
+  if (itemErr) return { error: "save_failed" };
+  if (r.plan.motivation) {
+    const { data: prof } = await supabase.from("profiles").select("personal_motivation").eq("id", user.id).single();
+    if (!prof?.personal_motivation) await supabase.from("profiles").update({ personal_motivation: r.plan.motivation.slice(0, 280) }).eq("id", user.id);
+  }
+  await materializeOccurrences(createAdminClient(), user.id, 7).catch(() => undefined);
+  revalidatePath("/today");
+  redirect(`/plan/${plan.id}`);
+}
+
+/** One step: photo of the doctor's note → plan; reading happens in the background. */
+export async function createDoctorPlan(_prev: ActionState, fd: FormData): Promise<ActionState> {
+  const { supabase, user } = await requireUser();
+  const file = fd.get("plan_file");
+  if (!(file instanceof File) || file.size === 0) return { error: "missing_file" };
+  const { data: plan, error } = await supabase.from("care_plans").insert({ user_id: user.id, title: String(fd.get("plan_title") || "My doctor's plan").slice(0, 120), mode: "clinician_instructions", status: "active" }).select("id").single();
+  if (error || !plan) return { error: "save_failed" };
+  const docId = await storePlanSource(supabase, user.id, file);
+  if (!docId) return { error: "upload_failed" };
+  await supabase.from("care_plans").update({ source_document_id: docId }).eq("id", plan.id);
+  const admin = createAdminClient();
+  await markReading(admin, user.id, docId);
+  const hint = String(fd.get("plan_hint") ?? "").slice(0, 600);
+  const planId = plan.id;
+  after(() => readIntoPlan(createAdminClient(), user.id, planId, docId, hint).then(() => undefined, () => undefined));
+  redirect(`/plan/${plan.id}?reading=1`);
 }
 
 export async function setPlanStatus(fd: FormData) {
@@ -707,6 +761,7 @@ export async function checkIn(_prev: ActionState, fd: FormData): Promise<ActionS
   const { data, error } = await supabase.rpc("record_check_in", { p_occurrence: occurrence.data, p_kind: kind.data, p_idempotency_key: key.data, p_reason: reason });
   if (error) return { error: error.message.includes("not_yet_due") ? "not_yet_due" : error.message.includes("paused") ? "paused" : "save_failed" };
   if (kind.data === "later") await scheduleSnoozeReminder(createAdminClient(), user.id, occurrence.data);
+  if (kind.data === "done") after(() => afterDone(createAdminClient(), user.id, ((data as { rewards?: { kind: string; label: string }[] } | null)?.rewards) ?? []).catch(() => undefined));
   let support: SupportResult | null = null;
   // Optional reason chip on a skip: record it and offer safe, user-confirmed support.
   if (barrier.success && (kind.data === "skipped" || kind.data === "missed")) {
@@ -841,4 +896,38 @@ export async function deleteAccount(_prev: ActionState, fd: FormData): Promise<A
   if (error) return { error: "delete_failed" };
   await supabase.auth.signOut();
   redirect("/");
+}
+
+// ---------------------------------------------------------------------------
+// Circle (friends, leaderboard, feed)
+// ---------------------------------------------------------------------------
+export async function reactAction(postId: string, kind: string): Promise<{ ok: boolean; state?: string }> {
+  const { user } = await requireUser();
+  if (!z.string().uuid().safeParse(postId).success || !(REACTIONS as readonly string[]).includes(kind)) return { ok: false };
+  const state = await react(createAdminClient(), user.id, postId, kind as Reaction).catch(() => "not_allowed" as const);
+  revalidatePath("/circle");
+  return { ok: state !== "not_allowed", state };
+}
+
+export async function joinCircleAction(fd: FormData) {
+  const { user } = await requireUser();
+  const code = String(fd.get("code") ?? "");
+  const r = await joinCircle(createAdminClient(), user.id, code, { leaveCurrent: fd.get("switch") === "1" }).catch(() => "invalid" as const);
+  const jar = await cookies();
+  if (r !== "in_other") jar.delete(INVITE_COOKIE);
+  revalidatePath("/circle");
+  redirect(`/circle?r=${r}`);
+}
+
+export async function dismissInviteAction() {
+  await requireUser();
+  (await cookies()).delete(INVITE_COOKIE);
+  revalidatePath("/circle");
+}
+
+export async function leaveCircleAction() {
+  const { user } = await requireUser();
+  await leaveCircle(createAdminClient(), user.id);
+  revalidatePath("/circle");
+  redirect("/circle");
 }

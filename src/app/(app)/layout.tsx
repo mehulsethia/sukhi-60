@@ -21,7 +21,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const [t, unreadChat] = await Promise.all([
     getTranslations(),
     // Messages Sukhi started (reminders, check-ins) since the chat was last opened.
-    supabase.from("messages").select("id", { count: "exact", head: true }).gt("created_at", chatSeen).or("role.eq.notice,channel.eq.system").then((r) => r.count ?? 0, () => 0),
+    supabase.from("messages").select("id", { count: "exact", head: true }).gt("created_at", chatSeen).eq("role", "assistant").eq("channel", "system").then((r) => r.count ?? 0, () => 0),
   ]);
   const name = profile.display_name || user.email || "";
   const initial = (profile.display_name || user.email || "?").trim().charAt(0).toUpperCase();

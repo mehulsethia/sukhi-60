@@ -1,3 +1,5 @@
+import { after } from "next/server";
+import { afterDone } from "@/server/circle";
 import { getUser } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { LIMITS } from "@/lib/config";
@@ -55,6 +57,8 @@ export async function POST(req: Request) {
     const { data, error } = await supabase.rpc("record_check_in", { p_occurrence: f.occurrence_id, p_kind: "done", p_idempotency_key: `${f.idempotency_key}:done` });
     if (error) return errorJson(error.message, 409);
     checkIn = data;
+    const uid = user.id;
+    after(() => afterDone(createAdminClient(), uid, (data as { rewards?: { kind: string; label: string }[] } | null)?.rewards ?? []).catch(() => undefined));
   }
 
   let documentId: string | null = null;

@@ -131,6 +131,8 @@ export async function applyCheckIn(
   if (error) throw new Error(error.message);
   const r = data as unknown as CheckInResult;
   if (kind === "later" && !r.duplicate) await scheduleSnoozeReminder(admin, userId, occurrenceId);
+  // Circle feed (finished day, comeback, milestone). Never blocks or fails a check-in.
+  if (kind === "done" && !r.duplicate) await import("./circle").then((m) => m.afterDone(admin, userId, r.rewards)).catch(() => undefined);
   return r;
 }
 

@@ -16,7 +16,8 @@ import { inQuietHours, localTimeOf, reminderSendTime } from "@/domain/schedule";
 import { runCheckins } from "./checkins";
 import { cleanupOrphanVideos } from "./cleanup";
 import { sendPush } from "./push";
-import { ctext, resumePausedPlans, runInactivityAlerts } from "./companion";
+import { reminderCopy } from "@/domain/tone";
+import { resumePausedPlans, runInactivityAlerts } from "./companion";
 
 type Job = Database["public"]["Tables"]["jobs"]["Row"];
 type Outcome = "done" | "retry" | "dead" | "cancelled";
@@ -108,9 +109,9 @@ async function executeJob(admin: AdminClient, job: Job, workerId: string): Promi
 async function handleReminder(admin: AdminClient, job: Job) {
   const p = job.payload as { occurrence_id: string; item_id: string; plan_id: string };
   const userId = job.user_id!;
-  const { data: occ } = await admin.from("action_occurrences").select("*, plan_items!inner(id, title, status, version, care_plans!inner(status))").eq("id", p.occurrence_id).eq("user_id", userId).maybeSingle();
+  const { data: occ } = await admin.from("action_occurrences").select("*, plan_items!inner(id, title, category, status, version, care_plans!inner(status, mode))").eq("id", p.occurrence_id).eq("user_id", userId).maybeSingle();
   if (!occ) throw new CancelJob("occurrence_gone");
-  const item = occ.plan_items as unknown as { title: string; status: string; version: number; care_plans: { status: string } };
+  const item = occ.plan_items as unknown as { title: string; category: string; status: string; version: number; care_plans: { status: string; mode: string } };
   if (!["pending", "due", "awaiting_response", "later"].includes(occ.status)) throw new CancelJob("already_answered");
   if (item.status !== "confirmed" || item.care_plans.status !== "active") throw new CancelJob("plan_paused_or_changed");
   if (job.plan_item_version !== null && job.plan_item_version !== item.version) throw new CancelJob("plan_version_changed");
@@ -134,10 +135,12 @@ async function handleReminder(admin: AdminClient, job: Job) {
     await admin.from("action_occurrences").update({ status: "awaiting_response", status_changed_at: new Date().toISOString() }).eq("id", occ.id).in("status", ["pending", "due", "later"]);
   }
 
-  // In-app notice is always written; the web Today view shows it without any channel.
-  await admin.from("messages").insert({ user_id: userId, role: "notice", channel: "system", content: reply(profile.locale, "reminder", { title: item.title }), source_refs: [{ type: "occurrence", id: occ.id, label: item.title }] });
+  // Outcome-led copy in the person's tone: why it matters, not just what is due.
+  const copy = reminderCopy({ locale: profile.locale, styles: profile.communication_styles, task: item.title, category: item.category, planMode: item.care_plans.mode, name: profile.display_name, motivation: profile.personal_motivation, seed: occ.id });
+  // In-app record (kept for history and the bell; the chat no longer shows reminder notices).
+  await admin.from("messages").insert({ user_id: userId, role: "notice", channel: "system", content: `${copy.title} · ${copy.body}`.slice(0, 400), source_refs: [{ type: "occurrence", id: occ.id, label: item.title }] });
   // Phone notification on any device the user turned them on for (same quiet-hours check as above).
-  await sendPush(admin, userId, { title: ctext(profile.locale, "pushReminderTitle"), body: ctext(profile.locale, "pushReminder", { title: item.title }), url: "/today", tag: `occ-${occ.id}` }).catch(() => 0);
+  await sendPush(admin, userId, { title: copy.title, body: copy.body, url: "/today", tag: `occ-${occ.id}` }).catch(() => 0);
 
   const { data: binding } = await admin.from("channel_bindings").select("id, external_id, status, last_inbound_at").eq("user_id", userId).neq("status", "revoked").maybeSingle();
   const decision = decideSend({ binding, consentWhatsapp: !!consents.whatsapp, approvedTemplates: settings.approvedTemplates(), quiet: false });

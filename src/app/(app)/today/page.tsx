@@ -1,20 +1,20 @@
 import Link from "next/link";
 import type { Metadata } from "next";
 import { getLocale, getTranslations } from "next-intl/server";
-import { cookies } from "next/headers";
-import { Bell, ClipboardList, HandHeart, Moon, PartyPopper, Sun, Sunrise, Sunset, CalendarRange } from "lucide-react";
-import { dismissSupportPrompt } from "@/app/actions";
+import { Moon, PartyPopper, Sun, Sunrise, Sunset, CalendarRange } from "lucide-react";
 import { requireUser } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getToday, materializeOccurrences, nextUpcoming } from "@/server/core";
 import { localDateOf } from "@/domain/schedule";
 import { ActionCard } from "@/components/ActionCard";
+import { PackGrid } from "@/components/PackGrid";
+import { FEATURED_PACKS } from "@/domain/templates";
 import { InstallPrompt } from "@/components/InstallPrompt";
 import { PushToggle } from "@/components/PushToggle";
 import { MoodCard } from "@/components/CompanionForms";
 import { COMPANION_POLICY, daysLeft } from "@/server/companion";
 import { Package } from "lucide-react";
-import { fmtTime, fmtWhen, hoursAgoIso, nowMs, intlLocale } from "@/lib/format";
+import { fmtTime, fmtWhen, nowMs, intlLocale } from "@/lib/format";
 import { bucketOf, isDone } from "@/lib/status";
 
 export const metadata: Metadata = { title: "Today" };
@@ -26,20 +26,13 @@ const PARTS = [
   { key: "night", from: 21, to: 24, Icon: Moon },
 ] as const;
 
-export default async function TodayPage({ searchParams }: { searchParams: Promise<{ welcome?: string }> }) {
-  const { welcome } = await searchParams;
+export default async function TodayPage() {
   const { supabase, user } = await requireUser();
   const t = await getTranslations();
   const locale = await getLocale();
-  const { data: profile } = await supabase.from("profiles").select("display_name, timezone, behaviour_prefs_updated_at, onboarded_at").eq("id", user.id).single();
-  // Offer the support-style questions once someone has settled in (not on day one, on top of everything else).
-  const settledIn = !!profile?.onboarded_at && nowMs() - new Date(profile.onboarded_at).getTime() > 3 * 86_400_000;
-  const showSupportPrompt = !welcome && settledIn && !profile?.behaviour_prefs_updated_at && (await cookies()).get("sukhi_support_prompt")?.value !== "dismissed";
+  const { data: profile } = await supabase.from("profiles").select("display_name, timezone").eq("id", user.id).single();
   const tz = profile?.timezone ?? "UTC";
-  const [firstActions, { data: notices }] = await Promise.all([
-    getToday(supabase, user.id, tz),
-    supabase.from("messages").select("id, content, created_at").eq("role", "notice").gte("created_at", hoursAgoIso(12)).order("created_at", { ascending: false }).limit(1),
-  ]);
+  const firstActions = await getToday(supabase, user.id, tz);
   const [{ data: mood }, { data: stocked }, { count: alertMembers }] = await Promise.all([
     supabase.from("mood_checkins").select("mood, stress, sleep_quality, sleep_hours").eq("user_id", user.id).eq("local_date", localDateOf(new Date(), tz)).maybeSingle(),
     supabase.from("plan_items").select("id, plan_id, title, stock_count, units_per_dose, schedule_kind, times, weekdays, weekly_target").eq("status", "confirmed").not("stock_count", "is", null),
@@ -84,31 +77,11 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
       <header className="mb-6">
         <p className="text-[0.8rem] font-medium uppercase tracking-[0.08em] text-ink-faint">{dateLabel}</p>
         <h1 className="mt-1.5 text-[1.6rem] leading-tight sm:text-[2rem]">{greet}{first ? `, ${first}` : ""}</h1>
-        {summary ? <p className="mt-1 text-ink-soft">{summary}</p> : null}
+        {summary && done > 0 ? <p className="mt-1 text-sm text-ink-soft">{summary}</p> : null}
       </header>
 
       <InstallPrompt />
       <PushToggle variant="prompt" publicKey={process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || null} />
-      {showSupportPrompt ? (
-        <section aria-labelledby="support-prompt" className="mb-4 flex flex-col gap-3 rounded-[var(--r-lg)] border border-line bg-surface p-4 sm:flex-row sm:items-center">
-          <div className="flex-1">
-            <h2 id="support-prompt" className="flex items-center gap-2 text-base"><HandHeart size={17} className="shrink-0 text-primary" aria-hidden="true" />{t("support.promptTitle")}</h2>
-            <p className="text-sm text-ink-soft">{t("support.promptBody")}</p>
-          </div>
-          <div className="flex gap-2">
-            <Link href="/settings#support" className="btn btn-primary">{t("support.promptCta")}</Link>
-            <form action={dismissSupportPrompt}><button className="btn btn-ghost">{t("support.promptDismiss")}</button></form>
-          </div>
-        </section>
-      ) : null}
-      {welcome ? (
-        <section className="pop-in mb-4 rounded-[var(--r-lg)] border border-line bg-sky p-5">
-          <h2 className="text-xl">{first ? t("onb.welcomeTitle", { name: first }) : t("onb.welcomeTitleNoName")}</h2>
-          <p className="mt-2 max-w-2xl text-ink-soft">{t("onb.welcomeBody")}</p>
-          <Link href="/today" className="btn btn-primary mt-4">{t("onb.welcomeDismiss")}</Link>
-        </section>
-      ) : null}
-
       <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_320px] lg:gap-8">
         <div className="flex min-w-0 flex-col gap-6">
           {actions.length === 0 && upcoming ? (
@@ -118,12 +91,11 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
               <p className="mt-1 max-w-sm text-sm text-ink-soft">{t("today.nextUp", { title: upcoming.title, when: whenNext })}</p>
             </div>
           ) : actions.length === 0 ? (
-            <div className="panel flex flex-col items-center px-6 py-10 text-center">
-              <ClipboardList size={22} strokeWidth={1.6} className="text-ink-faint" aria-hidden="true" />
-              <p className="mt-3 text-[1.05rem] font-medium">{t("today.empty")}</p>
-              <p className="mt-1 max-w-sm text-sm text-ink-soft">{t("today.emptyBody")}</p>
-              <Link href="/plan" className="btn btn-primary mt-5">{t("today.emptyCta")}</Link>
-            </div>
+            <section aria-labelledby="start">
+              <h2 id="start" className="text-[1.05rem] font-medium">{t("today.emptyPick")}</h2>
+              <div className="mt-3"><PackGrid keys={FEATURED_PACKS} /></div>
+              <Link href="/plan" className="link mt-3 inline-block text-sm">{t("today.emptyMore")}</Link>
+            </section>
           ) : heroAction ? (
             <ActionCard variant="hero" action={card(heroAction)} />
           ) : done === actions.length ? (
@@ -161,12 +133,6 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
             </div>
           ) : null}
           <MoodCard today={mood ? { ...mood, sleep_hours: mood.sleep_hours === null ? null : Number(mood.sleep_hours) } : null} />
-          {notices && notices.length > 0 ? (
-            <p role="status" className="panel flex items-start gap-3 p-4">
-              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-haldi-soft text-haldi-ink"><Bell size={17} aria-hidden="true" /></span>
-              <span className="pt-1.5 text-[0.95rem]">{notices[0].content}</span>
-            </p>
-          ) : null}
         </aside>
       </div>
     </>

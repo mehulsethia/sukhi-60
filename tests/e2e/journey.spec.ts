@@ -45,31 +45,24 @@ test.describe.serial("core journey", () => {
     await page.getByRole("button", { name: "Create account" }).click();
     await expect(page).toHaveURL(/\/onboarding/);
 
-    // Onboarding (7 steps). Keep Asia/Kolkata so times below are predictable.
-    const next = () => page.getByRole("button", { name: "Continue" }).click();
+    // Onboarding: three light steps (name → goals → tone). Everything else has defaults.
+    const next = () => page.getByRole("button", { name: /Continue|Skip for now/ }).click();
     await expect(page.getByRole("radio", { name: /English/ })).toHaveAttribute("aria-checked", "true");
-    await next(); // language
-    await page.getByLabel("What should we call you?").fill("Asha Test");
-    await page.getByLabel("Time zone").selectOption("Asia/Kolkata");
-    await next(); // about
-    await page.locator("#quiet_start").fill("03:00");
-    await page.locator("#quiet_end").fill("03:01");
-    await next(); // rhythm
-    await page.getByRole("radio", { name: "Me", exact: true }).click();
-    await page.getByRole("radio", { name: /it's for better health/ }).click();
-    await next(); // about this plan
-    await next(); // comfort
-    await page.getByLabel(/Turns voice notes into text/).check();
-    await page.getByLabel(/connect WhatsApp later/).check();
-    await next(); // permissions
-    await page.getByLabel("I'll set up my plan myself").check();
+    await page.getByPlaceholder("Your name").fill("Asha Test");
+    await next();
+    await next(); // no pack: set up the plan by hand below
+    await page.getByRole("radio", { name: /Simple and practical/ }).click();
     await page.getByRole("button", { name: "Start using Sukhi" }).click();
     await expect(page).toHaveURL(/\/today/);
-    await expect(page.getByText("You're all set, Asha")).toBeVisible();
-    await expect(page.getByText("No actions scheduled for today.")).toBeVisible();
+    await expect(page.getByText("Pick one to start. It's ready in a tap.")).toBeVisible();
+    // Reminders must fire whatever the time of day in CI: quiet hours to a 1-minute window.
+    const sb = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SECRET_KEY!, { auth: { persistSession: false } });
+    const { data: who } = await sb.from("profiles").select("id").eq("display_name", "Asha Test").order("created_at", { ascending: false }).limit(1).single();
+    await sb.from("profiles").update({ timezone: "Asia/Kolkata", quiet_start: "03:00", quiet_end: "03:01" }).eq("id", who!.id);
 
     // Create a personal plan and confirm an item due 10 minutes ago.
-    await page.getByRole("link", { name: "Set up your plan" }).click();
+    await page.getByRole("link", { name: "More options" }).click();
+    await page.getByText("Build it myself").click();
     await page.getByLabel("Plan name").fill("My walking goal");
     await page.getByRole("button", { name: "Create plan" }).click();
     await expect(page.getByRole("heading", { name: "My walking goal" })).toBeVisible();
@@ -85,11 +78,12 @@ test.describe.serial("core journey", () => {
     const tick = await page.request.post("/api/worker/tick", { headers: { authorization: `Bearer ${process.env.WORKER_SECRET}` } });
     expect(tick.status()).toBe(200);
     await page.goto("/today");
-    await expect(page.getByText(/Time for: Short walk/)).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Short walk" })).toBeVisible();
     await expect(page.getByText("Waiting for your reply")).toBeVisible();
 
     // Submit a photo (AI not configured -> saved, described honestly, not "verified").
-    await page.getByRole("link", { name: "Share a photo or note" }).click();
+    await page.getByRole("button", { name: "More options" }).first().click();
+    await page.getByRole("link", { name: "Proof" }).first().click();
     await page.getByLabel("Take or choose a photo").setInputFiles(path.resolve(__dirname, "../fixtures/tiny.png"));
     await page.getByLabel("Also mark this as done").check();
     await page.getByRole("button", { name: "Submit" }).click();
@@ -102,9 +96,7 @@ test.describe.serial("core journey", () => {
     // Progress shows consistency, points and the per-action table.
     await page.getByRole("link", { name: "Progress" }).first().click();
     await expect(page).toHaveURL(/\/progress/);
-    await expect(page.getByText(/Active on \d+ of 7 days/).first()).toBeVisible();
     await expect(page.getByRole("table")).toBeVisible();
-    await expect(page.getByText("First step").first()).toBeVisible();
 
     // Link WhatsApp with a one-time code, then message from that number (signed fixture).
     await page.getByRole("link", { name: "Settings" }).first().click();
@@ -173,18 +165,14 @@ test.describe.serial("core journey", () => {
     await page.getByLabel(/I agree to the/).check();
     await page.getByRole("button", { name: "Create account" }).click();
     await expect(page).toHaveURL(/\/onboarding/);
-    for (let i = 0; i < 3; i++) await page.getByRole("button", { name: "Continue" }).click();
-    await page.getByRole("radio", { name: /Someone I care for/ }).click();
-    await page.getByRole("radio", { name: /there's a doctor's plan/ }).click();
-    await page.getByRole("button", { name: "Diabetes" }).click();
-    for (let i = 0; i < 3; i++) await page.getByRole("button", { name: "Continue" }).click();
-    await expect(page.getByLabel(/Enter my doctor's instructions/)).toBeChecked();
-    await page.getByLabel("Clinician or clinic name").fill("Fictional Clinic");
-    await page.getByLabel("Photo or PDF").setInputFiles(path.resolve(__dirname, "../fixtures/sample-instructions.jpg"));
+    await page.getByPlaceholder("Your name").fill("Clin Test");
+    await page.getByRole("button", { name: "Continue" }).click();
+    await page.getByRole("button", { name: /My doctor's plan/ }).click();
+    await page.locator("#plan_file").setInputFiles(path.resolve(__dirname, "../fixtures/sample-instructions.jpg"));
+    await page.getByRole("button", { name: "Continue" }).click();
     await page.getByRole("button", { name: "Start using Sukhi" }).click();
     await expect(page).toHaveURL(/\/plan\/[0-9a-f-]{36}\?from=onboarding/);
     await expect(page.getByRole("heading", { level: 1 })).toHaveText("My care team's instructions");
-    await expect(page.getByText("From Fictional Clinic")).toBeVisible();
     await expect(page.getByText(/Add each instruction from your care team|We drafted your plan/)).toBeVisible();
     await expect(page.getByRole("link", { name: "View source document" })).toBeVisible();
   });

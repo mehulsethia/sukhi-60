@@ -15,7 +15,8 @@ export default async function ChatPage({ searchParams }: { searchParams: Promise
   const { supabase, user } = await requireUser();
   const t = await getTranslations();
   const [{ data: msgs }, { data: consents }, { data: profile }] = await Promise.all([
-    supabase.from("messages").select("id, role, channel, content, source_refs, safety_flag, created_at").order("created_at", { ascending: false }).limit(60),
+    // Reminder notices live on Today and in notifications; the chat is for conversation.
+    supabase.from("messages").select("id, role, channel, content, source_refs, safety_flag, created_at").neq("role", "notice").order("created_at", { ascending: false }).limit(60),
     supabase.from("consents").select("kind, granted"),
     supabase.from("profiles").select("accessibility, display_name, timezone").eq("id", user.id).single(),
   ]);

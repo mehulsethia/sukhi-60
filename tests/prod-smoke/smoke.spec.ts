@@ -63,25 +63,16 @@ test("full patient journey on production", async ({ page, request }) => {
   await page.getByRole("button", { name: "Log in", exact: true }).click();
   await expect(page).toHaveURL(/\/onboarding/);
 
-  const next = () => page.getByRole("button", { name: "Continue" }).click();
-  await next();
-  await page.getByLabel("What should we call you?").fill("Smoke Test");
-  await page.getByLabel("Time zone").selectOption("Asia/Kolkata");
-  await next();
-  await page.locator("#quiet_start").fill("03:00");
-  await page.locator("#quiet_end").fill("03:01");
-  await next();
-  await page.getByRole("radio", { name: /keep up with a plan I already have/ }).click();
-  await next();
-  await next();
-  await page.getByLabel(/connect WhatsApp later/).check();
-  await page.getByLabel(/Invite someone to see a weekly summary/).check();
-  await next();
-  await page.getByLabel("I'll set up my plan myself").check();
+  await page.getByPlaceholder("Your name").fill("Smoke Test");
+  await page.getByRole("button", { name: "Continue" }).click();
+  await page.getByRole("button", { name: "Skip for now" }).click();
   await page.getByRole("button", { name: "Start using Sukhi" }).click();
   await expect(page).toHaveURL(/\/today/);
+  // Reminders must fire at any hour: shrink quiet hours to one minute.
+  await admin.from("profiles").update({ timezone: "Asia/Kolkata", quiet_start: "03:00", quiet_end: "03:01" }).eq("id", a.id);
 
   await page.goto("/plan");
+  await page.getByText("Build it myself").click();
   await page.getByLabel("Plan name").fill("Smoke walking goal");
   await page.getByRole("button", { name: "Create plan" }).click();
   await expect(page.getByRole("heading", { name: "Smoke walking goal" })).toBeVisible();
@@ -101,11 +92,12 @@ test("full patient journey on production", async ({ page, request }) => {
   const tick = await request.post("/api/worker/tick", { headers: { authorization: `Bearer ${process.env.WORKER_SECRET}` } });
   expect(tick.status()).toBe(200);
   await page.goto("/today");
-  await expect(page.getByText(/Time for: Short walk/)).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Short walk" })).toBeVisible();
   await expect(page.getByText("Waiting for your reply")).toBeVisible();
 
   // Evidence + assessment: never shown as verified; a blank photo can't support the action.
-  await page.getByRole("link", { name: "Share a photo or note" }).click();
+  await page.getByRole("button", { name: "More options" }).first().click();
+  await page.getByRole("link", { name: "Proof" }).first().click();
   await page.getByLabel("Take or choose a photo").setInputFiles(path.resolve(__dirname, "../fixtures/tiny.png"));
   await page.getByLabel("Also mark this as done").check();
   await page.getByRole("button", { name: "Submit" }).click();

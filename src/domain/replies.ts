@@ -5,11 +5,11 @@ import type { Locale } from "./safety";
 type Dict = Record<string, string>;
 
 const en: Dict = {
-  recorded_done: "Noted: “{title}” marked as done (your report). Thank you.",
+  recorded_done: "Yes! “{title}” done. That's exactly how it adds up.",
   recorded_later: "Okay, I'll remind you about “{title}” a bit later.",
-  recorded_skipped: "Noted that you skipped “{title}”. Thanks for telling me — that helps keep your history honest.",
-  recorded_unable: "Noted that you're not able to do “{title}” right now. Rest matters. If you feel worse, please contact your doctor.",
-  recorded_missed: "Noted that “{title}” was missed. Tomorrow is a fresh start.",
+  recorded_skipped: "Okay, “{title}” skipped for now. Thanks for being honest with me.",
+  recorded_unable: "No worries about “{title}”. Rest up. If you feel worse, please contact your doctor.",
+  recorded_missed: "“{title}” slipped today, that happens. Tomorrow's a fresh start.",
   already_recorded: "“{title}” is already recorded for this time. Nothing extra was added.",
   already_counted: "Today already counts toward “{title}”. Nothing extra was added.",
   no_open_action: "I don't see an action waiting right now. You can open Today to see your plan.",
@@ -27,7 +27,7 @@ const en: Dict = {
   stopped: "You won't get WhatsApp messages from Sukhi any more. Reply START to turn them back on. The web app still works.",
   paused: "WhatsApp reminders are paused. Reply START to resume.",
   started: "WhatsApp messages are on again.",
-  reminder: "Time for: {title}. Reply done, later, skip, or unwell.",
+  reminder: "{title}? Reply done, later, skip, or unwell.",
   confirm_ok: "Confirmed. The change to “{title}” is saved.",
   confirm_rejected: "Okay, the change was not made.",
   confirm_invalid: "I couldn't find a pending change with that code (it may have expired). Nothing was changed.",

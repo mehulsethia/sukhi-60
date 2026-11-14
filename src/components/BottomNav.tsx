@@ -3,12 +3,13 @@ import Link from "next/link";
 import { useState } from "react";
 import { usePathname } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { CalendarCheck, MessageCircle, ClipboardList, BarChart3, Settings } from "lucide-react";
+import { CalendarCheck, MessageCircle, ClipboardList, BarChart3, Settings, Users } from "lucide-react";
 
 const ITEMS = [
   { href: "/today", key: "today", Icon: CalendarCheck },
   { href: "/chat", key: "chat", Icon: MessageCircle },
   { href: "/plan", key: "plan", Icon: ClipboardList },
+  { href: "/circle", key: "circle", Icon: Users },
   { href: "/progress", key: "progress", Icon: BarChart3 },
   { href: "/settings", key: "settings", Icon: Settings },
 ] as const;

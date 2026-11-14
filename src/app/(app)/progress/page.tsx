@@ -1,19 +1,15 @@
 import Link from "next/link";
 import type { Metadata } from "next";
 import { getLocale, getTranslations } from "next-intl/server";
-import { Award, Flame, Target, TrendingUp, Trophy } from "lucide-react";
+import { Flame, Target, TrendingUp, Trophy } from "lucide-react";
 import { requireUser } from "@/lib/supabase/server";
-import { goalProgress } from "@/domain/rewards";
 import { pointsTotal } from "@/server/points";
 import { addDays, localDateOf, weekStart } from "@/domain/schedule";
-import { GoalForm } from "@/components/GoalForm";
-import { removeRewardGoal } from "@/app/actions";
 import { PageHeader, Section } from "@/components/ui";
-import { SubmitButton } from "@/components/SubmitButton";
 import { CategoryIcon } from "@/components/CategoryIcon";
 import { Heatmap, Legend, SegBar, StackedBars, type DayStack } from "@/components/ProgressCharts";
 import { BUCKETS, bucketOf, isAnswered, isDone, type Bucket } from "@/lib/status";
-import { fmtDate, intlLocale } from "@/lib/format";
+import { intlLocale } from "@/lib/format";
 
 export const metadata: Metadata = { title: "Progress" };
 
@@ -36,17 +32,14 @@ export default async function ProgressPage({ searchParams }: { searchParams: Pro
   if (range === "all" && joined > from) from = joined;
   const ws = weekStart(today);
 
-  const [{ data: events }, { data: occ }, { data: goal }] = await Promise.all([
+  const [{ data: events }, { data: occ }] = await Promise.all([
     // Only milestones/returns are listed; the points total comes from the profile.
     supabase.from("reward_events").select("kind, points, label, local_date, created_at").in("kind", ["milestone", "return"]).order("created_at", { ascending: false }).limit(100),
     supabase.from("action_occurrences").select("id, local_date, local_time, status, item_id, plan_items!inner(title, category)").gte("local_date", from).lte("local_date", today).order("due_at", { ascending: false }).limit(5000),
-    supabase.from("reward_goals").select("*").eq("active", true).maybeSingle(),
   ]);
   // Paused slots (paused or deleted items) are left out of progress.
   const rows = (occ ?? []).filter((o) => o.status !== "paused").map((o) => ({ ...o, b: bucketOf(o.status), item: o.plan_items as unknown as { title: string; category: string } }));
   const stats = { points: await pointsTotal(supabase, user.id), milestones: (events ?? []).filter((e) => e.kind === "milestone").length };
-  const gp = goalProgress(stats.points, goal ?? null);
-  const milestones = (events ?? []).filter((e) => e.kind === "milestone" || e.kind === "return");
   const labels = Object.fromEntries(BUCKETS.map((b) => [b, t(`bucket.${b}`)])) as Record<Bucket, string>;
 
   // Per day
@@ -64,7 +57,6 @@ export default async function ProgressPage({ searchParams }: { searchParams: Pro
   const doneN = rows.filter((r) => isDone(r.b)).length;
   const completion = closed ? Math.round((100 * doneN) / closed) : null;
   const answeredDay = (d: string) => Object.entries(byDay.get(d) ?? {}).some(([b, n]) => n && isAnswered(b as Bucket));
-  const active = days.filter(answeredDay).length;
   // Streaks of days with any answer (today doesn't break a streak until it's over).
   let current = 0;
   for (let i = days.length - 1; i >= 0; i--) {
@@ -137,7 +129,7 @@ export default async function ProgressPage({ searchParams }: { searchParams: Pro
 
       <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_340px]">
         <div className="min-w-0">
-          <Section title={days.length <= 31 ? t("progressUi.daily") : t("progressUi.weekly")} id="chart" description={t("progressUi.activeInRange", { active, total: days.length })} icon={<TrendingUp size={20} aria-hidden="true" />}>
+          <Section title={days.length <= 31 ? t("progressUi.daily") : t("progressUi.weekly")} id="chart" icon={<TrendingUp size={20} aria-hidden="true" />}>
             {rows.length ? (
               <>
                 <StackedBars data={stacks} labels={labels} />
@@ -175,37 +167,11 @@ export default async function ProgressPage({ searchParams }: { searchParams: Pro
         <aside className="flex flex-col">
 
           {days.length > 7 ? (
-            <Section title={t("progressUi.calendar")} id="cal" description={t("progressUi.calendarHelp")}>
+            <Section title={t("progressUi.calendar")} id="cal">
               <Heatmap days={heat} weekdayLabels={[1, 2, 3, 4, 5, 6, 7].map((d) => t(`weekday.${d}`))} noneLabel={t("progressUi.calendarHelp")} />
             </Section>
           ) : null}
 
-          <Section title={t("progress.milestones")} id="ms" icon={<Award size={20} aria-hidden="true" />}>
-            {milestones.length === 0 ? <p className="hint">{t("progress.noMilestones")}</p> : (
-              <ul className="flex flex-col gap-2">
-                {milestones.slice(0, 8).map((m, i) => (
-                  <li key={i} className="flex items-center gap-3 rounded-xl bg-haldi-soft/60 px-3 py-2.5">
-                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-haldi text-white"><Award size={16} aria-hidden="true" /></span>
-                    <span className="min-w-0 flex-1 truncate font-semibold">{m.kind === "return" ? t("progress.reward_return") : m.label}</span>
-                    <span className="shrink-0 text-xs text-ink-soft">{fmtDate(m.local_date, locale)}</span>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </Section>
-
-          <Section title={t("progress.goal")} id="goal" icon={<Target size={20} aria-hidden="true" />} description={goal ? undefined : t("progress.goalHelp")}>
-            {goal && gp ? (
-              <div className="flex flex-col gap-2">
-                <div className="flex items-baseline justify-between gap-2">
-                  <p className="font-semibold">{goal.title}</p>
-                  <p className="text-sm tabular-nums text-ink-soft">{gp.done ? t("progress.goalDone") : t("progress.goalProgressSince", { earned: gp.earned, target: gp.target, date: fmtDate(localDateOf(new Date(goal.created_at), tz), locale) })}</p>
-                </div>
-                <div className="h-3 overflow-hidden rounded-full bg-surface-2" role="progressbar" aria-valuemin={0} aria-valuemax={gp.target} aria-valuenow={Math.min(gp.earned, gp.target)} aria-label={goal.title}><div className="h-full rounded-full bg-[linear-gradient(90deg,var(--haldi),var(--st-done))]" style={{ width: `${Math.round(gp.ratio * 100)}%` }} /></div>
-                <form action={removeRewardGoal}><SubmitButton className="btn btn-ghost mt-1 px-0 text-sm underline">{t("progress.removeGoal")}</SubmitButton></form>
-              </div>
-            ) : <GoalForm />}
-          </Section>
         </aside>
       </div>
     </>

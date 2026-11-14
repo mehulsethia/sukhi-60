@@ -2,11 +2,11 @@
 import { Fragment, useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { ArrowUp, Bell, Camera, Check, Clock, Copy, Leaf, Moon, Plus, SkipForward, Keyboard, Sparkles, Square, AudioLines, Volume2, X } from "lucide-react";
+import { ArrowUp, Check, Copy, Leaf, Plus, Keyboard, Square, AudioLines, Volume2, X } from "lucide-react";
 import { Alert } from "@/components/ui";
 import { VoiceRecorder } from "@/components/VoiceRecorder";
 import { EvidenceCapture } from "@/components/EvidenceCapture";
-import { chatQuickAction, markChatSeen, setChatVoiceMode } from "@/app/actions";
+import { markChatSeen, setChatVoiceMode } from "@/app/actions";
 import { SupportFlow } from "@/components/SupportFlow";
 
 export interface ChatMessage {
@@ -44,40 +44,9 @@ function Rich({ text }: { text: string }) {
   );
 }
 
-/** Done / Later / Skip / Not well / Proof under a reminder or check-in, like WhatsApp quick replies. */
-function QuickActions({ occ, onMessages, onProof }: { occ: TodayRef; onMessages: (m: ChatMessage[], status: string) => void; onProof: (id: string) => void }) {
-  const t = useTranslations();
-  const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
-  const keyRef = useRef(crypto.randomUUID());
-  async function go(kind: "done" | "later" | "skipped" | "unable") {
-    setBusy(true);
-    setErr(null);
-    const r = await chatQuickAction(occ.id, kind, keyRef.current);
-    setBusy(false);
-    if (!r.ok) return setErr(r.error === "not_yet_due" ? t("chatUi.notYetDue") : t("common.error"));
-    keyRef.current = crypto.randomUUID();
-    onMessages((r.messages ?? []).map((m) => ({ ...m, channel: "web", sources: [] })), kind === "done" ? "self_reported" : kind === "later" ? "later" : kind);
-  }
-  const btn = "pill-btn min-h-9 px-3 text-sm";
-  return (
-    <div className="mt-2.5">
-      <div className="flex flex-wrap gap-1.5">
-        <button type="button" disabled={busy} onClick={() => go("done")} className={`${btn} pill-btn-primary`}><Check size={15} aria-hidden="true" />{t("today.done")}</button>
-        <button type="button" disabled={busy} onClick={() => go("later")} className={btn}><Clock size={14} aria-hidden="true" />{t("today.later")}</button>
-        <button type="button" disabled={busy} onClick={() => go("skipped")} className={btn}><SkipForward size={14} aria-hidden="true" />{t("today.skip")}</button>
-        <button type="button" disabled={busy} onClick={() => go("unable")} className={btn}><Moon size={14} aria-hidden="true" />{t("chatUi.unwellShort")}</button>
-        <button type="button" onClick={() => onProof(occ.id)} className={btn}><Camera size={14} aria-hidden="true" />{t("chatUi.proof")}</button>
-      </div>
-      {err ? <p className="mt-1.5 text-sm text-danger-ink">{err}</p> : null}
-    </div>
-  );
-}
-
 export function ChatClient({ initial, voice, audioReplies, suggestions, name, autoSend, today, openNudges = [], whatsappLaunched = false }: { initial: ChatMessage[]; voice: { configured: boolean; consent: boolean }; audioReplies: boolean; suggestions: string[]; name: string | null; autoSend?: string; today: TodayRef[]; openNudges?: string[]; whatsappLaunched?: boolean }) {
   const t = useTranslations("chat");
   const tc = useTranslations("common");
-  const tr = useTranslations();
   const router = useRouter();
   const [messages, setMessages] = useState(initial);
   const [text, setText] = useState("");
@@ -108,10 +77,6 @@ export function ChatClient({ initial, voice, audioReplies, suggestions, name, au
     }, 45_000);
     return () => clearInterval(h);
   }, [router, lastId]);
-  const addMessages = useCallback((m: ChatMessage[], occId?: string, status?: string) => {
-    setMessages((cur) => [...cur, ...m]);
-    if (occId && status) setStatusById((s) => ({ ...s, [occId]: status }));
-  }, []);
 
   const toBottom = useCallback((smooth = true) => {
     const el = scroller.current;
@@ -267,28 +232,12 @@ export function ChatClient({ initial, voice, audioReplies, suggestions, name, au
                   </li>
                 );
               }
-              const occRef = m.sources.find((x) => x.type === "occurrence");
-              const occ = occRef ? today.find((o) => o.id === occRef.id) : undefined;
-              const actionable = !!occ && OPEN.includes(statusById[occ.id] ?? occ.display);
               const checkin = m.role === "assistant" && m.channel === "system";
-              if (m.role === "notice") {
-                return (
-                  <li key={m.id} className="flex gap-3">
-                    <span aria-hidden="true" className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-haldi-soft text-haldi-ink"><Bell size={15} /></span>
-                    <div className="min-w-0 flex-1 rounded-2xl border border-[color-mix(in_srgb,var(--haldi)_40%,var(--line))] bg-surface px-4 py-3">
-                      <p className="text-xs font-bold text-haldi-ink">{t("notice")}</p>
-                      <p className="mt-0.5 text-[0.97rem]">{m.content}</p>
-                      {occ && actionable ? <QuickActions occ={occ} onProof={setAttachFor} onMessages={(ms, st) => addMessages(ms, occ.id, st)} /> : occ ? <p className="mt-1 text-sm font-semibold text-st-done">{tr(`status.${statusById[occ.id] ?? occ.display}`)}</p> : null}
-                    </div>
-                  </li>
-                );
-              }
               return (
                 <li key={m.id} className="group flex gap-3">
                   <span aria-hidden="true" className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary-soft text-primary"><Leaf size={16} /></span>
                   <div className={`min-w-0 flex-1 text-[0.97rem] leading-relaxed ${m.safety === "escalation" ? "rounded-2xl border-2 border-danger-ink bg-danger-bg p-4 text-danger-ink" : ""}`}>
                     {m.safety === "escalation" ? <strong className="mb-1 block">{t("escalation")}</strong> : null}
-                    {checkin ? <p className="mb-1 flex items-center gap-1.5 text-xs font-bold text-primary"><Sparkles size={13} aria-hidden="true" />{t("checkinLabel")}</p> : null}
                     <Rich text={shown} />
                     {checkin && !isRevealing ? m.sources.filter((x) => x.type === "restart").slice(0, 1).map((x) => {
                       const nudge = m.sources.find((y) => y.type === "nudge");
@@ -296,12 +245,6 @@ export function ChatClient({ initial, voice, audioReplies, suggestions, name, au
                       // Unknown status (no reply) offers "I did it": silence is never treated as a miss.
                       return <SupportFlow key={x.id} occurrenceId={x.id} title={x.label} nudgeId={nudge?.id ?? null} allowDidIt={nudge?.label === "no_response"} />;
                     }) : null}
-                    {checkin && !isRevealing ? m.sources.filter((x) => x.type === "occurrence").map((x) => today.find((o) => o.id === x.id)).filter((o): o is TodayRef => !!o && OPEN.includes(statusById[o.id] ?? o.display)).slice(0, 2).map((o) => (
-                      <div key={o.id} className="mt-2 rounded-2xl border border-line bg-surface p-3">
-                        <p className="text-sm font-semibold">{o.title}{o.time ? <span className="font-normal text-ink-soft"> · {o.time}</span> : null}</p>
-                        <QuickActions occ={o} onProof={setAttachFor} onMessages={(ms, st) => addMessages(ms, o.id, st)} />
-                      </div>
-                    )) : null}
                     {m.channel === "whatsapp" ? <p className="mt-1 text-xs text-ink-faint">{t("fromWhatsapp")}</p> : null}
                     {!isRevealing ? (
                       <div className="mt-1.5 flex gap-1 text-ink-faint opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100 sm:focus-within:opacity-100">

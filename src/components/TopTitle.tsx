@@ -6,6 +6,6 @@ import { useTranslations } from "next-intl";
 export function TopTitle() {
   const t = useTranslations("nav");
   const p = usePathname();
-  const key = p.startsWith("/chat") ? "chat" : p.startsWith("/plan") ? "plan" : p.startsWith("/progress") ? "progress" : p.startsWith("/settings") ? "settings" : "today";
+  const key = p.startsWith("/chat") ? "chat" : p.startsWith("/plan") ? "plan" : p.startsWith("/progress") ? "progress" : p.startsWith("/circle") ? "circle" : p.startsWith("/settings") ? "settings" : "today";
   return <span className="hidden text-sm font-semibold text-ink-soft lg:inline">{t(key)}</span>;
 }
