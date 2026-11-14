@@ -302,7 +302,11 @@
     "emptyPick": "हवं ते निवडा. हवे तितके.",
     "emptyMore": "अजून options",
     "moreOptions": "अजून options",
-    "addPacks": "{count, plural, one {# plan} other {# plans}} जोडा"
+    "addPacks": "{count, plural, one {# plan} other {# plans}} जोडा",
+    "reviewTitle": "डॉक्टरांच्या note मधले {count, plural, one {# item} other {# items}} तुमच्या OK ची वाट पाहत आहेत",
+    "reviewCta": "पहा",
+    "part_tomorrow": "उद्या",
+    "moreTomorrow": "+{count} आणखी"
   },
   "action": {
     "title": "कामाचा तपशील",

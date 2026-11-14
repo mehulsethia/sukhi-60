@@ -18,6 +18,9 @@ const nextConfig: NextConfig = {
     },
   },
   experimental: {
+    // Tabs are fully prefetched from the nav and reused for a minute, so a tap opens instantly.
+    // Any action (revalidatePath / router.refresh) still clears this, so answers show at once.
+    staleTimes: { dynamic: 30, static: 60 },
     serverActions: { bodySizeLimit: "4mb" }, // onboarding can include a plan document (Vercel body limit ~4.5 MB)
     // The persistent Turbopack build cache (restored by Vercel between builds) served a stale
     // Tailwind stylesheet after globals.css changed. Always build CSS fresh.

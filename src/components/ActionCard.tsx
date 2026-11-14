@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { useActionState, useState } from "react";
+import { useActionState, useOptimistic, useState } from "react";
 import { useTranslations } from "next-intl";
 import { Camera, Check, Clock, Moon, MoreHorizontal, SkipForward } from "lucide-react";
 import { checkIn } from "@/app/actions";
@@ -27,7 +27,10 @@ export function ActionCard({ action, variant = "row" }: Props) {
   const [barrier, setBarrier] = useState<BarrierCode | null>(null);
   // A fresh idempotency key per intended submission; double-taps reuse the same key.
   const [key, setKey] = useState(() => crypto.randomUUID());
+  // "Done" shows the moment it's tapped; it falls back on its own if saving fails.
+  const [doneNow, setDoneNow] = useOptimistic(false);
   const [state, formAction, pending] = useActionState(async (prev: Awaited<ReturnType<typeof checkIn>>, fd: FormData) => {
+    if (fd.get("kind") === "done" && !action.weekly) setDoneNow(true);
     const r = await checkIn(prev, fd);
     if (r?.ok) {
       // The card may re-mount elsewhere after the refresh (hero → list), so confirm via the app-level toast.
@@ -44,8 +47,8 @@ export function ActionCard({ action, variant = "row" }: Props) {
   const result = state?.data?.result as string | undefined;
   const lastKind = state?.data ? (state.data.status as string) : null;
   const support = (state?.data?.support as SupportResult | null | undefined) ?? null;
-  const canAnswer = OPEN.includes(action.display) || (action.weekly && action.display !== "self_reported");
-  const complete = action.display === "self_reported" || action.display === "evidence_supported";
+  const complete = doneNow || action.display === "self_reported" || action.display === "evidence_supported";
+  const canAnswer = !doneNow && (OPEN.includes(action.display) || (action.weekly && action.display !== "self_reported"));
   const color = BUCKET_COLOR[bucketOf(action.display)];
   const hero = variant === "hero";
 
@@ -107,8 +110,8 @@ export function ActionCard({ action, variant = "row" }: Props) {
         </div>
         <div className="px-5 pb-5 pt-2 sm:px-6 sm:pb-6">
           <div className="flex flex-wrap items-start justify-between gap-3">
-            <h2 id={`t-${action.id}`} className="text-[1.35rem] sm:text-[1.6rem]">{action.title}</h2>
-            <StatusBadge status={action.display} label={t(`status.${action.display}`)} />
+            <h2 id={`t-${action.id}`} className={`text-[1.35rem] sm:text-[1.6rem] ${doneNow ? "text-ink-soft line-through decoration-1" : ""}`}>{action.title}</h2>
+            {doneNow ? <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary text-primary-ink"><Check size={18} aria-hidden="true" /></span> : <StatusBadge status={action.display} label={t(`status.${action.display}`)} />}
           </div>
           {action.instructions ? <p className="mt-1 max-w-xl text-ink-soft">{action.instructions}</p> : null}
           {buttons}

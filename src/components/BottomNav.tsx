@@ -41,7 +41,7 @@ export function BottomNav({ variant = "tabs", badges = {} }: { variant?: "tabs" 
             const active = isActive(href);
             return (
               <li key={href}>
-                <Link href={href} onClick={tap(href)} aria-current={active ? "page" : undefined} className={`relative flex min-h-12 items-center gap-3 rounded-xl px-3.5 text-[0.98rem] font-semibold transition-colors ${active ? "bg-sky text-primary" : "text-ink-soft hover:bg-sky/60 hover:text-ink"}`}>
+                <Link href={href} prefetch onClick={tap(href)} aria-current={active ? "page" : undefined} className={`relative flex min-h-12 items-center gap-3 rounded-xl px-3.5 text-[0.98rem] font-semibold transition-colors ${active ? "bg-sky text-primary" : "text-ink-soft hover:bg-sky/60 hover:text-ink"}`}>
                   {active ? <span aria-hidden="true" className="absolute -left-4 top-2 h-8 w-1 rounded-r-full bg-primary" /> : null}
                   <Icon aria-hidden="true" size={20} strokeWidth={active ? 2.3 : 1.8} />
                   {t(key)}
@@ -62,7 +62,7 @@ export function BottomNav({ variant = "tabs", badges = {} }: { variant?: "tabs" 
           const active = isActive(href);
           return (
             <li key={href} className="flex-1">
-              <Link href={href} onClick={tap(href)} aria-current={active ? "page" : undefined} className={`flex min-h-[56px] touch-manipulation select-none flex-col items-center justify-center gap-0.5 text-[0.7rem] font-medium ${active ? "text-primary" : "text-ink-faint"}`}>
+              <Link href={href} prefetch onClick={tap(href)} aria-current={active ? "page" : undefined} className={`flex min-h-[56px] touch-manipulation select-none flex-col items-center justify-center gap-0.5 text-[0.7rem] font-medium ${active ? "text-primary" : "text-ink-faint"}`}>
                 <span className={`relative flex h-7 w-12 items-center justify-center rounded-full transition-colors ${active ? "bg-primary-soft" : ""}`}>
                   <Icon aria-hidden="true" size={19} strokeWidth={active ? 2 : 1.6} />
                   {badges[key] && !active ? <span className="absolute right-2 top-0 h-2.5 w-2.5 rounded-full bg-primary ring-2 ring-surface" aria-label={`${badges[key]} new`} /> : null}

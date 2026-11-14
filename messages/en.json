@@ -302,7 +302,11 @@
     "emptyPick": "Pick what you'd like. As many as you want.",
     "emptyMore": "More options",
     "moreOptions": "More options",
-    "addPacks": "Add {count, plural, one {# plan} other {# plans}}"
+    "addPacks": "Add {count, plural, one {# plan} other {# plans}}",
+    "reviewTitle": "{count, plural, one {# item from your doctor's note needs} other {# items from your doctor's note need}} your OK",
+    "reviewCta": "Check",
+    "part_tomorrow": "Tomorrow",
+    "moreTomorrow": "+{count} more"
   },
   "action": {
     "title": "Action details",

@@ -15,7 +15,7 @@
     "saving": "सहेजा जा रहा है…",
     "saved": "सहेजा गया",
     "cancel": "रद्द करें",
-    "retry": "फिर कोशिश करें",
+    "retry": "फिर से कोशिश करें",
     "loading": "लोड हो रहा है…",
     "error": "कुछ गलत हो गया। कुछ भी नहीं बदला गया।",
     "offline": "आप ऑफ़लाइन हैं। बदलाव के लिए इंटरनेट चाहिए; ये सहेजे नहीं गए।",
@@ -302,7 +302,11 @@
     "emptyPick": "जो चाहिए वो चुनें। जितने चाहें।",
     "emptyMore": "और options",
     "moreOptions": "और options",
-    "addPacks": "{count, plural, one {# plan} other {# plans}} जोड़ें"
+    "addPacks": "{count, plural, one {# plan} other {# plans}} जोड़ें",
+    "reviewTitle": "डॉक्टर के note से {count, plural, one {# item} other {# items}} आपके OK का इंतज़ार कर रहे हैं",
+    "reviewCta": "देखें",
+    "part_tomorrow": "कल",
+    "moreTomorrow": "+{count} और"
   },
   "action": {
     "title": "काम का विवरण",

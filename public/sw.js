@@ -1,7 +1,7 @@
 // Sukhi service worker — deliberately minimal and audited.
 // Caches ONLY public, versioned static assets and the offline page.
 // Never caches HTML of authenticated pages, API responses, Supabase traffic, signed URLs or media.
-const VERSION = "sukhi-v3";
+const VERSION = "sukhi-v4";
 const OFFLINE_URL = "/offline";
 const PRECACHE = [OFFLINE_URL, "/manifest.webmanifest", "/icons/192", "/icons/512"];
 
@@ -33,9 +33,17 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // Page navigations: network only; show the static offline page if the network fails.
+  // Page navigations: network only. iPhone Home Screen apps often drop the first request after
+  // waking from the background, so retry once, then show our offline page (never the browser's
+  // bare "couldn't load" screen).
   if (req.mode === "navigate") {
-    event.respondWith(fetch(req).catch(() => caches.match(OFFLINE_URL)));
+    event.respondWith((async () => {
+      try { return await fetch(req); } catch {}
+      await new Promise((r) => setTimeout(r, 400));
+      try { return await fetch(req); } catch {}
+      return (await caches.match(OFFLINE_URL)) ||
+        new Response('<!doctype html><meta name="viewport" content="width=device-width"><body style="font-family:system-ui;padding:40px 24px;color:#1b2a28"><p>You seem to be offline.</p><button onclick="location.reload()">Try again</button>', { headers: { "Content-Type": "text/html; charset=utf-8" } });
+    })());
   }
 });
 
