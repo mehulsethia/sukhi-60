@@ -15,7 +15,7 @@ import { LIMITS, settings } from "@/lib/config";
 import { materializeOccurrences, scheduleSnoozeReminder } from "@/server/core";
 import { isValidTime, isValidTimeZone } from "@/domain/schedule";
 import { generateLinkCode, hashLinkCode, randomToken, sha256Hex } from "@/domain/router";
-import { TEMPLATES, isPackKey } from "@/domain/templates";
+import { PACK_KEYS, TEMPLATES, isPackKey } from "@/domain/templates";
 import type { DraftItem } from "@/domain/extraction";
 import { CONSENT_KINDS, writeConsentChoices } from "@/server/consents";
 import { validateUpload } from "@/server/files";
@@ -471,13 +471,25 @@ export async function createPlan(_prev: ActionState, fd: FormData): Promise<Acti
 }
 
 export async function addTemplate(fd: FormData) {
+  await addPacks([String(fd.get("template"))]);
+}
+
+/** Several packs at once (Today's picker). */
+export async function addTemplates(fd: FormData) {
+  await addPacks(fd.getAll("packs").map(String));
+}
+
+async function addPacks(raw: string[]) {
   const { supabase, user } = await requireUser();
-  const key = String(fd.get("template"));
-  if (!isPackKey(key)) return;
-  await createTemplatePlan(supabase, user.id, key);
-  // A pack brings its "why": keep it as the person's goal if they haven't told us one.
+  const keys = [...new Set(raw)].filter(isPackKey).slice(0, PACK_KEYS.length);
+  if (!keys.length) return;
+  for (const key of keys) await createTemplatePlan(supabase, user.id, key);
+  // Packs bring their "why": keep it as the person's goal if they haven't told us one.
   const { data: prof } = await supabase.from("profiles").select("personal_motivation").eq("id", user.id).single();
-  if (!prof?.personal_motivation) await supabase.from("profiles").update({ personal_motivation: TEMPLATES[key].motivation }).eq("id", user.id);
+  if (!prof?.personal_motivation) {
+    const motivation = keys.map((k, i) => (i ? TEMPLATES[k].motivation.charAt(0).toLowerCase() + TEMPLATES[k].motivation.slice(1) : TEMPLATES[k].motivation)).join(" & ").slice(0, 280);
+    await supabase.from("profiles").update({ personal_motivation: motivation }).eq("id", user.id);
+  }
   await materializeOccurrences(createAdminClient(), user.id, 7);
   revalidatePath("/plan");
   revalidatePath("/today");

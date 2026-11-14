@@ -299,9 +299,10 @@
     "nothingLeftTitle": "आजचं काही बाकी नाही",
     "nextUp": "पुढचं: {title} · {when}",
     "tomorrow": "उद्या",
-    "emptyPick": "सुरुवात करायला एक निवडा. एका tap मध्ये ready.",
+    "emptyPick": "हवं ते निवडा. हवे तितके.",
     "emptyMore": "अजून options",
-    "moreOptions": "अजून options"
+    "moreOptions": "अजून options",
+    "addPacks": "{count, plural, one {# plan} other {# plans}} जोडा"
   },
   "action": {
     "title": "कामाचा तपशील",

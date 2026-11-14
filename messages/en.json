@@ -299,9 +299,10 @@
     "nothingLeftTitle": "Nothing left for today",
     "nextUp": "Next: {title} · {when}",
     "tomorrow": "tomorrow",
-    "emptyPick": "Pick one to start. It's ready in a tap.",
+    "emptyPick": "Pick what you'd like. As many as you want.",
     "emptyMore": "More options",
-    "moreOptions": "More options"
+    "moreOptions": "More options",
+    "addPacks": "Add {count, plural, one {# plan} other {# plans}}"
   },
   "action": {
     "title": "Action details",

@@ -7,7 +7,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { getToday, materializeOccurrences, nextUpcoming } from "@/server/core";
 import { localDateOf } from "@/domain/schedule";
 import { ActionCard } from "@/components/ActionCard";
-import { PackGrid } from "@/components/PackGrid";
+import { PackPicker } from "@/components/PackPicker";
 import { FEATURED_PACKS } from "@/domain/templates";
 import { InstallPrompt } from "@/components/InstallPrompt";
 import { PushToggle } from "@/components/PushToggle";
@@ -93,7 +93,7 @@ export default async function TodayPage() {
           ) : actions.length === 0 ? (
             <section aria-labelledby="start">
               <h2 id="start" className="text-[1.05rem] font-medium">{t("today.emptyPick")}</h2>
-              <div className="mt-3"><PackGrid keys={FEATURED_PACKS} /></div>
+              <div className="mt-3"><PackPicker keys={FEATURED_PACKS} /></div>
               <Link href="/plan" className="link mt-3 inline-block text-sm">{t("today.emptyMore")}</Link>
             </section>
           ) : heroAction ? (

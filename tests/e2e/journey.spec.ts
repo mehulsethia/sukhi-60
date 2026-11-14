@@ -54,7 +54,7 @@ test.describe.serial("core journey", () => {
     await page.getByRole("radio", { name: /Simple and practical/ }).click();
     await page.getByRole("button", { name: "Start using Sukhi" }).click();
     await expect(page).toHaveURL(/\/today/);
-    await expect(page.getByText("Pick one to start. It's ready in a tap.")).toBeVisible();
+    await expect(page.getByText("Pick what you'd like. As many as you want.")).toBeVisible();
     // Reminders must fire whatever the time of day in CI: quiet hours to a 1-minute window.
     const sb = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SECRET_KEY!, { auth: { persistSession: false } });
     const { data: who } = await sb.from("profiles").select("id").eq("display_name", "Asha Test").order("created_at", { ascending: false }).limit(1).single();
