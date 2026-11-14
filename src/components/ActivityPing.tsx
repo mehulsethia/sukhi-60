@@ -4,8 +4,12 @@ import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { pingActivity } from "@/app/actions";
 
-export function ActivityPing() {
+export function ActivityPing({ renderedAt }: { renderedAt: number }) {
   const router = useRouter();
+  // Opened from the saved copy on this device (instant): fetch today's real data right away.
+  useEffect(() => {
+    if (Date.now() - renderedAt > 15_000) router.refresh();
+  }, [renderedAt, router]);
   // Back from the background after a while (the Home Screen app stays open for days): fetch fresh data.
   useEffect(() => {
     let hiddenAt = 0;

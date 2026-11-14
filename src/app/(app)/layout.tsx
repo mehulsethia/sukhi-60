@@ -10,6 +10,7 @@ import { NotificationBell } from "@/components/NotificationBell";
 import { ActivityPing } from "@/components/ActivityPing";
 import { TopTitle } from "@/components/TopTitle";
 import { cookies } from "next/headers";
+import { nowMs } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
@@ -59,7 +60,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         <main id="main" className="mx-auto w-full max-w-6xl flex-1 px-4 pb-32 pt-6 sm:px-6 lg:px-10 lg:pb-14 lg:pt-8">{children}</main>
       </div>
       <div className="lg:hidden print:hidden"><BottomNav badges={{ chat: unreadChat }} /></div>
-      <ActivityPing />
+      <ActivityPing renderedAt={nowMs()} />
       <ToastHost />
     </div>
   );

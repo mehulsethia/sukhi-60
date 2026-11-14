@@ -28,9 +28,11 @@ const PARTS = [
 
 export default async function TodayPage() {
   const { supabase, user } = await requireUser();
-  const t = await getTranslations();
-  const locale = await getLocale();
-  const { data: profile } = await supabase.from("profiles").select("display_name, timezone").eq("id", user.id).single();
+  const [t, locale, { data: profile }] = await Promise.all([
+    getTranslations(),
+    getLocale(),
+    supabase.from("profiles").select("display_name, timezone").eq("id", user.id).single(),
+  ]);
   const tz = profile?.timezone ?? "UTC";
   const firstActions = await getToday(supabase, user.id, tz);
   const todayDate = localDateOf(new Date(), tz);
