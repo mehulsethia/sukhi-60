@@ -424,7 +424,6 @@
     "sched_weekly_target": "A number of days per week",
     "sched_once": "Once",
     "times": "Times",
-    "timesHint": "Comma-separated, 24-hour, e.g. 08:00, 20:00",
     "weekdays": "Days",
     "weeklyTarget": "Days per week",
     "onceDate": "Date",
@@ -474,7 +473,15 @@
     "change_retired": "Removed",
     "change_reminder_changed": "Reminder changed",
     "viewSource": "View source document",
-    "useTemplate": "Add an example routine"
+    "useTemplate": "Add an example routine",
+    "addTime": "Add a time",
+    "removeTime": "Remove this time",
+    "err_times_required": "Add at least one time.",
+    "err_invalid_time": "One of the times isn’t valid.",
+    "err_weekdays_required": "Pick at least one day.",
+    "err_weekly_target_required": "Set how many times a week.",
+    "err_date_required": "Pick a date.",
+    "err_network": "Couldn’t reach Sukhi. Check your connection and try again."
   },
   "weekday": {
     "1": "Mon",

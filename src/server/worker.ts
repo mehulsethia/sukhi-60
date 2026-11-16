@@ -136,7 +136,9 @@ async function handleReminder(admin: AdminClient, job: Job) {
   }
 
   // Outcome-led copy in the person's tone: why it matters, not just what is due.
-  const copy = reminderCopy({ locale: profile.locale, styles: profile.communication_styles, task: item.title, category: item.category, planMode: item.care_plans.mode, name: profile.display_name, motivation: profile.personal_motivation, seed: occ.id });
+  // Lines from the last few reminders are skipped so back-to-back notifications don't repeat.
+  const { data: recentNotices } = await admin.from("messages").select("content").eq("user_id", userId).eq("role", "notice").order("created_at", { ascending: false }).limit(6);
+  const copy = reminderCopy({ locale: profile.locale, styles: profile.communication_styles, task: item.title, category: item.category, planMode: item.care_plans.mode, motivation: profile.personal_motivation, seed: occ.id, recent: (recentNotices ?? []).map((m) => m.content as string) });
   // In-app record (kept for history and the bell; the chat no longer shows reminder notices).
   await admin.from("messages").insert({ user_id: userId, role: "notice", channel: "system", content: `${copy.title} · ${copy.body}`.slice(0, 400), source_refs: [{ type: "occurrence", id: occ.id, label: item.title }] });
   // Phone notification on any device the user turned them on for (same quiet-hours check as above).

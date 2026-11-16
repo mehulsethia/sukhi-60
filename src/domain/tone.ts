@@ -51,123 +51,106 @@ export function benefitFor(item: { title: string; category?: string | null; plan
 
 type Lines = Record<Benefit, string[]>;
 
+// Short on purpose: a lock-screen line is read in a glance. Four per outcome so back-to-back
+// reminders don't repeat themselves. Nothing medical is promised.
 const OUTCOME: Record<"en" | "hi" | "mr", Lines> = {
   en: {
-    water: ["3 litres a day for a week, and your skin starts to glow.", "Hydrated now means more energy this afternoon."],
-    walk: ["A 30-minute walk lifts your mood for hours.", "Walk today, sleep deeper tonight."],
-    sleep: ["Sleep 8 hours tonight and wake up relaxed and clear-headed.", "Your skin repairs while you sleep. Tomorrow-you says thanks."],
-    breathe: ["Two slow minutes can quiet a busy mind.", "Breathe out today's stress. You'll feel lighter."],
-    fruit: ["Colour on your plate shows up as glow on your face.", "Fresh fruit means natural energy, no crash."],
-    stretch: ["Ten minutes now, less stiffness all day.", "A looser body puts you in a better mood."],
-    sun: ["Morning light sets your body clock for better sleep tonight.", "Five minutes of sun wakes you up better than coffee."],
-    breakfast: ["A good breakfast keeps your energy steady till lunch.", "Start strong and skip the mid-morning slump."],
-    caffeine: ["No caffeine now means easier sleep tonight.", "Swap the chai, and tonight's sleep comes faster."],
-    move: ["A quick move break resets your focus.", "Five minutes up and about, and your back thanks you."],
-    gratitude: ["Noticing one good thing makes tomorrow feel lighter.", "Ending on a good note helps you sleep calmer."],
-    stairs: ["Every flight builds stamina and stronger legs.", "Small climbs add up to a fitter you."],
-    medicine: ["Taking it on time keeps your recovery on track.", "Staying regular is what helps your plan work."],
-    measure: ["Regular readings help your doctor see the full picture.", "One quick reading keeps you in control."],
-    appointment: ["Showing up keeps your care on track.", "One visit now saves a lot of worry later."],
-    generic: ["Small steps, done daily, change how you feel.", "Future you will thank you for this one."],
+    water: ["Small sips, steady energy.", "Your skin will thank you.", "Hydrated now, sharper later.", "A clearer head this afternoon."],
+    walk: ["Better mood for hours.", "Walk now, sleep deeper tonight.", "Fresh air, fresh mind.", "Every step counts."],
+    sleep: ["Wake up clear-headed.", "Rest now, glow tomorrow.", "Tomorrow-you says thanks.", "Time to recharge."],
+    breathe: ["Two slow minutes, calmer mind.", "Breathe out the day.", "A quiet reset.", "Slow in, slower out."],
+    fruit: ["Natural energy, no crash.", "Some colour on your plate.", "A sweet, easy win.", "Fresh and light."],
+    stretch: ["Less stiffness all day.", "Loosen up, lift your mood.", "Two minutes, real relief.", "Your back will thank you."],
+    sun: ["Light now, better sleep tonight.", "Wakes you up better than coffee.", "Five minutes outside.", "A little daylight."],
+    breakfast: ["Steady energy till lunch.", "Start strong.", "Skip the mid-morning slump.", "Fuel for the day."],
+    caffeine: ["Easier sleep tonight.", "Swap it, sleep sooner.", "A calmer evening ahead.", "Your sleep will thank you."],
+    move: ["A quick reset for your focus.", "Up and about for five.", "Shake off the stiffness.", "Your back will thank you."],
+    gratitude: ["One good thing from today.", "End on a good note.", "What went well?", "Lighter mind, calmer sleep."],
+    stairs: ["Stronger legs, step by step.", "Small climbs add up.", "A quick stamina boost.", "Skip the lift today."],
+    medicine: ["On time keeps you on track.", "Right on schedule.", "Steady is what works.", "Quick one, then done."],
+    measure: ["Quick reading, full picture.", "Helps your doctor see trends.", "Thirty seconds, then done.", "Stay in the know."],
+    appointment: ["Keeps your care on track.", "Peace of mind, one visit.", "Worth showing up for.", "It's today."],
+    generic: ["Small steps add up.", "Future you says thanks.", "One small win.", "Quick one, then done."],
   },
   hi: {
-    water: ["एक हफ्ता रोज़ 3 litre पानी, और skin glow करने लगती है।", "अभी पानी पिएँगे तो दोपहर में energy बनी रहेगी।"],
-    walk: ["30 मिनट की walk से mood घंटों अच्छा रहता है।", "आज walk, आज रात गहरी नींद।"],
-    sleep: ["आज 8 घंटे सोइए, कल fresh और relaxed उठेंगे।", "सोते वक्त skin repair होती है। कल आप ख़ुद को thank you बोलेंगे।"],
-    breathe: ["दो मिनट धीमी साँसें, और मन शांत।", "आज का stress साँस के साथ बाहर। हल्का लगेगा।"],
-    fruit: ["Plate पर रंग, चेहरे पर glow।", "Fresh fruit से natural energy, कोई crash नहीं।"],
-    stretch: ["अभी दस मिनट, पूरे दिन कम अकड़न।", "Body ढीली, mood बढ़िया।"],
-    sun: ["सुबह की धूप से रात को नींद अच्छी आती है।", "पाँच मिनट धूप, coffee से बेहतर wake-up।"],
-    breakfast: ["अच्छा नाश्ता, lunch तक energy steady।", "दिन की strong शुरुआत, सुबह की सुस्ती गायब।"],
-    caffeine: ["अभी caffeine नहीं, तो रात को नींद आसान।", "चाय skip करें, आज नींद जल्दी आएगी।"],
-    move: ["छोटा सा move break, focus फिर से fresh।", "पाँच मिनट उठिए-चलिए, कमर thank you बोलेगी।"],
-    gratitude: ["एक अच्छी बात याद करने से कल हल्का लगता है।", "दिन अच्छी बात पर ख़त्म, नींद शांत।"],
-    stairs: ["हर सीढ़ी से stamina और मज़बूत पैर।", "छोटी-छोटी चढ़ाई, ज़्यादा fit आप।"],
-    medicine: ["Time पर लेने से recovery track पर रहती है।", "Regular रहना ही plan को काम करने देता है।"],
-    measure: ["Regular reading से doctor को पूरी picture मिलती है।", "एक quick reading, और सब control में।"],
-    appointment: ["Visit पर जाना care को track पर रखता है।", "अभी एक visit, बाद में बहुत कम चिंता।"],
-    generic: ["रोज़ के छोटे कदम, बड़ा फ़र्क।", "आगे वाले आप इसके लिए thank you बोलेंगे।"],
+    water: ["थोड़ा पानी, पूरी energy।", "Skin thank you बोलेगी।", "अभी पानी, दोपहर fresh।"],
+    walk: ["घंटों अच्छा mood।", "आज walk, रात गहरी नींद।", "ताज़ी हवा, ताज़ा मन।"],
+    sleep: ["कल fresh उठिए।", "अभी आराम, कल glow।", "Recharge का time।"],
+    breathe: ["दो मिनट, शांत मन।", "दिन का stress बाहर।", "धीमी साँस, हल्का मन।"],
+    fruit: ["Natural energy, कोई crash नहीं।", "Plate पर थोड़ा रंग।", "Fresh और हल्का।"],
+    stretch: ["दिन भर कम अकड़न।", "Body ढीली, mood बढ़िया।", "दो मिनट, बड़ा आराम।"],
+    sun: ["धूप अभी, नींद रात को।", "Coffee से बेहतर wake-up।", "पाँच मिनट बाहर।"],
+    breakfast: ["Lunch तक energy steady।", "दिन की strong शुरुआत।", "सुबह की सुस्ती गायब।"],
+    caffeine: ["रात को नींद आसान।", "आज नींद जल्दी आएगी।", "शांत शाम।"],
+    move: ["Focus फिर से fresh।", "पाँच मिनट उठिए-चलिए।", "कमर thank you बोलेगी।"],
+    gratitude: ["आज की एक अच्छी बात।", "दिन अच्छे नोट पर ख़त्म।", "आज क्या अच्छा हुआ?"],
+    stairs: ["हर सीढ़ी, मज़बूत पैर।", "छोटी चढ़ाई, बड़ा फ़र्क।", "आज lift skip।"],
+    medicine: ["Time पर, track पर।", "Regular रहना ही काम करता है।", "एक मिनट, बस हो गया।"],
+    measure: ["एक reading, पूरी picture।", "Doctor को trend दिखेगा।", "तीस second, बस।"],
+    appointment: ["Care track पर रहे।", "एक visit, मन को शांति।", "आज है।"],
+    generic: ["छोटे कदम, बड़ा फ़र्क।", "आगे वाले आप thank you बोलेंगे।", "एक छोटी जीत।"],
   },
   mr: {
-    water: ["एक आठवडा रोज 3 litre पाणी, आणि skin glow करायला लागते.", "आता पाणी प्यायलात तर दुपारी energy टिकून राहील."],
-    walk: ["30 मिनिटांच्या walk ने mood तासन्तास छान राहतो.", "आज walk, आज रात्री गाढ झोप."],
-    sleep: ["आज 8 तास झोपा, उद्या fresh आणि relaxed उठाल.", "झोपेत skin repair होते. उद्या तुम्हीच thank you म्हणाल."],
-    breathe: ["दोन मिनिटं हळू श्वास, आणि मन शांत.", "आजचा stress श्वासाबरोबर बाहेर. हलकं वाटेल."],
-    fruit: ["Plate वर रंग, चेहऱ्यावर glow.", "Fresh fruit मुळे natural energy, crash नाही."],
-    stretch: ["आता दहा मिनिटं, दिवसभर कमी आखडलेपणा.", "शरीर मोकळं, mood भारी."],
-    sun: ["सकाळच्या उन्हामुळे रात्री झोप छान लागते.", "पाच मिनिटं ऊन, coffee पेक्षा भारी wake-up."],
-    breakfast: ["चांगला नाश्ता, lunch पर्यंत energy steady.", "दिवसाची strong सुरुवात, सकाळचा आळस गायब."],
-    caffeine: ["आता caffeine नको, म्हणजे रात्री झोप सोपी.", "चहा skip करा, आज झोप लवकर लागेल."],
-    move: ["छोटा move break, focus पुन्हा fresh.", "पाच मिनिटं उठा-चाला, पाठ thank you म्हणेल."],
-    gratitude: ["एक चांगली गोष्ट आठवली की उद्या हलकं वाटतं.", "दिवस चांगल्या गोष्टीवर संपवा, झोप शांत."],
-    stairs: ["प्रत्येक जिन्याने stamina आणि मजबूत पाय.", "छोटे-छोटे चढ, जास्त fit तुम्ही."],
-    medicine: ["वेळेवर घेतल्याने recovery track वर राहते.", "Regular राहणं हेच plan ला काम करू देतं."],
-    measure: ["Regular reading मुळे doctor ना पूर्ण picture मिळते.", "एक quick reading, आणि सगळं control मध्ये."],
-    appointment: ["Visit ला जाणं care ला track वर ठेवतं.", "आता एक visit, नंतर खूप कमी काळजी."],
-    generic: ["रोजची छोटी पावलं, मोठा फरक.", "पुढचे तुम्ही यासाठी thank you म्हणाल."],
+    water: ["थोडं पाणी, पूर्ण energy.", "Skin thank you म्हणेल.", "आता पाणी, दुपारी fresh."],
+    walk: ["तासन्तास छान mood.", "आज walk, रात्री गाढ झोप.", "ताजी हवा, ताजं मन."],
+    sleep: ["उद्या fresh उठा.", "आता आराम, उद्या glow.", "Recharge ची वेळ."],
+    breathe: ["दोन मिनिटं, शांत मन.", "दिवसाचा stress बाहेर.", "हळू श्वास, हलकं मन."],
+    fruit: ["Natural energy, crash नाही.", "Plate वर थोडा रंग.", "Fresh आणि हलकं."],
+    stretch: ["दिवसभर कमी आखडलेपणा.", "शरीर मोकळं, mood भारी.", "दोन मिनिटं, मोठा आराम."],
+    sun: ["ऊन आता, झोप रात्री.", "Coffee पेक्षा भारी wake-up.", "पाच मिनिटं बाहेर."],
+    breakfast: ["Lunch पर्यंत energy steady.", "दिवसाची strong सुरुवात.", "सकाळचा आळस गायब."],
+    caffeine: ["रात्री झोप सोपी.", "आज झोप लवकर लागेल.", "शांत संध्याकाळ."],
+    move: ["Focus पुन्हा fresh.", "पाच मिनिटं उठा-चाला.", "पाठ thank you म्हणेल."],
+    gratitude: ["आजची एक चांगली गोष्ट.", "दिवस चांगल्या नोटवर संपवा.", "आज काय छान झालं?"],
+    stairs: ["प्रत्येक जिना, मजबूत पाय.", "छोटे चढ, मोठा फरक.", "आज lift skip."],
+    medicine: ["वेळेवर, track वर.", "Regular राहणं हेच काम करतं.", "एक मिनिट, झालं."],
+    measure: ["एक reading, पूर्ण picture.", "Doctor ना trend दिसेल.", "तीस second, बस."],
+    appointment: ["Care track वर राहू दे.", "एक visit, मनाला शांती.", "आज आहे."],
+    generic: ["छोटी पावलं, मोठा फरक.", "पुढचे तुम्ही thank you म्हणाल.", "एक छोटा विजय."],
   },
 };
 
-type Frame = { title: string; body: string };
-// {name} may be empty; {task} is the person's own label; {why} the outcome line.
-const FRAMES: Record<"en" | "hi" | "mr", Record<CommunicationStyle, Frame>> = {
-  en: {
-    warm_gentle: { title: "A little care for you{name}", body: "{task}? {why}" },
-    fun_playful: { title: "Psst{name} 👀", body: "{task} o'clock! {why}" },
-    motivating: { title: "Let's go{name} 💪", body: "{task}, right now. {why}" },
-    simple_practical: { title: "{task}", body: "{why}" },
-  },
-  hi: {
-    warm_gentle: { title: "आपके लिए एक छोटा सा पल{name}", body: "{task}? {why}" },
-    fun_playful: { title: "Psst{name} 👀", body: "{task} का time! {why}" },
-    motivating: { title: "चलिए{name} 💪", body: "{task}, अभी। {why}" },
-    simple_practical: { title: "{task}", body: "{why}" },
-  },
-  mr: {
-    warm_gentle: { title: "तुमच्यासाठी एक छोटा क्षण{name}", body: "{task}? {why}" },
-    fun_playful: { title: "Psst{name} 👀", body: "{task} चा time! {why}" },
-    motivating: { title: "चला{name} 💪", body: "{task}, आत्ताच. {why}" },
-    simple_practical: { title: "{task}", body: "{why}" },
-  },
-};
-
-const GOAL_LINE: Record<"en" | "hi" | "mr", string> = {
-  en: "One step closer to: {goal}.",
-  hi: "आपके goal के एक कदम और पास: {goal}।",
-  mr: "तुमच्या goal च्या एक पाऊल जवळ: {goal}.",
-};
+// Title is the task itself (what to do, at a glance) with a light tone mark; the body is one
+// short "why". No name and no wrapper phrase: the phone already shows the app name.
+const MARK: Record<CommunicationStyle, string> = { warm_gentle: "", fun_playful: " 👀", motivating: " 💪", simple_practical: "" };
 
 const loc = (l: string) => (l === "hi" || l === "mr" ? l : "en") as "en" | "hi" | "mr";
-const fill = (s: string, v: Record<string, string>) => s.replace(/\{(\w+)\}/g, (_, k) => v[k] ?? "");
 /** Small stable hash so the same reminder doesn't always get the same line. */
-function pick<T>(arr: T[], seed: string): T {
+function hash(seed: string): number {
   let h = 0;
   for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) | 0;
-  return arr[Math.abs(h) % arr.length];
+  return Math.abs(h);
+}
+function pick<T>(arr: T[], seed: string): T {
+  return arr[hash(seed) % arr.length];
 }
 
-export function outcomeLine(locale: string, benefit: Benefit, seed = ""): string {
-  return pick(OUTCOME[loc(locale)][benefit], seed);
+/** An outcome line, skipping any in `avoid` (lines the person saw recently) when possible. */
+export function outcomeLine(locale: string, benefit: Benefit, seed = "", avoid: readonly string[] = []): string {
+  const lines = OUTCOME[loc(locale)][benefit];
+  const start = hash(seed) % lines.length;
+  for (let k = 0; k < lines.length; k++) {
+    const line = lines[(start + k) % lines.length];
+    if (!avoid.some((a) => a.includes(line))) return line;
+  }
+  return lines[start];
 }
 
 /**
- * A reminder notification: outcome-led, in the person's tone and language.
- * Clinical items (medicine, a doctor's plan) never get playful framing or goal promises.
+ * A reminder notification: the task as the title, one short outcome line as the body, in the
+ * person's tone and language. Clinical items (medicine, a doctor's plan) never get playful
+ * framing or goal lines. `recent` = recent notification texts, so lines don't repeat.
  */
-export function reminderCopy(opts: { locale: string; styles: readonly unknown[] | null | undefined; task: string; category?: string | null; planMode?: string | null; name?: string | null; motivation?: string | null; seed: string }): { title: string; body: string } {
+export function reminderCopy(opts: { locale: string; styles: readonly unknown[] | null | undefined; task: string; category?: string | null; planMode?: string | null; motivation?: string | null; seed: string; recent?: readonly string[] }): { title: string; body: string } {
   const L = loc(opts.locale);
   const benefit = benefitFor({ title: opts.task, category: opts.category, planMode: opts.planMode });
-  const clinical = benefit === "medicine" || benefit === "measure" || benefit === "appointment";
-  const styles = effectiveStyles(opts.styles);
-  let style = pick(styles, opts.seed);
-  if (clinical && style === "fun_playful") style = "warm_gentle";
-  const task = opts.task.replace(/[{}<>\n\r]/g, " ").replace(/\s+/g, " ").trim().slice(0, 60);
-  const goal = opts.motivation?.replace(/[{}<>\n\r]/g, " ").trim().slice(0, 80);
-  // Every other reminder ties back to their own goal, when they told us one.
-  const useGoal = !clinical && !!goal && pick([true, false], `${opts.seed}:g`);
-  const why = useGoal ? fill(GOAL_LINE[L], { goal: goal! }) : outcomeLine(L, benefit, opts.seed);
-  const f = FRAMES[L][style];
-  const first = opts.name?.trim().split(/\s+/)[0]?.slice(0, 30);
-  const vars = { name: first ? `, ${first}` : "", task, why };
-  return { title: fill(f.title, vars).slice(0, 60), body: fill(f.body, vars).slice(0, 180) };
+  const clinical = benefit === "medicine" || benefit === "measure" || benefit === "appointment" || opts.planMode === "clinician_instructions";
+  const style = clinical ? "simple_practical" : pick(effectiveStyles(opts.styles), opts.seed);
+  const task = opts.task.replace(/[{}<>\n\r]/g, " ").replace(/\s+/g, " ").trim().slice(0, 50);
+  const recent = opts.recent ?? [];
+  const goal = opts.motivation?.replace(/[{}<>\n\r]/g, " ").replace(/\s+/g, " ").trim().slice(0, 50);
+  // About one reminder in four points back to the person's own goal, if not just shown.
+  const useGoal = !clinical && !!goal && hash(`${opts.seed}:g`) % 4 === 0 && !recent.some((r) => r.includes(goal));
+  const body = useGoal ? goal! : outcomeLine(L, benefit, opts.seed, recent);
+  return { title: `${task}${MARK[style]}`, body };
 }

@@ -6,7 +6,7 @@ import { Alert } from "@/components/ui";
 import { SubmitButton } from "@/components/SubmitButton";
 import type { DraftItem } from "@/domain/extraction";
 import { DocPicker } from "@/components/DocPicker";
-import { Leaf, Stethoscope } from "lucide-react";
+import { Leaf, Plus, Stethoscope, X } from "lucide-react";
 
 export function CreatePlanForm({ defaultMode }: { defaultMode: "clinician_instructions" | "personal_goal" }) {
   const t = useTranslations();
@@ -64,7 +64,9 @@ const BLANK: EditableItem = { title: "", instructions: "", category: "activity",
 export function ItemForm({ planId, item, clinical, onDone }: { planId: string; item?: EditableItem; clinical: boolean; onDone?: () => void }) {
   const t = useTranslations();
   const [state, action] = useActionState(async (prev: Awaited<ReturnType<typeof saveItem>>, fd: FormData) => {
-    const r = await saveItem(prev, fd);
+    // A dropped connection (common on a phone waking up) must not blank the whole screen.
+    let r: Awaited<ReturnType<typeof saveItem>>;
+    try { r = await saveItem(prev, fd); } catch { r = { error: "network" }; }
     if (r?.ok) onDone?.();
     return r;
   }, null);
@@ -73,7 +75,9 @@ export function ItemForm({ planId, item, clinical, onDone }: { planId: string; i
   const unresolved = v.unresolved_fields ?? [];
   const p = `if-${v.id ?? "new"}`;
   return (
-    <form action={action} className="flex flex-col gap-3">
+    // Enter / the keyboard's Go key would submit with the first button ("Save as draft"):
+    // only the buttons save, so a half-typed edit never silently lands as a draft.
+    <form action={action} className="flex flex-col gap-3" onKeyDown={(e) => { if (e.key === "Enter" && (e.target as HTMLElement).tagName === "INPUT") e.preventDefault(); }}>
       <input type="hidden" name="plan_id" value={planId} />
       {v.id ? <input type="hidden" name="item_id" value={v.id} /> : null}
       {v.status === "confirmed" ? <Alert tone="warn">{t("plan.editConfirmedWarning")}</Alert> : null}
@@ -85,7 +89,7 @@ export function ItemForm({ planId, item, clinical, onDone }: { planId: string; i
           <ul className="mt-1 list-disc pl-6">{unresolved.map((f) => <li key={f}>{t("plan.unresolvedField", { field: f })}</li>)}</ul>
         </Alert>
       ) : null}
-      {state?.error ? <Alert tone="danger">{state.error === "unresolved_fields" ? t("plan.unresolvedHelp") : t("common.error")}</Alert> : null}
+      {state?.error ? <Alert tone="danger">{itemError(t, state.error)}</Alert> : null}
       {state?.ok ? <Alert tone="ok">{t("common.saved")}</Alert> : null}
       <div className="field"><label htmlFor={`${p}-title`}>{t("plan.itemTitle")}</label><input id={`${p}-title`} name="title" defaultValue={v.title} required maxLength={120} className="input" /></div>
       <div className="field"><label htmlFor={`${p}-ins`}>{t("plan.itemInstructions")}</label><textarea id={`${p}-ins`} name="instructions" defaultValue={v.instructions ?? ""} maxLength={1000} rows={2} className="input" /></div>
@@ -102,7 +106,7 @@ export function ItemForm({ planId, item, clinical, onDone }: { planId: string; i
         </div>
       </div>
       {kind !== "weekly_target" ? (
-        <div className="field"><label htmlFor={`${p}-times`}>{t("plan.times")}</label><input id={`${p}-times`} name="times" defaultValue={v.times.join(", ")} className="input" aria-describedby={`${p}-th`} pattern="^\s*([01]\d|2[0-3]):[0-5]\d(\s*,\s*([01]\d|2[0-3]):[0-5]\d)*\s*$" /><span id={`${p}-th`} className="hint">{t("plan.timesHint")}</span></div>
+        <TimesField id={`${p}-times`} initial={v.times} />
       ) : (
         <div className="field"><label htmlFor={`${p}-wt`}>{t("plan.weeklyTarget")}</label><input id={`${p}-wt`} name="weekly_target" type="number" min={1} max={7} defaultValue={v.weekly_target ?? 3} className="input w-32" /></div>
       )}
@@ -126,6 +130,34 @@ export function ItemForm({ planId, item, clinical, onDone }: { planId: string; i
         <SubmitButton name="intent" value="confirm" pendingLabel={t("common.saving")}>{t("plan.confirm")}</SubmitButton>
       </div>
     </form>
+  );
+}
+
+const ITEM_ERRORS = ["times_required", "invalid_time", "weekdays_required", "weekly_target_required", "date_required", "network"];
+function itemError(t: ReturnType<typeof useTranslations>, code: string) {
+  if (code === "unresolved_fields") return t("plan.unresolvedHelp");
+  return ITEM_ERRORS.includes(code) ? t(`plan.err_${code}`) : t("common.error");
+}
+
+/** Reminder times as native clock pickers (one row per time), sent as the comma list the server expects. */
+function TimesField({ id, initial }: { id: string; initial: string[] }) {
+  const t = useTranslations();
+  const [times, setTimes] = useState<string[]>(initial.length ? initial : ["09:00"]);
+  const set = (i: number, val: string) => setTimes((ts) => ts.map((x, j) => (j === i ? val : x)));
+  return (
+    <fieldset className="field">
+      <legend className="label mb-1">{t("plan.times")}</legend>
+      <input type="hidden" name="times" value={times.filter(Boolean).join(",")} />
+      <div className="flex flex-col gap-2">
+        {times.map((tm, i) => (
+          <div key={i} className="flex items-center gap-2">
+            <input id={i === 0 ? id : undefined} type="time" value={tm} onChange={(e) => set(i, e.target.value)} required aria-label={i === 0 ? t("plan.times") : `${t("plan.times")} ${i + 1}`} className="input w-36 tabular-nums" />
+            {times.length > 1 ? <button type="button" className="btn btn-ghost px-3 text-ink-soft" aria-label={t("plan.removeTime")} onClick={() => setTimes((ts) => ts.filter((_, j) => j !== i))}><X size={16} aria-hidden="true" /></button> : null}
+          </div>
+        ))}
+      </div>
+      {times.length < 8 ? <button type="button" className="btn btn-ghost mt-1 self-start px-2 text-sm text-primary" onClick={() => setTimes((ts) => [...ts, ""])}><Plus size={15} aria-hidden="true" />{t("plan.addTime")}</button> : null}
+    </fieldset>
   );
 }
 

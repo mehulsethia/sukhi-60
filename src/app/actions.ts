@@ -700,34 +700,37 @@ function parseItem(fd: FormData) {
 export async function saveItem(_prev: ActionState, fd: FormData): Promise<ActionState> {
   const { supabase, user } = await requireUser();
   const intent = fd.get("intent") === "confirm" ? "confirm" : "draft";
-  const itemId = fd.get("item_id") ? z.string().uuid().parse(fd.get("item_id")) : null;
-  const planId = z.string().uuid().parse(fd.get("plan_id"));
+  const itemId = z.string().uuid().safeParse(fd.get("item_id"));
+  const planId = z.string().uuid().safeParse(fd.get("plan_id"));
+  if (!planId.success || (fd.get("item_id") && !itemId.success)) return { error: "invalid_input" };
   const parsed = parseItem(fd);
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "invalid_input" };
   const resolved = fd.get("resolved") === "on";
 
-  if (itemId) {
-    const { data: existing } = await supabase.from("plan_items").select("status, unresolved_fields").eq("id", itemId).single();
-    if (!existing) return { error: "not_found" };
-    // A confirmed item can't change silently: back to draft first (versioned), then edit.
-    if (existing.status === "confirmed") {
-      const { error } = await supabase.from("plan_items").update({ status: "draft" }).eq("id", itemId);
+  try {
+    if (itemId.success) {
+      const { data: existing } = await supabase.from("plan_items").select("status, unresolved_fields").eq("id", itemId.data).maybeSingle();
+      if (!existing) return { error: "not_found" };
+      const unresolved = resolved ? [] : (existing.unresolved_fields ?? []);
+      if (intent === "confirm" && unresolved.length) return { error: "unresolved_fields" };
+      // One statement: the edit and the move back to draft land together (a confirmed item can't
+      // change silently), so a failed save never strands the item as a half-edited draft.
+      const { error } = await supabase.from("plan_items").update({ ...parsed.data, unresolved_fields: unresolved, status: "draft" }).eq("id", itemId.data);
+      if (error) return { error: "save_failed" };
+      if (intent === "confirm") {
+        const { error: cErr } = await supabase.from("plan_items").update({ status: "confirmed" }).eq("id", itemId.data);
+        if (cErr) return { error: "confirm_failed" };
+      }
+    } else {
+      const { error } = await supabase.from("plan_items").insert({ ...parsed.data, plan_id: planId.data, user_id: user.id, status: intent === "confirm" ? "confirmed" : "draft", provenance: "manual" });
       if (error) return { error: "save_failed" };
     }
-    const unresolved = resolved ? [] : existing.unresolved_fields;
-    const { error } = await supabase.from("plan_items").update({ ...parsed.data, unresolved_fields: unresolved }).eq("id", itemId);
-    if (error) return { error: "save_failed" };
-    if (intent === "confirm") {
-      if (unresolved.length) return { error: "unresolved_fields" };
-      const { error: cErr } = await supabase.from("plan_items").update({ status: "confirmed" }).eq("id", itemId);
-      if (cErr) return { error: "confirm_failed" };
-    }
-  } else {
-    const { error } = await supabase.from("plan_items").insert({ ...parsed.data, plan_id: planId, user_id: user.id, status: intent === "confirm" ? "confirmed" : "draft", provenance: "manual" });
-    if (error) return { error: "save_failed" };
+  } catch {
+    return { error: "save_failed" };
   }
-  if (intent === "confirm") await materializeOccurrences(createAdminClient(), user.id, 7);
-  revalidatePath(`/plan/${planId}`);
+  // The item is saved; scheduling its reminders must not turn a save into an error.
+  if (intent === "confirm") await materializeOccurrences(createAdminClient(), user.id, 7).catch(() => undefined);
+  revalidatePath(`/plan/${planId.data}`);
   revalidatePath("/today");
   return { ok: true };
 }

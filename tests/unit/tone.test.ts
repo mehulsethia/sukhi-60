@@ -12,23 +12,35 @@ describe("outcome-led reminders", () => {
     expect(benefitFor({ title: "Anything", planMode: "clinician_instructions" })).toBe("medicine");
   });
 
-  it("says why, in the chosen tone, with the person's name", () => {
-    const c = reminderCopy({ locale: "en", styles: ["motivating"], task: "Glass of water", name: "Riya Shah", seed: "a" });
-    expect(c.title).toContain("Riya");
-    expect(c.body).toContain("Glass of water");
-    expect(c.body.length).toBeGreaterThan("Glass of water".length + 10);
+  it("is short: the task as title, one brief why, no name or wrapper", () => {
+    const c = reminderCopy({ locale: "en", styles: ["warm_gentle"], task: "Glass of water", seed: "a" });
+    expect(c.title).toBe("Glass of water");
+    expect(c.body).not.toContain("Glass of water");
+    expect(c.body.length).toBeLessThanOrEqual(40);
+    expect(c.title).not.toMatch(/care for you|Sukhi/);
   });
 
-  it("never uses playful framing for medicines", () => {
+  it("adds a light tone mark", () => {
+    expect(reminderCopy({ locale: "en", styles: ["motivating"], task: "Walk", seed: "a" }).title).toBe("Walk 💪");
+  });
+
+  it("never uses playful framing for medicines or a doctor's plan", () => {
     for (const seed of ["a", "b", "c", "d", "e"]) {
-      const c = reminderCopy({ locale: "en", styles: ["fun_playful"], task: "BP tablet", category: "medication", seed });
-      expect(c.title).not.toContain("👀");
+      expect(reminderCopy({ locale: "en", styles: ["fun_playful"], task: "BP tablet", category: "medication", seed }).title).toBe("BP tablet");
+      expect(reminderCopy({ locale: "en", styles: ["fun_playful"], task: "Walk", planMode: "clinician_instructions", motivation: "Fit", seed }).body).not.toBe("Fit");
     }
   });
 
+  it("does not repeat a line seen recently", () => {
+    const first = reminderCopy({ locale: "en", styles: ["warm_gentle"], task: "Glass of water", seed: "x" });
+    const second = reminderCopy({ locale: "en", styles: ["warm_gentle"], task: "Glass of water", seed: "x", recent: [`${first.title} · ${first.body}`] });
+    expect(second.body).not.toBe(first.body);
+  });
+
   it("ties back to the person's own goal sometimes", () => {
-    const bodies = ["1", "2", "3", "4", "5", "6", "7", "8"].map((seed) => reminderCopy({ locale: "en", styles: ["warm_gentle"], task: "Walk", motivation: "Fit for my wedding", seed }).body);
-    expect(bodies.some((b) => b.includes("Fit for my wedding"))).toBe(true);
+    const bodies = Array.from({ length: 24 }, (_, i) => reminderCopy({ locale: "en", styles: ["warm_gentle"], task: "Walk", motivation: "Fit for my wedding", seed: String(i) }).body);
+    expect(bodies.some((b) => b === "Fit for my wedding")).toBe(true);
+    expect(bodies.filter((b) => b === "Fit for my wedding").length).toBeLessThan(12);
   });
 
   it("writes Hindi and Marathi in Devanagari", () => {

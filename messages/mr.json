@@ -424,7 +424,6 @@
     "sched_weekly_target": "आठवड्यातून काही दिवस",
     "sched_once": "एकदा",
     "times": "वेळा",
-    "timesHint": "स्वल्पविरामाने वेगळ्या, 24-तास, उदा. 08:00, 20:00",
     "weekdays": "दिवस",
     "weeklyTarget": "आठवड्यातील दिवस",
     "onceDate": "तारीख",
@@ -474,7 +473,15 @@
     "change_retired": "काढले",
     "change_reminder_changed": "आठवण बदलली",
     "viewSource": "मूळ दस्तऐवज पाहा",
-    "useTemplate": "उदाहरण दिनचर्या जोडा"
+    "useTemplate": "उदाहरण दिनचर्या जोडा",
+    "addTime": "वेळ जोडा",
+    "removeTime": "ही वेळ काढा",
+    "err_times_required": "किमान एक वेळ जोडा.",
+    "err_invalid_time": "एक वेळ बरोबर नाही.",
+    "err_weekdays_required": "किमान एक दिवस निवडा.",
+    "err_weekly_target_required": "आठवड्यात किती वेळा ते निवडा.",
+    "err_date_required": "तारीख निवडा.",
+    "err_network": "Sukhi पर्यंत पोहोचता आले नाही. Internet तपासून पुन्हा प्रयत्न करा."
   },
   "weekday": {
     "1": "सोम",

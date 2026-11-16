@@ -424,7 +424,6 @@
     "sched_weekly_target": "हफ़्ते में कुछ दिन",
     "sched_once": "एक बार",
     "times": "समय",
-    "timesHint": "कॉमा से अलग, 24-घंटे, जैसे 08:00, 20:00",
     "weekdays": "दिन",
     "weeklyTarget": "हफ़्ते में दिन",
     "onceDate": "तारीख़",
@@ -474,7 +473,15 @@
     "change_retired": "हटाया गया",
     "change_reminder_changed": "रिमाइंडर बदला",
     "viewSource": "स्रोत दस्तावेज़ देखें",
-    "useTemplate": "उदाहरण दिनचर्या जोड़ें"
+    "useTemplate": "उदाहरण दिनचर्या जोड़ें",
+    "addTime": "समय जोड़ें",
+    "removeTime": "यह समय हटाएँ",
+    "err_times_required": "कम से कम एक समय जोड़ें।",
+    "err_invalid_time": "एक समय सही नहीं है।",
+    "err_weekdays_required": "कम से कम एक दिन चुनें।",
+    "err_weekly_target_required": "हफ्ते में कितनी बार, यह चुनें।",
+    "err_date_required": "तारीख चुनें।",
+    "err_network": "Sukhi तक नहीं पहुँच पाए। Internet देखकर फिर कोशिश करें।"
   },
   "weekday": {
     "1": "सोम",
