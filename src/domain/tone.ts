@@ -69,7 +69,7 @@ const OUTCOME: Record<"en" | "hi" | "mr", Lines> = {
     stairs: ["Stronger legs, step by step.", "Small climbs add up.", "A quick stamina boost.", "Skip the lift today."],
     medicine: ["On time keeps you on track.", "Right on schedule.", "Steady is what works.", "Quick one, then done."],
     measure: ["Quick reading, full picture.", "Helps your doctor see trends.", "Thirty seconds, then done.", "Stay in the know."],
-    appointment: ["Keeps your care on track.", "Peace of mind, one visit.", "Worth showing up for.", "It's today."],
+    appointment: ["Keeps your care on track.", "One less thing to worry about.", "Worth showing up for.", "It's today."],
     generic: ["Small steps add up.", "Future you says thanks.", "One small win.", "Quick one, then done."],
   },
   hi: {
@@ -153,4 +153,20 @@ export function reminderCopy(opts: { locale: string; styles: readonly unknown[] 
   const useGoal = !clinical && !!goal && hash(`${opts.seed}:g`) % 4 === 0 && !recent.some((r) => r.includes(goal));
   const body = useGoal ? goal! : outcomeLine(L, benefit, opts.seed, recent);
   return { title: `${task}${MARK[style]}`, body };
+}
+
+// ---------------------------------------------------------------------------
+// Plain, human wording for model-written text
+// ---------------------------------------------------------------------------
+/** Appended to every chat / check-in prompt. */
+export const PLAIN_STYLE = `Write like a real person texting, not like an AI. Never use em dashes (—) or en dashes (–): use a comma or a full stop instead. Avoid stock phrases such as "journey", "I hear you", "absolutely", "it's important to", "remember,", "you've got this", "small steps lead to big changes", "feel free to".`;
+
+/** Safety net for model output: dashes become commas (number ranges keep a hyphen). */
+export function plainText(s: string): string {
+  return s
+    .replace(/(\d)\s*[–—]\s*(\d)/g, "$1-$2")
+    .replace(/\s*[—–]\s*/g, ", ")
+    .replace(/,\s*([,.!?।])/g, "$1")
+    .replace(/^,\s*/, "")
+    .replace(/,\s*$/, "");
 }

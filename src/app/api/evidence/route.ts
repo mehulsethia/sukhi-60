@@ -138,7 +138,7 @@ export async function POST(req: Request) {
     const points = ((checkIn as { rewards?: { points: number }[] } | null)?.rewards ?? []).reduce((a, r) => a + r.points, 0);
     const reply = [
       f.mark_done === "true" ? t("chatUi.markedDone", { title }) : null,
-      evaluation.outcome !== "not_applicable" ? `**${t(`action.outcome_${evaluation.outcome}`)}** — ${evaluation.explanation}` : t("chatUi.savedNote"),
+      evaluation.outcome !== "not_applicable" ? `**${t(`action.outcome_${evaluation.outcome}`)}**: ${evaluation.explanation}` : t("chatUi.savedNote"),
       points > 0 ? t("today.pointsEarned", { points }) : null,
     ].filter(Boolean).join("\n\n");
     // Two statements so the timestamps keep the order (one statement shares now()).

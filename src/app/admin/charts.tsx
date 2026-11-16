@@ -79,7 +79,7 @@ export function HBars({ rows, max, suffix = "", empty = "No data yet" }: { rows:
 
 /** Retention heat cell: one hue, opacity by share. */
 export function HeatCell({ n, size }: { n: number | null; size: number }) {
-  if (n === null) return <td className="px-2 py-1.5 text-center text-xs text-ink-faint">—</td>;
+  if (n === null) return <td className="px-2 py-1.5 text-center text-xs text-ink-faint">-</td>;
   const pct = size ? Math.round((100 * n) / size) : 0;
   return (
     <td className="px-2 py-1.5 text-center text-sm tabular-nums" title={`${n} of ${size}`}>

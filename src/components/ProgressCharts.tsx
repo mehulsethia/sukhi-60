@@ -27,7 +27,7 @@ export function StackedBars({ data, labels }: { data: DayStack[]; labels: Record
           y -= h;
           return { b, y, h };
         });
-        const tip = `${d.full}: ` + (d.total ? ORDER.filter((b) => d.counts[b]).map((b) => `${labels[b]} ${d.counts[b]}`).join(", ") : "—");
+        const tip = `${d.full}: ` + (d.total ? ORDER.filter((b) => d.counts[b]).map((b) => `${labels[b]} ${d.counts[b]}`).join(", ") : "-");
         return (
           <g key={i}>
             <title>{tip}</title>

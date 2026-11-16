@@ -25,8 +25,8 @@ const LABELS: Record<string, string> = {
   model: "AI answer", fallback: "Fallback", quick_action: "Quick action", blocked: "Blocked", confirmation: "Confirmation", escalation: "Escalation",
   supports: "Supports", partially_supports: "Partly supports", does_not_support: "Doesn't support", unclear: "Unclear", not_applicable: "N/A",
 };
-const L = (k: string | null | undefined) => (k ? LABELS[k] ?? k : "—");
-const pct = (v: number | null | undefined) => (v === null || v === undefined ? "—" : `${v}%`);
+const L = (k: string | null | undefined) => (k ? LABELS[k] ?? k : "-");
+const pct = (v: number | null | undefined) => (v === null || v === undefined ? "-" : `${v}%`);
 const share = (a: number, b: number) => (b ? Math.round((100 * a) / b) : 0);
 
 function pitchLines(m: AdminMetrics): string[] {
@@ -124,8 +124,8 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
           <Stat label="Adherence (7d)" value={pct(o.adherence_7d)} sub={`all time ${pct(o.adherence_all)}`} tone="good" />
           <Stat label="Honest answers (7d)" value={pct(o.response_rate_7d)} sub={`silent ${pct(o.silence_rate_7d)}`} />
           <Stat label="Actions completed" value={o.actions_completed} sub={`${o.checkins_total} check-ins`} tone="good" />
-          <Stat label="Minutes to done" value={o.median_min_to_done ?? "—"} sub="median, from scheduled time" />
-          <Stat label="Active days / user" value={o.avg_active_days ?? "—"} sub="average" />
+          <Stat label="Minutes to done" value={o.median_min_to_done ?? "-"} sub="median, from scheduled time" />
+          <Stat label="Active days / user" value={o.avg_active_days ?? "-"} sub="average" />
         </div>
 
         {/* Pitch lines */}
@@ -207,7 +207,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
             <dl className="grid grid-cols-2 gap-x-3 gap-y-2 text-sm">
               <dt className="text-ink-soft">Documents uploaded</dt><dd className="text-right font-semibold tabular-nums">{m.ai.documents}</dd>
               <dt className="text-ink-soft">Read successfully</dt><dd className="text-right font-semibold tabular-nums">{m.ai.extract_done} <span className="text-ink-faint">({share(m.ai.extract_done, m.ai.extract_done + m.ai.extract_failed)}%)</span></dd>
-              <dt className="text-ink-soft">Avg reading time</dt><dd className="text-right font-semibold tabular-nums">{m.ai.extract_avg_ms ? `${(m.ai.extract_avg_ms / 1000).toFixed(1)} s` : "—"}</dd>
+              <dt className="text-ink-soft">Avg reading time</dt><dd className="text-right font-semibold tabular-nums">{m.ai.extract_avg_ms ? `${(m.ai.extract_avg_ms / 1000).toFixed(1)} s` : "-"}</dd>
               <dt className="text-ink-soft">Draft actions created</dt><dd className="text-right font-semibold tabular-nums">{m.ai.items_extracted}</dd>
               <dt className="text-ink-soft">Confirmed by user</dt><dd className="text-right font-semibold tabular-nums">{m.ai.items_extracted_confirmed} <span className="text-ink-faint">({share(m.ai.items_extracted_confirmed, m.ai.items_extracted)}%)</span></dd>
               <dt className="text-ink-soft">Edited before confirming</dt><dd className="text-right font-semibold tabular-nums">{m.ai.items_extracted_edited}</dd>
@@ -219,8 +219,8 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
               <dt className="text-ink-soft">Proactive check-ins sent</dt><dd className="text-right font-semibold tabular-nums">{checkinsSent}</dd>
               <dt className="text-ink-soft">Conversations</dt><dd className="text-right font-semibold tabular-nums">{m.ai.assistant_runs}</dd>
               <dt className="text-ink-soft">Users who chatted</dt><dd className="text-right font-semibold tabular-nums">{m.ai.assistant_users} <span className="text-ink-faint">({share(m.ai.assistant_users, o.users)}%)</span></dd>
-              <dt className="text-ink-soft">Response time p50</dt><dd className="text-right font-semibold tabular-nums">{m.ai.assistant_p50_ms !== null ? `${(m.ai.assistant_p50_ms / 1000).toFixed(1)} s` : "—"}</dd>
-              <dt className="text-ink-soft">Response time p95</dt><dd className="text-right font-semibold tabular-nums">{m.ai.assistant_p95_ms !== null ? `${(m.ai.assistant_p95_ms / 1000).toFixed(1)} s` : "—"}</dd>
+              <dt className="text-ink-soft">Response time p50</dt><dd className="text-right font-semibold tabular-nums">{m.ai.assistant_p50_ms !== null ? `${(m.ai.assistant_p50_ms / 1000).toFixed(1)} s` : "-"}</dd>
+              <dt className="text-ink-soft">Response time p95</dt><dd className="text-right font-semibold tabular-nums">{m.ai.assistant_p95_ms !== null ? `${(m.ai.assistant_p95_ms / 1000).toFixed(1)} s` : "-"}</dd>
               <dt className="text-ink-soft">Error rate</dt><dd className="text-right font-semibold tabular-nums">{pct(m.ai.assistant_error_rate)}</dd>
             </dl>
             <div className="mt-3"><HBars rows={m.ai.assistant_routes.map((r) => ({ label: L(r.key), v: r.n }))} /></div>
@@ -276,7 +276,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
               <Card title="Follow-ups by style" sub="Acknowledged ÷ sent (engagement, not completion)">
                 <HBars suffix="%" max={100} rows={bm.nudges.by_style.map((r) => ({ label: r.key.replace(/_/g, " "), v: r.sent ? Math.round((100 * r.ack) / r.sent) : null, note: `${r.ack}/${r.sent}` }))} />
               </Card>
-              <Card title="Habit confidence" sub={`${bm.preferences.confidence_n} answers · avg ${bm.preferences.confidence_avg ?? "—"}`}>
+              <Card title="Habit confidence" sub={`${bm.preferences.confidence_n} answers · avg ${bm.preferences.confidence_avg ?? "-"}`}>
                 <HBars rows={bm.preferences.confidence.map((r) => ({ label: `${r.key}/10`, v: r.n }))} />
               </Card>
               <Card title="Onboarding" sub="Finished ÷ started">
@@ -303,7 +303,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
                     const stale = !u.last_active || (new Date(today).getTime() - new Date(u.last_active).getTime()) / 86_400_000 >= 2;
                     return (
                       <tr key={u.id} className={`border-t border-line ${u.internal ? "opacity-50" : ""}`}>
-                        <td className="px-2 py-1.5"><span className="block font-semibold">{u.name || "—"}</span><span className="text-xs text-ink-soft">{u.email}</span></td>
+                        <td className="px-2 py-1.5"><span className="block font-semibold">{u.name || "-"}</span><span className="text-xs text-ink-soft">{u.email}</span></td>
                         <td className="px-2 py-1.5 text-xs">{u.joined.slice(0, 10)}{u.onboarded ? "" : <span className="ml-1 rounded bg-warn-bg px-1 text-warn-ink">not onboarded</span>}</td>
                         <td className="px-2 py-1.5 text-xs"><span className={stale ? "rounded bg-warn-bg px-1.5 py-0.5 text-warn-ink" : ""}>{u.last_active ?? "never"}</span></td>
                         <td className="px-2 py-1.5 text-right tabular-nums">{u.active_days}</td>

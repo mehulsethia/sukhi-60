@@ -89,7 +89,7 @@ export default async function ProgressPage({ searchParams }: { searchParams: Pro
     const c = byDay.get(d) ?? {};
     const tot = Object.entries(c).filter(([b]) => b !== "open").reduce((a, [, n]) => a + (n ?? 0), 0);
     const dn = (c.done ?? 0) + (c.evidence ?? 0);
-    return { date: d, ratio: tot ? dn / tot : null, label: `${fmtShort(d, { weekday: "short", day: "numeric", month: "short" })}: ${tot ? `${dn}/${tot}` : "—"}` };
+    return { date: d, ratio: tot ? dn / tot : null, label: `${fmtShort(d, { weekday: "short", day: "numeric", month: "short" })}: ${tot ? `${dn}/${tot}` : "-"}` };
   });
 
   // Per action
@@ -115,7 +115,7 @@ export default async function ProgressPage({ searchParams }: { searchParams: Pro
 
       <div className="mb-6 grid grid-cols-3 gap-3">
         {[
-          { Icon: Target, label: t("progressUi.completion"), value: completion === null ? "—" : `${completion}%`, sub: t("progressUi.completionSub", { done: doneN, total: closed }), color: "var(--st-done)" },
+          { Icon: Target, label: t("progressUi.completion"), value: completion === null ? "-" : `${completion}%`, sub: t("progressUi.completionSub", { done: doneN, total: closed }), color: "var(--st-done)" },
           { Icon: Flame, label: t("progressUi.streak"), value: String(current), sub: t("progressUi.bestStreak", { n: best }), color: "var(--haldi)" },
           { Icon: Trophy, label: t("progress.pointsTotal"), value: String(stats.points), sub: t("progressUi.milestonesSub", { n: stats.milestones }), color: "var(--st-unable)" },
         ].map(({ Icon, label, value, sub, color }) => (

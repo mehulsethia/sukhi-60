@@ -70,3 +70,13 @@ describe("ready-made packs", () => {
     expect(isPackKey("nope")).toBe(false);
   });
 });
+
+describe("plain wording for model text", () => {
+  it("turns dashes into commas and keeps number ranges", async () => {
+    const { plainText } = await import("@/domain/tone");
+    expect(plainText("Nice work — keep it up")).toBe("Nice work, keep it up");
+    expect(plainText("Rest today — ")).toBe("Rest today");
+    expect(plainText("Try 2–3 glasses.")).toBe("Try 2-3 glasses.");
+    expect(plainText("Well done —.")).toBe("Well done.");
+  });
+});

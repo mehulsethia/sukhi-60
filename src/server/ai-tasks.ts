@@ -74,7 +74,7 @@ export async function evaluateEvidence(admin: AdminClient, userId: string, evide
             {
               role: "user",
               content: [
-                { type: "text", text: `Agreed action (from the user's plan): ${quoteUntrusted("plan_item", `${item.title}${item.instructions ? ` — ${item.instructions}` : ""}`, 600)}\nThese are ${frames.length} still frames from a short video the person recorded, in time order. Describe what they show relative to that action.` },
+                { type: "text", text: `Agreed action (from the user's plan): ${quoteUntrusted("plan_item", `${item.title}${item.instructions ? `: ${item.instructions}` : ""}`, 600)}\nThese are ${frames.length} still frames from a short video the person recorded, in time order. Describe what they show relative to that action.` },
                 ...frames.map((f) => ({ type: "file" as const, mediaType: "image/jpeg", data: f })),
               ],
             },
@@ -104,7 +104,7 @@ export async function evaluateEvidence(admin: AdminClient, userId: string, evide
           {
             role: "user",
             content: [
-              { type: "text", text: `Agreed action (from the user's plan): ${quoteUntrusted("plan_item", `${item.title}${item.instructions ? ` — ${item.instructions}` : ""}`, 600)}\nDescribe what this photo shows relative to that action.` },
+              { type: "text", text: `Agreed action (from the user's plan): ${quoteUntrusted("plan_item", `${item.title}${item.instructions ? `: ${item.instructions}` : ""}`, 600)}\nDescribe what this photo shows relative to that action.` },
               { type: "file", mediaType: doc.mime_type, data: bytes },
             ],
           },

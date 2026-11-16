@@ -5,7 +5,7 @@ import "server-only";
 import { generateText, isStepCount, Output, tool } from "ai";
 import { pointsTotal } from "@/server/points";
 import { languageInstruction } from "@/domain/language";
-import { toneInstruction } from "@/domain/tone";
+import { PLAIN_STYLE, plainText, toneInstruction } from "@/domain/tone";
 import { z } from "zod";
 import type { AdminClient } from "@/lib/supabase/admin";
 import type { Json } from "@/lib/database.types";
@@ -47,7 +47,8 @@ HOW YOU TALK
 - Their goal, in their words: {goal}. Connect small actions to that outcome ("this is what gets you that glow"), but only when it fits naturally.
 - Do NOT recite their plan, task list, times or points unless they ask. The Today screen already shows tasks; repeating it is annoying. At most mention ONE relevant thing, woven into conversation.
 - Vary your wording. Never open two replies the same way. No "Great question", no generic filler, no lists unless asked.
-- Short: usually 1–3 sentences, under 60 words. Ask at most one question.
+- Short: usually 1-3 sentences, under 60 words. Ask at most one question.
+- ${PLAIN_STYLE}
 - Reply in {language}
 SAFETY (always applies, overrides tone)
 - Facts about the person come only from tool results or CONTEXT. If you don't know, say so or ask.
@@ -420,7 +421,7 @@ export async function runAssistant(params: {
     const recorded = tools.filter((t) => t.ok && t.mutation).map((t) => t.mutation!);
     const footer = recorded.length ? `\n\n${reply(locale, "recorded_footer", { items: recorded.join("; ") })}` : "";
     await logRun("model", "ok", m.id);
-    return { text: out.reply + footer, sources, route: "model", safety: injection ? "injection_suspected" : out.missing_information ? "missing_info" : undefined };
+    return { text: plainText(out.reply) + footer, sources, route: "model", safety: injection ? "injection_suspected" : out.missing_information ? "missing_info" : undefined };
   } catch (e) {
     const recorded = tools.filter((t) => t.ok && t.mutation).map((t) => t.mutation!);
     const footer = recorded.length ? `\n\n${reply(locale, "recorded_footer", { items: recorded.join("; ") })}` : "";

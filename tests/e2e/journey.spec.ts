@@ -179,6 +179,6 @@ test.describe.serial("core journey", () => {
 
   test("demo route is clearly fictional", async ({ page }) => {
     await page.goto("/demo");
-    await expect(page.getByText(/Fictional demo — no real AI, WhatsApp, or medical evaluation/)).toBeVisible();
+    await expect(page.getByText(/Fictional demo: no real AI, WhatsApp or medical evaluation/)).toBeVisible();
   });
 });

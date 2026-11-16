@@ -81,10 +81,10 @@ export default async function VisitPage({ searchParams }: { searchParams: Promis
       <section className="panel mb-5 p-5" aria-labelledby="v-sum">
         <h2 id="v-sum" className={h2}>{t("summary")}</h2>
         <dl className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <div><dt className="text-sm text-ink-soft">{t("completed")}</dt><dd className="text-2xl font-bold">{overall.rate === null ? "—" : `${overall.rate}%`}</dd><dd className="text-xs text-ink-soft">{t("ofKnown", { done: overall.done, known: overall.known })}</dd></div>
+          <div><dt className="text-sm text-ink-soft">{t("completed")}</dt><dd className="text-2xl font-bold">{overall.rate === null ? "-" : `${overall.rate}%`}</dd><dd className="text-xs text-ink-soft">{t("ofKnown", { done: overall.done, known: overall.known })}</dd></div>
           <div><dt className="text-sm text-ink-soft">{t("noReply")}</dt><dd className="text-2xl font-bold">{overall.unknown}</dd><dd className="text-xs text-ink-soft">{t("noReplyHint")}</dd></div>
-          <div><dt className="text-sm text-ink-soft">{t("mood")}</dt><dd className="text-2xl font-bold">{avg(m.map((x) => x.mood)) ?? "—"}<span className="text-sm font-normal text-ink-soft">/5</span></dd><dd className="text-xs text-ink-soft">{t("checkins", { n: m.length })}</dd></div>
-          <div><dt className="text-sm text-ink-soft">{t("sleep")}</dt><dd className="text-2xl font-bold">{avg(m.map((x) => x.sleep_hours)) ?? "—"}<span className="text-sm font-normal text-ink-soft"> {t("hrs")}</span></dd><dd className="text-xs text-ink-soft">{t("avgNight")}</dd></div>
+          <div><dt className="text-sm text-ink-soft">{t("mood")}</dt><dd className="text-2xl font-bold">{avg(m.map((x) => x.mood)) ?? "-"}<span className="text-sm font-normal text-ink-soft">/5</span></dd><dd className="text-xs text-ink-soft">{t("checkins", { n: m.length })}</dd></div>
+          <div><dt className="text-sm text-ink-soft">{t("sleep")}</dt><dd className="text-2xl font-bold">{avg(m.map((x) => x.sleep_hours)) ?? "-"}<span className="text-sm font-normal text-ink-soft"> {t("hrs")}</span></dd><dd className="text-xs text-ink-soft">{t("avgNight")}</dd></div>
         </dl>
         {dist.length ? <p className="mt-4 text-sm"><span className="font-semibold">{t("reasons")}:</span> {dist.map((d) => `${tr(`support.barrier_${d.code}`)} (${d.n})`).join(", ")}</p> : null}
       </section>
@@ -107,8 +107,8 @@ export default async function VisitPage({ searchParams }: { searchParams: Promis
                       <tr key={i.id} className="border-t border-line align-top">
                         <td className="py-1.5 pr-2">{i.title}{i.instructions ? <span className="block text-xs text-ink-soft">{i.instructions}</span> : null}</td>
                         <td className="py-1.5 pr-2 tabular-nums">{schedule(i)}</td>
-                        <td className="py-1.5 pr-2 tabular-nums">{r.known ? `${r.done}/${r.known}` : "—"}{r.unknown ? <span className="block text-xs text-ink-soft">{t("unknownN", { n: r.unknown })}</span> : null}</td>
-                        <td className="py-1.5 tabular-nums">{i.stock_count === null ? "—" : `${i.stock_count}${dl !== null ? ` (${t("daysShort", { n: dl })})` : ""}`}</td>
+                        <td className="py-1.5 pr-2 tabular-nums">{r.known ? `${r.done}/${r.known}` : "-"}{r.unknown ? <span className="block text-xs text-ink-soft">{t("unknownN", { n: r.unknown })}</span> : null}</td>
+                        <td className="py-1.5 tabular-nums">{i.stock_count === null ? "-" : `${i.stock_count}${dl !== null ? ` (${t("daysShort", { n: dl })})` : ""}`}</td>
                       </tr>
                     );
                   })}

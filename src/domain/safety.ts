@@ -63,9 +63,9 @@ export function isClinicalAdviceRequest(text: string): boolean {
 }
 
 export const CLINICAL_REFERRAL_MESSAGE: Record<Locale, string> = {
-  en: "I can't advise on doses, missed-dose catch-up, or changes to treatment. Please ask your doctor or pharmacist — I can note this question so you remember to ask.",
-  hi: "मैं खुराक, छूटी खुराक की भरपाई या इलाज में बदलाव पर सलाह नहीं दे सकता। कृपया अपने डॉक्टर या फार्मासिस्ट से पूछें — मैं यह सवाल नोट कर सकता हूँ ताकि आपको पूछना याद रहे।",
-  mr: "मी डोस, चुकलेल्या डोसची भरपाई किंवा उपचारातील बदल यावर सल्ला देऊ शकत नाही. कृपया तुमच्या डॉक्टरांना किंवा फार्मासिस्टना विचारा — विचारायचे लक्षात राहावे म्हणून मी हा प्रश्न नोंदवू शकतो.",
+  en: "I can't advise on doses, missed-dose catch-up, or changes to treatment. Please ask your doctor or pharmacist. I can note this question so you remember to ask.",
+  hi: "मैं खुराक, छूटी खुराक की भरपाई या इलाज में बदलाव पर सलाह नहीं दे सकता। कृपया अपने डॉक्टर या फार्मासिस्ट से पूछें। मैं यह सवाल नोट कर सकता हूँ ताकि आपको पूछना याद रहे।",
+  mr: "मी डोस, चुकलेल्या डोसची भरपाई किंवा उपचारातील बदल यावर सल्ला देऊ शकत नाही. कृपया तुमच्या डॉक्टरांना किंवा फार्मासिस्टना विचारा. विचारायचे लक्षात राहावे म्हणून मी हा प्रश्न नोंदवू शकतो.",
 };
 
 // Untrusted content (uploads, OCR, chat, retrieved docs) that tries to issue instructions.

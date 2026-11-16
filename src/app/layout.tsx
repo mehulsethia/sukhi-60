@@ -12,7 +12,7 @@ const inter = Inter({ subsets: ["latin"], variable: "--font-inter", display: "sw
 const deva = Noto_Sans_Devanagari({ subsets: ["devanagari"], variable: "--font-deva", display: "swap", weight: ["400", "500", "600", "700"] });
 
 export const metadata: Metadata = {
-  title: { default: "Sukhi — Your health in your own hands", template: "%s · Sukhi" },
+  title: { default: "Sukhi · Your health in your own hands", template: "%s · Sukhi" },
   description: "Sukhi is a voice-first wellbeing companion that helps you build small daily habits, stay consistent and gently restart when life gets in the way.",
   manifest: "/manifest.webmanifest",
   icons: { icon: [{ url: "/icon.svg", type: "image/svg+xml" }, { url: "/icons/192", type: "image/png", sizes: "192x192" }], apple: "/icons/180" },

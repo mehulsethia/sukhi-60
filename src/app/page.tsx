@@ -16,7 +16,7 @@ import { EXAMPLE_WEEK, GREETINGS, alsoIn } from "@/components/landing/samples";
 import { LogoMark } from "@/components/Logo";
 
 export const metadata: Metadata = {
-  title: { absolute: "Sukhi — Your health in your own hands" },
+  title: { absolute: "Sukhi · Your health in your own hands" },
   description: "Small steps today. A healthier tomorrow. Sukhi helps you turn everyday intentions into healthy habits, stay consistent and find your way back whenever life gets in the way.",
 };
 

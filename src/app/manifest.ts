@@ -2,7 +2,7 @@ import type { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "Sukhi — your everyday wellbeing companion",
+    name: "Sukhi: your everyday wellbeing companion",
     short_name: "Sukhi",
     description: "Small steps today. A healthier tomorrow.",
     start_url: "/today",

@@ -64,8 +64,8 @@ export default async function ActionPage({ params }: { params: Promise<{ id: str
       <div className="h-5" />
       <Section title={t("action.history")} id="hist">
         <ol className="flex flex-col gap-1">
-          {(checkIns ?? []).map((c) => <li key={c.id}>{fmtDateTime(c.created_at, tz, locale)} — {t(`status.${c.kind === "done" ? "self_reported" : c.kind === "later" ? "later" : c.kind}`)}{c.reason ? ` (${c.reason})` : ""}{c.channel === "whatsapp" ? ` · ${t("chat.fromWhatsapp")}` : ""}</li>)}
-          {(evidence ?? []).map((e) => <li key={e.id}>{fmtDateTime(e.created_at, tz, locale)} — {t(`action.${e.kind === "photo" ? "photo" : e.kind === "audio" ? "voice" : e.kind === "document" ? "document" : "note"}`)}{e.text_content ? `: ${e.text_content}` : ""}{e.transcript ? `: “${e.transcript}”` : ""}</li>)}
+          {(checkIns ?? []).map((c) => <li key={c.id}>{fmtDateTime(c.created_at, tz, locale)} · {t(`status.${c.kind === "done" ? "self_reported" : c.kind === "later" ? "later" : c.kind}`)}{c.reason ? ` (${c.reason})` : ""}{c.channel === "whatsapp" ? ` · ${t("chat.fromWhatsapp")}` : ""}</li>)}
+          {(evidence ?? []).map((e) => <li key={e.id}>{fmtDateTime(e.created_at, tz, locale)} · {t(`action.${e.kind === "photo" ? "photo" : e.kind === "audio" ? "voice" : e.kind === "document" ? "document" : "note"}`)}{e.text_content ? `: ${e.text_content}` : ""}{e.transcript ? `: “${e.transcript}”` : ""}</li>)}
         </ol>
       </Section>
     </div>
