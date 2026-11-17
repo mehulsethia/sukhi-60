@@ -796,8 +796,8 @@
     "confHigh": "Very sure",
     "nameTitle": "Hi! What should we call you?",
     "namePlaceholder": "Your name",
-    "goalTitle": "What do you want to feel?",
-    "goalTitleName": "{name}, what do you want to feel?",
+    "goalTitle": "What would you like to work on?",
+    "goalTitleName": "{name}, what would you like to work on?",
     "uploadShort": "Add a photo of the prescription (optional)",
     "toneTitle": "How should Sukhi talk to you?",
     "toneSample_warm_gentle": "Proud of you. One glass at a time 🌿",
@@ -805,7 +805,8 @@
     "toneSample_motivating": "Let's go! 3 litres, glowing skin. You've got this 💪",
     "toneSample_simple_practical": "Glass of water now. It helps your skin.",
     "consentLine": "Sukhi uses AI, reminders and voice to help you. Change anytime in Settings. Not medical advice.",
-    "skipForNow": "Skip for now"
+    "skipForNow": "Skip for now",
+    "goalPickHint": "Pick up to 3"
   },
   "doc": {
     "tipsTitle": "For the best reading",

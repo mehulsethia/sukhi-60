@@ -796,8 +796,8 @@
     "confHigh": "बिल्कुल पक्का",
     "nameTitle": "नमस्ते! आपको क्या बुलाएँ?",
     "namePlaceholder": "आपका नाम",
-    "goalTitle": "आप कैसा feel करना चाहते हैं?",
-    "goalTitleName": "{name}, आप कैसा feel करना चाहते हैं?",
+    "goalTitle": "आप किस पर काम करना चाहेंगे?",
+    "goalTitleName": "{name}, आप किस पर काम करना चाहेंगे?",
     "uploadShort": "Prescription की photo जोड़ें (optional)",
     "toneTitle": "Sukhi आपसे कैसे बात करे?",
     "toneSample_warm_gentle": "आप पर गर्व है। एक-एक glass करके 🌿",
@@ -805,7 +805,8 @@
     "toneSample_motivating": "चलिए! 3 लीटर पानी, चमकती त्वचा। आप कर सकते हैं 💪",
     "toneSample_simple_practical": "अभी एक glass पानी। skin के लिए अच्छा है।",
     "consentLine": "Sukhi आपकी मदद के लिए AI, reminders और voice इस्तेमाल करता है। Settings में कभी भी बदलें। यह medical advice नहीं है।",
-    "skipForNow": "अभी skip करें"
+    "skipForNow": "अभी skip करें",
+    "goalPickHint": "3 तक चुन सकते हैं"
   },
   "doc": {
     "tipsTitle": "सबसे अच्छी पढ़ाई के लिए",

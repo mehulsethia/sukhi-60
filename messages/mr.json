@@ -796,8 +796,8 @@
     "confHigh": "पूर्ण खात्री",
     "nameTitle": "नमस्कार! तुम्हाला काय म्हणू?",
     "namePlaceholder": "तुमचं नाव",
-    "goalTitle": "तुम्हाला कसं feel करायचंय?",
-    "goalTitleName": "{name}, तुम्हाला कसं feel करायचंय?",
+    "goalTitle": "तुम्हाला कशावर काम करायचं आहे?",
+    "goalTitleName": "{name}, तुम्हाला कशावर काम करायचं आहे?",
     "uploadShort": "Prescription चा photo जोडा (optional)",
     "toneTitle": "Sukhi ने तुमच्याशी कसं बोलावं?",
     "toneSample_warm_gentle": "तुमचा अभिमान आहे. एक-एक glass करत 🌿",
@@ -805,7 +805,8 @@
     "toneSample_motivating": "चला! 3 लिटर पाणी, चमकदार त्वचा. तुम्ही करू शकता 💪",
     "toneSample_simple_practical": "आता एक glass पाणी. skin साठी चांगलं.",
     "consentLine": "Sukhi तुमच्या मदतीसाठी AI, reminders आणि voice वापरतो. Settings मध्ये कधीही बदला. हा medical advice नाही.",
-    "skipForNow": "आत्ता skip करा"
+    "skipForNow": "आत्ता skip करा",
+    "goalPickHint": "3 पर्यंत निवडू शकता"
   },
   "doc": {
     "tipsTitle": "सर्वोत्तम वाचनासाठी",

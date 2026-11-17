@@ -41,11 +41,12 @@ export function OnboardingForm({ defaults }: { defaults: { timezone: string; loc
   const togglePack = (k: PackKey) => setPacks((ps) => (ps.includes(k) ? ps.filter((x) => x !== k) : ps.length >= MAX_PACKS ? ps : [...ps, k]));
   const go = (d: number) => {
     setStep((s) => Math.min(TOTAL - 1, Math.max(0, s + d)));
-    if (typeof window !== "undefined") window.scrollTo({ top: 0, behavior: "smooth" });
+    if (typeof window !== "undefined") window.scrollTo({ top: 0 }); // instant: Android drops taps made during a smooth scroll
   };
   const show = (n: number) => (step === n ? "" : "hidden");
   const motivation = packMotivation(packs, locale);
-  const card = (on: boolean) => `relative flex items-center gap-3 rounded-[var(--r-md)] border px-3.5 py-3 text-left transition-colors ${on ? "border-primary bg-primary-soft/50" : "border-line bg-surface hover:border-ink-soft"}`;
+  // Selected = filled tint + primary border + a solid check badge, clear at a glance on a phone.
+  const card = (on: boolean) => `relative flex touch-manipulation select-none items-center gap-3 rounded-[var(--r-md)] border px-3.5 py-3 text-left transition-colors ${on ? "border-primary bg-primary-soft ring-1 ring-primary" : "border-line bg-surface hover:border-ink-soft"}`;
 
   return (
     <main id="main" className="mx-auto flex min-h-dvh w-full max-w-md flex-col px-5 pb-28 pt-6">
@@ -92,7 +93,8 @@ export function OnboardingForm({ defaults }: { defaults: { timezone: string; loc
           {/* 2. What you want */}
           <section className={`pop-in ${show(1)}`} aria-labelledby="s1">
             <h1 id="s1" className="text-[1.5rem] leading-tight">{name.trim() ? t("onb.goalTitleName", { name: name.trim().split(/\s+/)[0] }) : t("onb.goalTitle")}</h1>
-            <div className="mt-6 grid grid-cols-2 gap-2">
+            <p className="mt-1.5 text-sm text-ink-soft">{t("onb.goalPickHint")}</p>
+            <div className="mt-5 grid grid-cols-2 gap-2">
               {FEATURED_PACKS.map((k) => {
                 const on = packs.includes(k);
                 const Icon = PACK_ICON[k] ?? Sparkles;
@@ -100,14 +102,14 @@ export function OnboardingForm({ defaults }: { defaults: { timezone: string; loc
                   <button key={k} type="button" aria-pressed={on} onClick={() => togglePack(k)} disabled={!on && packs.length >= MAX_PACKS} className={`${card(on)} min-h-[64px] disabled:opacity-40`}>
                     <Icon size={18} className={on ? "text-primary" : "text-ink-faint"} aria-hidden="true" />
                     <span className="text-[0.95rem] font-medium leading-tight">{t(`packs.${k}`)}</span>
-                    {on ? <Check size={14} className="absolute right-2.5 top-2.5 text-primary" aria-hidden="true" /> : null}
+                    {on ? <span aria-hidden="true" className="absolute right-2 top-2 flex h-5 w-5 items-center justify-center rounded-full bg-primary text-primary-ink"><Check size={12} strokeWidth={3} /></span> : null}
                   </button>
                 );
               })}
               <button type="button" aria-pressed={doctor} onClick={() => setDoctor((d) => !d)} className={`${card(doctor)} min-h-[64px]`}>
                 <Stethoscope size={18} className={doctor ? "text-primary" : "text-ink-faint"} aria-hidden="true" />
                 <span className="text-[0.95rem] font-medium leading-tight">{t("packs.doctor")}</span>
-                {doctor ? <Check size={14} className="absolute right-2.5 top-2.5 text-primary" aria-hidden="true" /> : null}
+                {doctor ? <span aria-hidden="true" className="absolute right-2 top-2 flex h-5 w-5 items-center justify-center rounded-full bg-primary text-primary-ink"><Check size={12} strokeWidth={3} /></span> : null}
               </button>
             </div>
             {doctor ? (
