@@ -21,7 +21,7 @@ import { CONSENT_KINDS, writeConsentChoices } from "@/server/consents";
 import { validateUpload } from "@/server/files";
 import { sendWelcome } from "@/server/checkins";
 import { draftQuickPlan } from "@/server/quick-plan";
-import { afterDone, joinCircle, leaveCircle, react, REACTIONS, type Reaction } from "@/server/circle";
+import { afterDone, cleanCode, createCircle, joinCircle, leaveCircle, newInviteCode, react, REACTIONS, type Reaction } from "@/server/circle";
 import { INVITE_COOKIE } from "@/lib/invite";
 import { decideSuggestion, reportBarrier, respondToNudge, type SupportResult, type SuggestionOutcome } from "@/server/support";
 import { removeSubscription, saveSubscription, sendPush } from "@/server/push";
@@ -928,14 +928,32 @@ export async function reactAction(postId: string, kind: string): Promise<{ ok: b
   return { ok: state !== "not_allowed", state };
 }
 
+/** Join by a typed 5-digit code or an invite link's code. Lands on the joined circle. */
 export async function joinCircleAction(fd: FormData) {
   const { user } = await requireUser();
-  const code = String(fd.get("code") ?? "");
-  const r = await joinCircle(createAdminClient(), user.id, code, { leaveCurrent: fd.get("switch") === "1" }).catch(() => "invalid" as const);
-  const jar = await cookies();
-  if (r !== "in_other") jar.delete(INVITE_COOKIE);
+  const raw = String(fd.get("code") ?? "").slice(0, 40);
+  const admin = createAdminClient();
+  const r = await joinCircle(admin, user.id, raw).catch(() => "invalid" as const);
+  (await cookies()).delete(INVITE_COOKIE);
+  const code = cleanCode(raw);
+  const { data: c } = r === "joined" || r === "already" ? await admin.from("circles").select("id").eq("invite_code", code ?? "").maybeSingle() : { data: null };
   revalidatePath("/circle");
-  redirect(`/circle?r=${r}`);
+  redirect(`/circle?r=${r}${c ? `&c=${c.id}` : ""}`);
+}
+
+export async function createCircleAction(fd: FormData) {
+  const { user } = await requireUser();
+  const id = await createCircle(createAdminClient(), user.id, String(fd.get("name") ?? "")).catch(() => null);
+  revalidatePath("/circle");
+  redirect(id && id !== "too_many" ? `/circle?c=${id}&r=created` : "/circle?r=too_many");
+}
+
+export async function newCircleCodeAction(fd: FormData) {
+  const { user } = await requireUser();
+  const id = z.string().uuid().safeParse(fd.get("circle_id"));
+  if (id.success) await newInviteCode(createAdminClient(), user.id, id.data);
+  revalidatePath("/circle");
+  redirect(`/circle${id.success ? `?c=${id.data}` : ""}`);
 }
 
 export async function dismissInviteAction() {
@@ -944,9 +962,10 @@ export async function dismissInviteAction() {
   revalidatePath("/circle");
 }
 
-export async function leaveCircleAction() {
+export async function leaveCircleAction(fd: FormData) {
   const { user } = await requireUser();
-  await leaveCircle(createAdminClient(), user.id);
+  const id = z.string().uuid().safeParse(fd.get("circle_id"));
+  if (id.success) await leaveCircle(createAdminClient(), user.id, id.data);
   revalidatePath("/circle");
   redirect("/circle");
 }

@@ -1,5 +1,5 @@
 import "server-only";
-// Circles: you + up to 5 friends. Points finally mean something because someone else sees
+// Circles: you + up to 5 friends, and a person can be in up to 5 circles (family, office...). Points finally mean something because someone else sees
 // them: a weekly leaderboard, a small feed of finished days / streaks / comebacks / missed
 // days, cheers, and nudges that land as a push on a friend's phone.
 // Privacy: circle-mates only see first names, weekly points, streaks, today's done/total
@@ -8,11 +8,13 @@ import "server-only";
 import type { AdminClient } from "@/lib/supabase/admin";
 import { addDays, inQuietHours, localDateOf, localTimeOf, weekStart, type OccurrenceStatus } from "@/domain/schedule";
 import { sendPush } from "./push";
+import { audit } from "./core";
 import en from "../../messages/en.json";
 import hi from "../../messages/hi.json";
 import mr from "../../messages/mr.json";
 
 export const CIRCLE_MAX = 6; // owner + 5 friends
+export const CIRCLES_PER_PERSON = 5;
 export const REACTIONS = ["cheer", "fire", "hug", "nudge"] as const;
 export type Reaction = (typeof REACTIONS)[number];
 export type PostKind = "joined" | "day_done" | "streak" | "milestone" | "missed" | "comeback" | "note";
@@ -27,31 +29,65 @@ function ct(locale: string, key: keyof typeof en.circle, vars: Record<string, st
 }
 const firstName = (n: string | null | undefined) => n?.trim().split(/\s+/)[0]?.slice(0, 30) || null;
 
+/** 5-digit join code: easy to read out or type. Guessing is rate-limited in joinCircle. */
 function newCode(): string {
-  const A = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-  const b = crypto.getRandomValues(new Uint8Array(8));
-  return Array.from(b, (x) => A[x % A.length]).join("");
+  const b = crypto.getRandomValues(new Uint32Array(1));
+  return String(10000 + (b[0] % 90000));
 }
 
-export async function myCircleId(admin: AdminClient, userId: string): Promise<string | null> {
-  const { data } = await admin.from("circle_members").select("circle_id").eq("user_id", userId).maybeSingle();
-  return data?.circle_id ?? null;
+/** Normalise what someone typed or tapped: a 5-digit code, or a legacy 8-character one. */
+export function cleanCode(raw: string): string | null {
+  const digits = raw.replace(/\D/g, "");
+  if (/^\d{5}$/.test(digits) && raw.replace(/[\s-]/g, "").length === 5) return digits;
+  const legacy = raw.toUpperCase().replace(/[^A-Z0-9]/g, "");
+  return legacy.length === 8 ? legacy : null;
 }
 
-/** Everyone has a circle (at first just themselves), so the invite link always exists. */
-export async function ensureCircle(admin: AdminClient, userId: string): Promise<string> {
-  const existing = await myCircleId(admin, userId);
-  if (existing) return existing;
-  for (let i = 0; i < 4; i++) {
-    const { data: c, error } = await admin.from("circles").insert({ owner_id: userId, invite_code: newCode() }).select("id").single();
+export async function myCircleIds(admin: AdminClient, userId: string): Promise<string[]> {
+  const { data } = await admin.from("circle_members").select("circle_id").eq("user_id", userId).order("joined_at");
+  return (data ?? []).map((m) => m.circle_id);
+}
+
+async function isMember(admin: AdminClient, userId: string, circleId: string) {
+  const { data } = await admin.from("circle_members").select("circle_id").eq("circle_id", circleId).eq("user_id", userId).maybeSingle();
+  return !!data;
+}
+
+/** A new circle owned by this person, with a fresh code. */
+export async function createCircle(admin: AdminClient, userId: string, name?: string): Promise<string | "too_many"> {
+  const title = name?.replace(/\s+/g, " ").trim().slice(0, 40) || "My circle";
+  if (title !== "My circle") await dropStarter(admin, userId);
+  if ((await myCircleIds(admin, userId)).length >= CIRCLES_PER_PERSON) return "too_many";
+  for (let i = 0; i < 6; i++) {
+    const { data: c, error } = await admin.from("circles").insert({ owner_id: userId, invite_code: newCode(), name: title }).select("id").single();
     if (error || !c) continue; // code collision: try another
     const { error: mErr } = await admin.from("circle_members").insert({ circle_id: c.id, user_id: userId });
     if (!mErr) return c.id;
     await admin.from("circles").delete().eq("id", c.id);
-    const raced = await myCircleId(admin, userId);
-    if (raced) return raced;
+    if (mErr.message.includes("too_many_circles")) return "too_many";
   }
   throw new Error("circle_create_failed");
+}
+
+/** Everyone has at least one circle (at first just themselves), so a code always exists. */
+export async function ensureCircle(admin: AdminClient, userId: string): Promise<string> {
+  const existing = await myCircleIds(admin, userId);
+  if (existing.length) return existing[0];
+  const id = await createCircle(admin, userId);
+  if (id === "too_many") return (await myCircleIds(admin, userId))[0];
+  return id;
+}
+
+/** The circle's creator can replace its code (the old code stops working). */
+export async function newInviteCode(admin: AdminClient, userId: string, circleId: string): Promise<string | null> {
+  const { data: c } = await admin.from("circles").select("owner_id").eq("id", circleId).maybeSingle();
+  if (!c || c.owner_id !== userId) return null;
+  for (let i = 0; i < 6; i++) {
+    const code = newCode();
+    const { error } = await admin.from("circles").update({ invite_code: code }).eq("id", circleId);
+    if (!error) return code;
+  }
+  return null;
 }
 
 async function memberIds(admin: AdminClient, circleId: string): Promise<string[]> {
@@ -70,11 +106,15 @@ function streakFrom(dates: Set<string>, today: string): number {
 export interface CircleMember { userId: string; name: string | null; points: number; streak: number; doneToday: number; totalToday: number; me: boolean }
 export interface CirclePost { id: string; userId: string; name: string | null; kind: PostKind; meta: Record<string, unknown>; createdAt: string; counts: Record<Reaction, number>; mine: Reaction[]; me: boolean }
 
-export async function getCircleView(admin: AdminClient, userId: string, tz: string) {
-  const circleId = await ensureCircle(admin, userId);
+/** One circle's leaderboard and feed (the asked-for one if the person is in it, else their first). */
+export async function getCircleView(admin: AdminClient, userId: string, tz: string, wantedId?: string | null) {
+  await ensureCircle(admin, userId);
+  const mineIds = await myCircleIds(admin, userId);
+  const circleId = wantedId && mineIds.includes(wantedId) ? wantedId : mineIds[0];
   const today = localDateOf(new Date(), tz);
   const ws = weekStart(today);
-  const [{ data: circle }, ids] = await Promise.all([admin.from("circles").select("id, name, invite_code, owner_id").eq("id", circleId).single(), memberIds(admin, circleId)]);
+  const [{ data: circles }, ids] = await Promise.all([admin.from("circles").select("id, name, invite_code, owner_id").in("id", mineIds), memberIds(admin, circleId)]);
+  const circle = (circles ?? []).find((c) => c.id === circleId);
   const [{ data: profiles }, { data: pts }, { data: occ }, { data: ans }, { data: posts }] = await Promise.all([
     admin.from("profiles").select("id, display_name").in("id", ids),
     admin.from("reward_events").select("user_id, points").in("user_id", ids).gte("local_date", ws),
@@ -103,26 +143,31 @@ export async function getCircleView(admin: AdminClient, userId: string, tz: stri
     const counts = Object.fromEntries(REACTIONS.map((k) => [k, rs.filter((r) => r.kind === k).length])) as Record<Reaction, number>;
     return { id: p.id, userId: p.user_id, name: names.get(p.user_id) ?? null, kind: p.kind as PostKind, meta: (p.meta ?? {}) as Record<string, unknown>, createdAt: p.created_at, counts, mine: rs.filter((r) => r.user_id === userId).map((r) => r.kind as Reaction), me: p.user_id === userId };
   });
-  return { circle: { id: circleId, name: circle?.name ?? "My circle", code: circle?.invite_code ?? "", isOwner: circle?.owner_id === userId }, members, feed, slotsLeft: Math.max(0, CIRCLE_MAX - ids.length) };
+  const list = mineIds.map((id) => { const c = (circles ?? []).find((x) => x.id === id); return { id, name: c?.name ?? "My circle" }; });
+  return {
+    circle: { id: circleId, name: circle?.name ?? "My circle", code: circle?.invite_code ?? "", isOwner: circle?.owner_id === userId },
+    circles: list,
+    canCreate: mineIds.length < CIRCLES_PER_PERSON,
+    members, feed, slotsLeft: Math.max(0, CIRCLE_MAX - ids.length),
+  };
 }
 
-/** Push to circle-mates (not the actor), outside each person's quiet hours. */
-async function notify(admin: AdminClient, circleId: string, exceptUserId: string, build: (locale: string) => { title: string; body: string } | null, filter?: (userId: string) => boolean) {
-  const ids = (await memberIds(admin, circleId)).filter((id) => id !== exceptUserId && (!filter || filter(id)));
+/** Push to these people (once each), outside each person's quiet hours. */
+async function notifyUsers(admin: AdminClient, ids: string[], tag: string, build: (locale: string) => { title: string; body: string } | null) {
   if (!ids.length) return;
-  const { data: profs } = await admin.from("profiles").select("id, locale, timezone, quiet_start, quiet_end").in("id", ids);
+  const { data: profs } = await admin.from("profiles").select("id, locale, timezone, quiet_start, quiet_end").in("id", [...new Set(ids)]);
   await Promise.all((profs ?? []).map(async (p) => {
     try { if (inQuietHours(localTimeOf(new Date(), p.timezone), p.quiet_start, p.quiet_end)) return; } catch { return; }
     const m = build(p.locale);
-    if (m) await sendPush(admin, p.id, { ...m, url: "/circle", tag: `circle-${circleId}` }).catch(() => 0);
+    if (m) await sendPush(admin, p.id, { ...m, url: "/circle", tag }).catch(() => 0);
   }));
 }
 
-async function pushOne(admin: AdminClient, userId: string, build: (locale: string) => { title: string; body: string }) {
+async function pushOne(admin: AdminClient, userId: string, build: (locale: string) => { title: string; body: string }, url = "/circle") {
   const { data: p } = await admin.from("profiles").select("locale, timezone, quiet_start, quiet_end").eq("id", userId).maybeSingle();
   if (!p) return;
   try { if (inQuietHours(localTimeOf(new Date(), p.timezone), p.quiet_start, p.quiet_end)) return; } catch { return; }
-  await sendPush(admin, userId, { ...build(p.locale), url: "/circle", tag: "circle" }).catch(() => 0);
+  await sendPush(admin, userId, { ...build(p.locale), url, tag: "circle" }).catch(() => 0);
 }
 
 async function nameOf(admin: AdminClient, userId: string) {
@@ -130,44 +175,56 @@ async function nameOf(admin: AdminClient, userId: string) {
   return firstName(data?.display_name);
 }
 
-/** Add a feed post for the user's circle. Idempotent by dedupe key. Returns true if new. */
-export async function postToCircle(admin: AdminClient, userId: string, kind: PostKind, meta: Record<string, string | number> = {}, dedupeKey?: string): Promise<{ circleId: string; created: boolean } | null> {
-  const circleId = await myCircleId(admin, userId);
-  if (!circleId) return null;
-  const { data } = await admin.from("circle_posts").upsert({ circle_id: circleId, user_id: userId, kind, meta, dedupe_key: dedupeKey ?? null }, { onConflict: "dedupe_key", ignoreDuplicates: true }).select("id");
-  return { circleId, created: !!data?.length };
+/** Add a feed post to each of the user's circles. Idempotent per circle by dedupe key. */
+export async function postToCircle(admin: AdminClient, userId: string, kind: PostKind, meta: Record<string, string | number> = {}, dedupeKey?: string, onlyCircle?: string): Promise<{ circleId: string; created: boolean }[]> {
+  const ids = onlyCircle ? [onlyCircle] : await myCircleIds(admin, userId);
+  return Promise.all(ids.map(async (circleId) => {
+    const { data } = await admin.from("circle_posts").upsert({ circle_id: circleId, user_id: userId, kind, meta, dedupe_key: dedupeKey ? `${dedupeKey}:${circleId}`.slice(0, 160) : null }, { onConflict: "dedupe_key", ignoreDuplicates: true }).select("id");
+    return { circleId, created: !!data?.length };
+  }));
 }
 
-export type JoinResult = "joined" | "already" | "invalid" | "full" | "in_other";
+export type JoinResult = "joined" | "already" | "invalid" | "full" | "too_many" | "rate_limited";
 
-export async function joinCircle(admin: AdminClient, userId: string, rawCode: string, opts: { leaveCurrent?: boolean } = {}): Promise<JoinResult> {
-  const code = rawCode.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 8);
-  if (code.length !== 8) return "invalid";
-  const { data: target } = await admin.from("circles").select("id").eq("invite_code", code).maybeSingle();
-  if (!target) return "invalid";
-  const current = await myCircleId(admin, userId);
-  if (current === target.id) return "already";
-  if (current) {
-    const others = (await memberIds(admin, current)).filter((id) => id !== userId);
-    if (others.length && !opts.leaveCurrent) return "in_other";
-    await leaveCircle(admin, userId);
+export async function joinCircle(admin: AdminClient, userId: string, rawCode: string): Promise<JoinResult> {
+  // Short codes can be guessed: a few wrong tries an hour, then a pause.
+  const since = new Date(Date.now() - 3600_000).toISOString();
+  const { count } = await admin.from("audit_events").select("id", { count: "exact", head: true }).eq("user_id", userId).eq("action", "circle_code_failed").gte("created_at", since);
+  if ((count ?? 0) >= 8) return "rate_limited";
+  const code = cleanCode(rawCode);
+  const { data: target } = code ? await admin.from("circles").select("id").eq("invite_code", code).maybeSingle() : { data: null };
+  if (!target) {
+    await audit(admin, userId, "user", "circle_code_failed", "circle");
+    return "invalid";
   }
+  const mine = await myCircleIds(admin, userId);
+  if (mine.includes(target.id)) return "already";
+  await dropStarter(admin, userId);
   const { error } = await admin.from("circle_members").insert({ circle_id: target.id, user_id: userId });
   if (error) {
-    if (error.message.includes("circle_full")) { await ensureCircle(admin, userId); return "full"; }
-    if ((await myCircleId(admin, userId)) === target.id) return "already";
+    await ensureCircle(admin, userId);
+    if (error.message.includes("circle_full")) return "full";
+    if (error.message.includes("too_many_circles")) return "too_many";
+    if (await isMember(admin, userId, target.id)) return "already";
     throw new Error("join_failed");
   }
-  await postToCircle(admin, userId, "joined", {}, `joined:${target.id}:${userId}`);
+  await postToCircle(admin, userId, "joined", {}, `joined:${userId}`, target.id);
   const name = (await nameOf(admin, userId)) ?? "";
-  await notify(admin, target.id, userId, (l) => ({ title: ct(l, "pushTitle"), body: ct(l, "pushJoined", { name: name || ct(l, "someone") }) }));
+  await notifyUsers(admin, (await memberIds(admin, target.id)).filter((id) => id !== userId), `circle-${target.id}`, (l) => ({ title: ct(l, "pushTitle"), body: ct(l, "pushJoined", { name: name || ct(l, "someone") }) }));
   return "joined";
 }
 
-export async function leaveCircle(admin: AdminClient, userId: string) {
-  const circleId = await myCircleId(admin, userId);
-  if (!circleId) return;
-  await admin.from("circle_members").delete().eq("user_id", userId);
+/** Their untouched starter circle (just them, default name) makes way for a real one. */
+async function dropStarter(admin: AdminClient, userId: string) {
+  for (const id of await myCircleIds(admin, userId)) {
+    const { data: c } = await admin.from("circles").select("name, owner_id").eq("id", id).maybeSingle();
+    if (c?.owner_id === userId && c.name === "My circle" && (await memberIds(admin, id)).length === 1) await leaveCircle(admin, userId, id);
+  }
+}
+
+export async function leaveCircle(admin: AdminClient, userId: string, circleId: string) {
+  if (!(await isMember(admin, userId, circleId))) return;
+  await admin.from("circle_members").delete().eq("user_id", userId).eq("circle_id", circleId);
   const rest = await memberIds(admin, circleId);
   if (!rest.length) await admin.from("circles").delete().eq("id", circleId);
   else await admin.from("circles").update({ owner_id: rest[0] }).eq("id", circleId).eq("owner_id", userId);
@@ -175,9 +232,8 @@ export async function leaveCircle(admin: AdminClient, userId: string) {
 
 /** Toggle a reaction. A nudge can't be taken back and only goes on a friend's post. */
 export async function react(admin: AdminClient, userId: string, postId: string, kind: Reaction): Promise<"added" | "removed" | "not_allowed"> {
-  const circleId = await myCircleId(admin, userId);
   const { data: post } = await admin.from("circle_posts").select("id, circle_id, user_id, kind").eq("id", postId).maybeSingle();
-  if (!post || !circleId || post.circle_id !== circleId) return "not_allowed";
+  if (!post || !(await isMember(admin, userId, post.circle_id))) return "not_allowed";
   if (kind === "nudge" && (post.user_id === userId || post.kind !== "missed")) return "not_allowed";
   const { data: existing } = await admin.from("circle_reactions").select("post_id").eq("post_id", postId).eq("user_id", userId).eq("kind", kind).maybeSingle();
   if (existing) {
@@ -190,7 +246,7 @@ export async function react(admin: AdminClient, userId: string, postId: string, 
   if (post.user_id !== userId) {
     const name = (await nameOf(admin, userId)) ?? "";
     const key = ({ cheer: "pushCheer", fire: "pushFire", hug: "pushHug", nudge: "pushNudge" } as const)[kind];
-    await pushOne(admin, post.user_id, (l) => ({ title: ct(l, key, { name: name || ct(l, "someone") }), body: kind === "nudge" ? ct(l, "pushNudgeBody") : ct(l, "pushReactBody") }));
+    await pushOne(admin, post.user_id, (l) => ({ title: ct(l, key, { name: name || ct(l, "someone") }), body: kind === "nudge" ? ct(l, "pushNudgeBody") : ct(l, "pushReactBody") }), `/circle?c=${post.circle_id}`);
   }
   return "added";
 }
@@ -200,32 +256,33 @@ export async function react(admin: AdminClient, userId: string, postId: string, 
  * done after a missed day → comeback post; new milestones → milestone post.
  */
 export async function afterDone(admin: AdminClient, userId: string, rewards: { kind: string; label: string }[] = []) {
-  const circleId = await myCircleId(admin, userId);
-  if (!circleId) return;
+  const circleIds = await myCircleIds(admin, userId);
+  if (!circleIds.length) return;
   const { data: prof } = await admin.from("profiles").select("timezone, display_name").eq("id", userId).single();
   if (!prof) return;
   const today = localDateOf(new Date(), prof.timezone);
   for (const r of rewards.filter((x) => x.kind === "milestone")) await postToCircle(admin, userId, "milestone", { label: r.label.slice(0, 60) }, `milestone:${userId}:${today}:${r.label.slice(0, 40)}`);
-  const { data: missed } = await admin.from("circle_posts").select("id").eq("user_id", userId).eq("kind", "missed").eq("dedupe_key", `missed:${userId}:${addDays(today, -1)}`).maybeSingle();
-  if (missed) await postToCircle(admin, userId, "comeback", {}, `comeback:${userId}:${today}`);
+  const { data: missed } = await admin.from("circle_posts").select("id").eq("user_id", userId).eq("kind", "missed").like("dedupe_key", `missed:${userId}:${addDays(today, -1)}%`).limit(1);
+  if (missed?.length) await postToCircle(admin, userId, "comeback", {}, `comeback:${userId}:${today}`);
   const { data: occ } = await admin.from("action_occurrences").select("status").eq("user_id", userId).eq("local_date", today).neq("status", "paused");
   const total = (occ ?? []).length;
   const done = (occ ?? []).filter((o) => DONE.includes(o.status)).length;
   if (!total || done < total) return;
-  const posted = await postToCircle(admin, userId, "day_done", { n: total }, `day_done:${userId}:${today}`);
-  if (!posted?.created) return;
-  // Friends who still have things open today get a gentle "your turn?".
-  const ids = (await memberIds(admin, circleId)).filter((id) => id !== userId);
-  if (!ids.length) return;
-  const { data: theirs } = await admin.from("action_occurrences").select("user_id, status").in("user_id", ids).eq("local_date", today).neq("status", "paused");
-  const open = new Set((theirs ?? []).filter((o) => !ANSWERED.includes(o.status)).map((o) => o.user_id));
+  const posted = (await postToCircle(admin, userId, "day_done", { n: total }, `day_done:${userId}:${today}`)).filter((p) => p.created);
+  if (!posted.length) return;
+  // Friends (across every circle with a new post) who still have things open get one "your turn?".
+  const friends = new Set<string>();
+  for (const p of posted) for (const id of await memberIds(admin, p.circleId)) if (id !== userId) friends.add(id);
+  if (!friends.size) return;
+  const { data: theirs } = await admin.from("action_occurrences").select("user_id, status").in("user_id", [...friends]).eq("local_date", today).neq("status", "paused");
+  const open = [...new Set((theirs ?? []).filter((o) => !ANSWERED.includes(o.status)).map((o) => o.user_id))];
   const name = firstName(prof.display_name) ?? "";
-  await notify(admin, circleId, userId, (l) => ({ title: ct(l, "pushDayDone", { name: name || ct(l, "someone") }), body: ct(l, "pushYourTurn") }), (id) => open.has(id));
+  await notifyUsers(admin, open, "circle-day", (l) => ({ title: ct(l, "pushDayDone", { name: name || ct(l, "someone") }), body: ct(l, "pushYourTurn") }));
 }
 
 /** Once a day (first check-in slot): yesterday's miss, or a streak worth celebrating. */
 export async function postDaily(admin: AdminClient, userId: string, date: string) {
-  if (!(await myCircleId(admin, userId))) return;
+  if (!(await myCircleIds(admin, userId)).length) return;
   const yesterday = addDays(date, -1);
   const { data: occ } = await admin.from("action_occurrences").select("local_date, status").eq("user_id", userId).gte("local_date", addDays(date, -60)).lt("local_date", date).neq("status", "paused");
   const y = (occ ?? []).filter((o) => o.local_date === yesterday);

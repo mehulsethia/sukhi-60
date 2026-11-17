@@ -1,3 +1,4 @@
+import Link from "next/link";
 import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import { getLocale, getTranslations } from "next-intl/server";
@@ -5,10 +6,10 @@ import { Flame } from "lucide-react";
 import { requireUser } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getCircleView, type CirclePost } from "@/server/circle";
-import { InviteShare, Reactions } from "@/components/CircleClient";
+import { CircleActions, CodeCopy, InviteShare, Reactions } from "@/components/CircleClient";
 import { Alert } from "@/components/ui";
 import { SubmitButton } from "@/components/SubmitButton";
-import { dismissInviteAction, joinCircleAction, leaveCircleAction } from "@/app/actions";
+import { dismissInviteAction, joinCircleAction, leaveCircleAction, newCircleCodeAction } from "@/app/actions";
 import { INVITE_COOKIE } from "@/lib/invite";
 import { intlLocale, nowMs } from "@/lib/format";
 import { FreshOnOpen } from "@/components/FreshOnOpen";
@@ -27,13 +28,15 @@ function ago(iso: string, locale: string) {
   return rtf.format(Math.round(s / 86400), "day");
 }
 
-export default async function CirclePage({ searchParams }: { searchParams: Promise<{ r?: string }> }) {
-  const { r } = await searchParams;
+const RESULTS = ["joined", "already", "full", "invalid", "too_many", "rate_limited", "created"];
+
+export default async function CirclePage({ searchParams }: { searchParams: Promise<{ r?: string; c?: string }> }) {
+  const { r, c } = await searchParams;
   const { supabase, user } = await requireUser();
   const t = await getTranslations();
   const locale = await getLocale();
   const { data: profile } = await supabase.from("profiles").select("timezone").eq("id", user.id).single();
-  const view = await getCircleView(createAdminClient(), user.id, profile?.timezone ?? "Asia/Kolkata");
+  const view = await getCircleView(createAdminClient(), user.id, profile?.timezone ?? "Asia/Kolkata", c && /^[0-9a-f-]{36}$/.test(c) ? c : null);
   const pending = (await cookies()).get(INVITE_COOKIE)?.value;
   const invite = pending && pending !== view.circle.code ? pending : null;
   const base = process.env.NEXT_PUBLIC_APP_URL || "https://sukhi-60.vercel.app";
@@ -45,21 +48,29 @@ export default async function CirclePage({ searchParams }: { searchParams: Promi
   return (
     <>
       <FreshOnOpen renderedAt={nowMs()} />
-      <header className="mb-5">
+      <header className="mb-4">
         <h1 className="text-[1.6rem] sm:text-[2rem]">{t("circle.title")}</h1>
       </header>
 
-      {r && r !== "in_other" ? <div className="mb-4"><Alert tone={r === "joined" || r === "already" ? "ok" : "warn"}>{t(`circle.r_${r === "joined" || r === "already" || r === "full" ? r : "invalid"}`)}</Alert></div> : null}
+      {view.circles.length > 1 ? (
+        <nav aria-label={t("circle.title")} className="-mx-1 mb-4 flex gap-1.5 overflow-x-auto px-1 pb-1">
+          {view.circles.map((x) => (
+            <Link key={x.id} href={`/circle?c=${x.id}`} aria-current={x.id === view.circle.id ? "page" : undefined} className={`shrink-0 rounded-full border px-3.5 py-1.5 text-sm transition-colors ${x.id === view.circle.id ? "border-primary bg-primary text-primary-ink" : "border-line bg-surface text-ink-soft hover:border-ink-soft"}`}>{x.name}</Link>
+          ))}
+        </nav>
+      ) : null}
+
+      <CircleActions canCreate={view.canCreate} />
+
+      {r && RESULTS.includes(r) ? <div className="mb-4"><Alert tone={r === "joined" || r === "already" || r === "created" ? "ok" : "warn"}>{t(`circle.r_${r}`)}</Alert></div> : null}
 
       {invite ? (
         <section className="panel mb-5 p-4">
-          <p className="font-medium">{alone ? t("circle.joinTitle") : t("circle.switchTitle")}</p>
-          {!alone ? <p className="mt-1 text-sm text-ink-soft">{t("circle.switchBody")}</p> : null}
+          <p className="font-medium">{t("circle.joinTitle")}</p>
           <div className="mt-3 flex gap-2">
             <form action={joinCircleAction}>
               <input type="hidden" name="code" value={invite} />
-              {!alone ? <input type="hidden" name="switch" value="1" /> : null}
-              <SubmitButton className="btn btn-primary">{alone ? t("circle.join") : t("circle.switchCta")}</SubmitButton>
+              <SubmitButton className="btn btn-primary">{t("circle.join")}</SubmitButton>
             </form>
             <form action={dismissInviteAction}><button className="btn btn-ghost">{t("circle.notNow")}</button></form>
           </div>
@@ -67,20 +78,40 @@ export default async function CirclePage({ searchParams }: { searchParams: Promi
       ) : null}
 
       {alone ? (
-        <section className="panel mb-6 flex flex-col items-center px-6 py-8 text-center">
+        <section className="panel mb-5 flex flex-col items-center px-6 pb-6 pt-7 text-center">
           <div aria-hidden="true" className="flex -space-x-2">
             {["🙂", "😄", "🥳"].map((e) => <span key={e} className="flex h-10 w-10 items-center justify-center rounded-full border-2 border-surface bg-surface-2 text-lg">{e}</span>)}
           </div>
           <p className="mt-4 text-[1.05rem] font-medium">{t("circle.aloneTitle")}</p>
           <p className="mt-1 max-w-xs text-sm text-ink-soft">{t("circle.aloneBody")}</p>
-          <div className="mt-5"><InviteShare url={link} label={t("circle.invite")} /></div>
+        </section>
+      ) : null}
+
+      {view.slotsLeft > 0 ? (
+        <section aria-labelledby="code" className="panel mb-6 p-4">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <h2 id="code" className="text-[0.75rem] font-medium uppercase tracking-[0.08em] text-ink-faint">{t("circle.code")}</h2>
+              {/^\d{5}$/.test(view.circle.code) ? <p className="display mt-0.5 text-[1.9rem] font-semibold tabular-nums tracking-[0.2em]">{view.circle.code}</p> : <p className="mt-1 text-sm text-ink-soft">{t("circle.noCode")}</p>}
+            </div>
+            {/^\d{5}$/.test(view.circle.code) ? <CodeCopy code={view.circle.code} /> : null}
+          </div>
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <InviteShare url={link} code={view.circle.code} label={t("circle.invite")} variant="pill" />
+            {view.circle.isOwner ? (
+              <form action={newCircleCodeAction}>
+                <input type="hidden" name="circle_id" value={view.circle.id} />
+                <SubmitButton className="btn btn-ghost px-3 text-sm">{/^\d{5}$/.test(view.circle.code) ? t("circle.newCode") : t("circle.makeCode")}</SubmitButton>
+              </form>
+            ) : null}
+            <span className="ml-auto text-xs text-ink-faint">{t("circle.spotsLeft", { n: view.slotsLeft })}</span>
+          </div>
         </section>
       ) : null}
 
       <section aria-labelledby="board" className="mb-7">
         <div className="flex items-center justify-between">
           <h2 id="board" className={eyebrow}>{t("circle.week")}</h2>
-          {!alone && view.slotsLeft > 0 ? <InviteShare url={link} label={t("circle.spots", { n: view.slotsLeft })} variant="pill" /> : null}
         </div>
         <ol className="panel divide-y divide-line">
           {view.members.map((m, i) => (
@@ -120,10 +151,10 @@ export default async function CirclePage({ searchParams }: { searchParams: Promi
         )}
       </section>
 
-      {!alone ? (
+      {!alone || view.circles.length > 1 ? (
         <details className="text-sm text-ink-faint">
           <summary className="cursor-pointer">{t("circle.more")}</summary>
-          <form action={leaveCircleAction} className="mt-2"><SubmitButton className="btn btn-ghost px-0 text-sm text-danger-ink underline">{t("circle.leave")}</SubmitButton></form>
+          <form action={leaveCircleAction} className="mt-2"><input type="hidden" name="circle_id" value={view.circle.id} /><SubmitButton className="btn btn-ghost px-0 text-sm text-danger-ink underline">{t("circle.leave")}</SubmitButton></form>
         </details>
       ) : null}
     </>

@@ -1762,7 +1762,7 @@ export type Database = {
       }
     }
     Functions: {
-      my_circle_id: { Args: never; Returns: string }
+      my_circle_ids: { Args: never; Returns: string[] }
       _award: {
         Args: {
           p_capped: boolean

@@ -1,15 +1,16 @@
 "use client";
 import { useOptimistic, useState, useTransition } from "react";
 import { useTranslations } from "next-intl";
-import { Check, Link2, Share2 } from "lucide-react";
-import { reactAction } from "@/app/actions";
+import { Check, Copy, Link2, Plus, Share2, Users } from "lucide-react";
+import { createCircleAction, joinCircleAction, reactAction } from "@/app/actions";
+import { SubmitButton } from "@/components/SubmitButton";
 
 /** Share the invite link: native share sheet (WhatsApp etc.) when available, else copy. */
-export function InviteShare({ url, label, variant = "primary" }: { url: string; label: string; variant?: "primary" | "pill" }) {
+export function InviteShare({ url, code, label, variant = "primary" }: { url: string; code: string; label: string; variant?: "primary" | "pill" }) {
   const t = useTranslations("circle");
   const [copied, setCopied] = useState(false);
   async function share() {
-    const text = t("shareText");
+    const text = t("shareText", { code });
     try {
       if (navigator.share) { await navigator.share({ title: "Sukhi", text, url }); return; }
     } catch { /* cancelled: fall through to copy */ }
@@ -47,6 +48,48 @@ export function Reactions({ postId, counts, mine, canNudge }: { postId: string; 
           </button>
         );
       })}
+    </div>
+  );
+}
+
+/** The circle's join code, big enough to read out, with a one-tap copy. */
+export function CodeCopy({ code }: { code: string }) {
+  const t = useTranslations("circle");
+  const [copied, setCopied] = useState(false);
+  async function copy() {
+    try { await navigator.clipboard.writeText(code); setCopied(true); setTimeout(() => setCopied(false), 1800); } catch { /* no clipboard: the code is on screen */ }
+  }
+  return (
+    <button type="button" onClick={copy} className="pill-btn text-sm" aria-label={`${t("copy")} ${code}`}>
+      {copied ? <Check size={15} aria-hidden="true" /> : <Copy size={15} aria-hidden="true" />}
+      {copied ? t("copiedCode") : t("copy")}
+    </button>
+  );
+}
+
+/** "Join with a code" and "New circle": one small inline form at a time. */
+export function CircleActions({ canCreate }: { canCreate: boolean }) {
+  const t = useTranslations("circle");
+  const [open, setOpen] = useState<"join" | "new" | null>(null);
+  const toggle = (k: "join" | "new") => setOpen((o) => (o === k ? null : k));
+  return (
+    <div className="mb-5">
+      <div className="flex flex-wrap gap-2">
+        <button type="button" onClick={() => toggle("join")} aria-expanded={open === "join"} className="pill-btn text-sm"><Users size={15} aria-hidden="true" />{t("joinWithCode")}</button>
+        {canCreate ? <button type="button" onClick={() => toggle("new")} aria-expanded={open === "new"} className="pill-btn text-sm"><Plus size={15} aria-hidden="true" />{t("newCircle")}</button> : null}
+      </div>
+      {open === "join" ? (
+        <form action={joinCircleAction} className="mt-3 flex gap-2">
+          <input name="code" required inputMode="numeric" autoComplete="off" pattern="\d{5}|[A-Za-z0-9]{8}" maxLength={8} placeholder={t("codePlaceholder")} aria-label={t("joinWithCode")} className="input w-40 text-center text-lg tracking-[0.3em] tabular-nums" autoFocus />
+          <SubmitButton className="btn btn-primary">{t("join")}</SubmitButton>
+        </form>
+      ) : null}
+      {open === "new" ? (
+        <form action={createCircleAction} className="mt-3 flex gap-2">
+          <input name="name" maxLength={40} placeholder={t("namePlaceholder")} aria-label={t("newCircle")} className="input min-w-0 flex-1" autoFocus />
+          <SubmitButton className="btn btn-primary">{t("create")}</SubmitButton>
+        </form>
+      ) : null}
     </div>
   );
 }

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { admin, makeUser, planWithDueItem } from "./helpers";
 import { materializeOccurrences, applyCheckIn } from "@/server/core";
-import { afterDone, ensureCircle, getCircleView, joinCircle, leaveCircle, postDaily, react } from "@/server/circle";
+import { afterDone, createCircle, ensureCircle, getCircleView, joinCircle, leaveCircle, newInviteCode, postDaily, react } from "@/server/circle";
 import { addDays, localDateOf } from "@/domain/schedule";
 
 const TZ = "Asia/Kolkata";
@@ -26,18 +26,47 @@ describe("circles", () => {
     expect(view.feed.filter((p) => p.kind === "joined")).toHaveLength(5);
   });
 
-  it("someone already in a circle with friends must confirm before switching", async () => {
+  it("a person can be in several circles, joined by a 5-digit code", async () => {
     const a = await makeUser("circle-a");
     const b = await makeUser("circle-b");
     const c = await makeUser("circle-c");
     const ca = await ensureCircle(admin(), a.id);
-    await joinCircle(admin(), b.id, await codeOf(ca));
-    const cc = await ensureCircle(admin(), c.id);
-    expect(await joinCircle(admin(), b.id, await codeOf(cc))).toBe("in_other");
-    expect(await joinCircle(admin(), b.id, await codeOf(cc), { leaveCurrent: true })).toBe("joined");
-    // Owner leaves: the circle goes on with the remaining member as owner.
-    await leaveCircle(admin(), c.id);
+    expect(await codeOf(ca)).toMatch(/^\d{5}$/);
+    const bStarter = await ensureCircle(admin(), b.id);
+    expect(await joinCircle(admin(), b.id, await codeOf(ca))).toBe("joined");
+    // b's untouched starter circle made way for the real one.
+    expect((await admin().from("circles").select("id").eq("id", bStarter)).data).toEqual([]);
+    const cc = await createCircle(admin(), c.id, "Office");
+    expect(typeof cc === "string" && cc !== "too_many").toBe(true);
+    expect(await joinCircle(admin(), b.id, ` ${await codeOf(cc as string)} `)).toBe("joined");
+    const view = await getCircleView(admin(), b.id, TZ, cc as string);
+    expect(view.circles.map((x) => x.id)).toEqual([ca, cc]);
+    expect(view.circle.name).toBe("Office");
+    // Only the creator can replace the code; the old one stops working.
+    const old = await codeOf(cc as string);
+    expect(await newInviteCode(admin(), b.id, cc as string)).toBeNull();
+    const fresh = await newInviteCode(admin(), c.id, cc as string);
+    expect(fresh).toMatch(/^\d{5}$/);
+    if (fresh !== old) expect(await joinCircle(admin(), a.id, old)).toBe("invalid");
+    // Posts go to each circle once.
+    await afterDone(admin(), b.id, [{ kind: "milestone", label: "First week" }]);
+    await afterDone(admin(), b.id, [{ kind: "milestone", label: "First week" }]);
+    const ms = (await admin().from("circle_posts").select("circle_id").eq("user_id", b.id).eq("kind", "milestone")).data!;
+    expect(ms.map((m) => m.circle_id).sort()).toEqual([ca, cc].sort());
+    // Leaving one circle keeps the other; the owner leaving hands the circle on.
+    await leaveCircle(admin(), c.id, cc as string);
     expect((await admin().from("circles").select("owner_id").eq("id", cc).single()).data!.owner_id).toBe(b.id);
+  });
+
+  it("caps circles per person and slows down code guessing", async () => {
+    const u = await makeUser("circle-cap");
+    for (let i = 0; i < 5; i++) expect(await createCircle(admin(), u.id, `C${i}`)).not.toBe("too_many");
+    expect(await createCircle(admin(), u.id, "C6")).toBe("too_many");
+    const g = await makeUser("circle-guess");
+    const results = [];
+    for (let i = 0; i < 9; i++) results.push(await joinCircle(admin(), g.id, "00000"));
+    expect(results.slice(0, 8).every((r) => r === "invalid")).toBe(true);
+    expect(results[8]).toBe("rate_limited");
   });
 
   it("circle-mates see each other's posts; outsiders see nothing (RLS)", async () => {
