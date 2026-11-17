@@ -9,7 +9,7 @@ import { PackGrid } from "@/components/PackGrid";
 import { QuickPlan } from "@/components/QuickPlan";
 import { DoctorUpload } from "@/components/DoctorUpload";
 import { CategoryIcon } from "@/components/CategoryIcon";
-import { TEMPLATES, PACK_KEYS } from "@/domain/templates";
+import { PACK_KEYS, packPlanNames } from "@/domain/templates";
 
 export const metadata: Metadata = { title: "My plan" };
 
@@ -29,7 +29,7 @@ export default async function PlanList({ searchParams }: { searchParams: Promise
   ]);
   const list = plans ?? [];
   // Packs already added (by their plan name) aren't offered again.
-  const added = PACK_KEYS.filter((k) => list.some((p) => p.title === TEMPLATES[k].plan && p.status !== "archived"));
+  const added = PACK_KEYS.filter((k) => list.some((p) => packPlanNames(k).includes(p.title) && p.status !== "archived"));
   return (
     <>
       <header className="mb-6 flex items-end justify-between gap-3">

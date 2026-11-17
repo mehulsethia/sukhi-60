@@ -24,17 +24,17 @@ export type Benefit = (typeof BENEFITS)[number];
 
 const RULES: [Benefit, RegExp][] = [
   ["water", /water|hydrat|पानी|पाणी|glass/i],
-  ["caffeine", /caffeine|coffee|chai|tea|कॉफी|चाय|चहा/i],
-  ["sleep", /sleep|bed|screen|wind.?down|नींद|झोप/i],
-  ["breathe", /breath|meditat|pranayam|सांस|श्वास/i],
+  ["caffeine", /caffeine|coffee|chai|tea|कॉफी|कॉफ़ी|चाय|चहा/i],
+  ["sleep", /sleep|bed|screen|wind.?down|नींद|झोप|सोन/i],
+  ["breathe", /breath|meditat|pranayam|सांस|साँस|श्वास/i],
   ["fruit", /fruit|salad|vegetable|veggie|फल|फळ|सलाद/i],
-  ["stretch", /stretch|yoga|योग/i],
+  ["stretch", /stretch|yoga|योग|स्ट्रेच/i],
   ["sun", /sun|daylight|धूप|ऊन/i],
   ["breakfast", /breakfast|नाश्ता|नाश्ता/i],
-  ["stairs", /stair|सीढ़ी|जिना/i],
-  ["move", /move break|stand up|break/i],
-  ["walk", /walk|steps|jog|run|cycle|चल|टहल|फिर/i],
-  ["gratitude", /good thing|gratitude|journal|diary/i],
+  ["stairs", /stair|सीढ़ी|सीढ़ि|जिना|जिन्या/i],
+  ["move", /move break|stand up|break|ब्रेक/i],
+  ["walk", /walk|steps|jog|run|cycle|चल|चाल|टहल|फिर|सैर/i],
+  ["gratitude", /good thing|gratitude|journal|diary|अच्छी बात|चांगली गोष्ट/i],
 ];
 
 export function benefitFor(item: { title: string; category?: string | null; planMode?: string | null }): Benefit {

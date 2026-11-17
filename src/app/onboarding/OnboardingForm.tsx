@@ -11,7 +11,7 @@ import { Alert } from "@/components/ui";
 import { SubmitButton } from "@/components/SubmitButton";
 import { Logo } from "@/components/Logo";
 import { DocPicker } from "@/components/DocPicker";
-import { FEATURED_PACKS, TEMPLATES, type PackKey } from "@/domain/templates";
+import { FEATURED_PACKS, packMotivation, type PackKey } from "@/domain/templates";
 import { COMMUNICATION_STYLES, type CommunicationStyle } from "@/domain/behaviour";
 import { setLocaleCookie } from "@/lib/client-prefs";
 
@@ -44,7 +44,7 @@ export function OnboardingForm({ defaults }: { defaults: { timezone: string; loc
     if (typeof window !== "undefined") window.scrollTo({ top: 0, behavior: "smooth" });
   };
   const show = (n: number) => (step === n ? "" : "hidden");
-  const motivation = packs.map((k, i) => (i ? TEMPLATES[k].motivation.charAt(0).toLowerCase() + TEMPLATES[k].motivation.slice(1) : TEMPLATES[k].motivation)).join(" & ").slice(0, 280);
+  const motivation = packMotivation(packs, locale);
   const card = (on: boolean) => `relative flex items-center gap-3 rounded-[var(--r-md)] border px-3.5 py-3 text-left transition-colors ${on ? "border-primary bg-primary-soft/50" : "border-line bg-surface hover:border-ink-soft"}`;
 
   return (

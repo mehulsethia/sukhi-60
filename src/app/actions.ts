@@ -15,7 +15,7 @@ import { LIMITS, settings } from "@/lib/config";
 import { materializeOccurrences, scheduleSnoozeReminder } from "@/server/core";
 import { isValidTime, isValidTimeZone } from "@/domain/schedule";
 import { generateLinkCode, hashLinkCode, randomToken, sha256Hex } from "@/domain/router";
-import { PACK_KEYS, TEMPLATES, isPackKey } from "@/domain/templates";
+import { PACK_KEYS, isPackKey, packFor, packMotivation, type PackKey } from "@/domain/templates";
 import type { DraftItem } from "@/domain/extraction";
 import { CONSENT_KINDS, writeConsentChoices } from "@/server/consents";
 import { validateUpload } from "@/server/files";
@@ -151,8 +151,8 @@ async function storePlanSource(supabase: UserDb, userId: string, file: File) {
   return data?.id ?? null;
 }
 
-async function createTemplatePlan(supabase: Awaited<ReturnType<typeof requireUser>>["supabase"], userId: string, key: keyof typeof TEMPLATES) {
-  const tpl = TEMPLATES[key];
+async function createTemplatePlan(supabase: Awaited<ReturnType<typeof requireUser>>["supabase"], userId: string, key: PackKey, locale: string) {
+  const tpl = packFor(key, locale);
   const { data: plan, error } = await supabase.from("care_plans").insert({ user_id: userId, title: tpl.plan, mode: "personal_goal", status: "active", source_description: "Sukhi example routine (personal goal)" }).select("id").single();
   if (error || !plan) throw new Error("plan_create_failed");
   const { data: items, error: itemErr } = await supabase.from("plan_items").insert(tpl.items.map((i) => ({ ...i, plan_id: plan.id, user_id: userId, status: "confirmed" as const, provenance: "template" as const }))).select("id");
@@ -242,7 +242,7 @@ export async function completeOnboarding(_prev: ActionState, fd: FormData): Prom
     // Ready-made packs (one tap each) plus the older single-template field.
     const packs = [...new Set([...fd.getAll("packs").map(String), tpl])].filter(isPackKey).slice(0, 4);
     for (const key of packs) {
-      const created = await createTemplatePlan(supabase, user.id, key);
+      const created = await createTemplatePlan(supabase, user.id, key, String(fd.get("locale") ?? "en"));
       if (confidence !== null) await supabase.from("habit_confidence").insert({ user_id: user.id, plan_id: created.planId, item_id: created.itemId, confidence });
     }
     if (packs.length) await materializeOccurrences(createAdminClient(), user.id, 7);
@@ -410,6 +410,7 @@ export async function chatQuickAction(occurrenceId: string, kind: "done" | "late
   const a = await admin.from("messages").insert({ user_id: user.id, role: "assistant", channel: "web", content: [ack, pts].filter(Boolean).join(" "), source_refs: ref as never }).select("id, content").single();
   revalidatePath("/today");
   revalidatePath("/progress");
+  revalidatePath("/circle"); // points, streaks and today counts
   return { ok: true, messages: [u.data && { id: u.data.id, role: "user" as const, content: u.data.content }, a.data && { id: a.data.id, role: "assistant" as const, content: a.data.content }].filter(Boolean) as { id: string; role: "user" | "assistant"; content: string }[] };
 }
 
@@ -483,11 +484,12 @@ async function addPacks(raw: string[]) {
   const { supabase, user } = await requireUser();
   const keys = [...new Set(raw)].filter(isPackKey).slice(0, PACK_KEYS.length);
   if (!keys.length) return;
-  for (const key of keys) await createTemplatePlan(supabase, user.id, key);
+  const { data: prof } = await supabase.from("profiles").select("personal_motivation, locale").eq("id", user.id).single();
+  const locale = prof?.locale ?? "en";
+  for (const key of keys) await createTemplatePlan(supabase, user.id, key, locale);
   // Packs bring their "why": keep it as the person's goal if they haven't told us one.
-  const { data: prof } = await supabase.from("profiles").select("personal_motivation").eq("id", user.id).single();
   if (!prof?.personal_motivation) {
-    const motivation = keys.map((k, i) => (i ? TEMPLATES[k].motivation.charAt(0).toLowerCase() + TEMPLATES[k].motivation.slice(1) : TEMPLATES[k].motivation)).join(" & ").slice(0, 280);
+    const motivation = packMotivation(keys, locale);
     await supabase.from("profiles").update({ personal_motivation: motivation }).eq("id", user.id);
   }
   await materializeOccurrences(createAdminClient(), user.id, 7);
@@ -628,6 +630,7 @@ export async function saveMood(_prev: ActionState, fd: FormData): Promise<Action
   if (error) return { error: "save_failed" };
   revalidatePath("/today");
   revalidatePath("/progress");
+  revalidatePath("/circle"); // points, streaks and today counts
   return { ok: true, data: { low: v.data.mood <= 2 || v.data.stress === 3 } };
 }
 
@@ -785,6 +788,7 @@ export async function checkIn(_prev: ActionState, fd: FormData): Promise<ActionS
   }
   revalidatePath("/today");
   revalidatePath("/progress");
+  revalidatePath("/circle"); // points, streaks and today counts
   return { ok: true, data: { ...(data as Record<string, unknown>), support } };
 }
 

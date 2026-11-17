@@ -80,3 +80,24 @@ describe("plain wording for model text", () => {
     expect(plainText("Well done —.")).toBe("Well done.");
   });
 });
+
+describe("packs in the person's language", () => {
+  it("saves Marathi and Hindi plans with matching reminder outcomes", async () => {
+    const { PACK_KEYS, packFor, packPlanNames, packMotivation, TEMPLATES } = await import("@/domain/templates");
+    for (const k of PACK_KEYS) {
+      for (const l of ["hi", "mr"]) {
+        const p = packFor(k, l);
+        expect(p.plan).toMatch(/[ऀ-ॿ]/);
+        expect(packPlanNames(k)).toContain(p.plan);
+        p.items.forEach((it, i) => {
+          expect(it.title).toMatch(/[ऀ-ॿ]/);
+          expect(it.times).toEqual(TEMPLATES[k].items[i].times);
+          // the localized title maps to the same kind of "why" as the English one
+          expect(benefitFor({ title: it.title, category: it.category })).toBe(benefitFor({ title: TEMPLATES[k].items[i].title, category: it.category }));
+        });
+      }
+      expect(packFor(k, "en")).toBe(TEMPLATES[k]);
+    }
+    expect(packMotivation(["glow", "sleep"], "mr")).toBe("स्वच्छ, चमकदार त्वचा आणि सकाळी ताजंतवानं उठणं");
+  });
+});

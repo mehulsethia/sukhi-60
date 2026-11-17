@@ -10,7 +10,8 @@ import { Alert } from "@/components/ui";
 import { SubmitButton } from "@/components/SubmitButton";
 import { dismissInviteAction, joinCircleAction, leaveCircleAction } from "@/app/actions";
 import { INVITE_COOKIE } from "@/lib/invite";
-import { intlLocale } from "@/lib/format";
+import { intlLocale, nowMs } from "@/lib/format";
+import { FreshOnOpen } from "@/components/FreshOnOpen";
 
 export const metadata: Metadata = { title: "Circle" };
 
@@ -43,6 +44,7 @@ export default async function CirclePage({ searchParams }: { searchParams: Promi
 
   return (
     <>
+      <FreshOnOpen renderedAt={nowMs()} />
       <header className="mb-5">
         <h1 className="text-[1.6rem] sm:text-[2rem]">{t("circle.title")}</h1>
       </header>
