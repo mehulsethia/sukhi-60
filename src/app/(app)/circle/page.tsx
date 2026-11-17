@@ -16,7 +16,7 @@ import { FreshOnOpen } from "@/components/FreshOnOpen";
 
 export const metadata: Metadata = { title: "Circle" };
 
-const POST_EMOJI: Record<string, string> = { joined: "👋", day_done: "✅", streak: "🔥", milestone: "🏅", missed: "💭", comeback: "💪", note: "💬" };
+const POST_EMOJI: Record<string, string> = { joined: "👋", day_done: "✅", streak: "🔥", milestone: "🏅", missed: "💭", comeback: "💪", note: "💬", challenge_start: "🏁", challenge_last_day: "⏳", challenge_end: "🏆" };
 const eyebrow = "mb-2.5 text-[0.75rem] font-medium uppercase tracking-[0.08em] text-ink-faint";
 
 function ago(iso: string, locale: string) {
@@ -28,7 +28,7 @@ function ago(iso: string, locale: string) {
   return rtf.format(Math.round(s / 86400), "day");
 }
 
-const RESULTS = ["joined", "already", "full", "invalid", "too_many", "rate_limited", "created"];
+const RESULTS = ["joined", "already", "full", "invalid", "too_many", "rate_limited", "created", "ended"];
 
 export default async function CirclePage({ searchParams }: { searchParams: Promise<{ r?: string; c?: string }> }) {
   const { r, c } = await searchParams;
@@ -43,7 +43,10 @@ export default async function CirclePage({ searchParams }: { searchParams: Promi
   const link = `${base.replace(/\/$/, "")}/circle/join/${view.circle.code}`;
   const alone = view.members.length === 1;
   const name = (p: { name: string | null; me: boolean }) => (p.me ? t("circle.you") : p.name ?? t("circle.someone"));
-  const postText = (p: CirclePost) => t(`circle.post_${p.kind}`, { name: name(p), n: Number(p.meta.n ?? 0), label: String(p.meta.label ?? "") });
+  const postText = (p: CirclePost) => (p.kind === "challenge_end" && !p.meta.label ? t("circle.post_challenge_end_none") : t(`circle.post_${p.kind}`, { name: name(p), n: Number(p.meta.n ?? 0), label: String(p.meta.label ?? "") }));
+  const ch = view.challenge;
+  const dateFmt = (d: string) => new Intl.DateTimeFormat(intlLocale(locale), { day: "numeric", month: "short", timeZone: "UTC" }).format(new Date(`${d}T00:00:00Z`));
+  const myRank = view.members.findIndex((m) => m.me) + 1;
 
   return (
     <>
@@ -55,7 +58,7 @@ export default async function CirclePage({ searchParams }: { searchParams: Promi
       {view.circles.length > 1 ? (
         <nav aria-label={t("circle.title")} className="-mx-1 mb-4 flex gap-1.5 overflow-x-auto px-1 pb-1">
           {view.circles.map((x) => (
-            <Link key={x.id} href={`/circle?c=${x.id}`} aria-current={x.id === view.circle.id ? "page" : undefined} className={`shrink-0 rounded-full border px-3.5 py-1.5 text-sm transition-colors ${x.id === view.circle.id ? "border-primary bg-primary text-primary-ink" : "border-line bg-surface text-ink-soft hover:border-ink-soft"}`}>{x.name}</Link>
+            <Link key={x.id} href={`/circle?c=${x.id}`} aria-current={x.id === view.circle.id ? "page" : undefined} className={`shrink-0 rounded-full border px-3.5 py-1.5 text-sm transition-colors ${x.id === view.circle.id ? "border-primary bg-primary text-primary-ink" : "border-line bg-surface text-ink-soft hover:border-ink-soft"}`}>{x.challenge ? "🏆 " : ""}{x.name}</Link>
           ))}
         </nav>
       ) : null}
@@ -77,7 +80,23 @@ export default async function CirclePage({ searchParams }: { searchParams: Promi
         </section>
       ) : null}
 
-      {alone ? (
+      {ch ? (
+        <section aria-labelledby="challenge" className="panel mb-5 p-4">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <h2 id="challenge" className="text-[1.05rem] font-semibold">🏆 {view.circle.name}</h2>
+              <p className="mt-0.5 text-sm text-ink-soft">{t("circle.dates", { start: dateFmt(ch.startsOn), end: dateFmt(ch.endsOn) })}</p>
+            </div>
+            <span className={`chip shrink-0 ${ch.state === "live" ? "bg-primary-soft text-primary" : ""}`}>
+              {ch.state === "upcoming" ? t("circle.startsOn", { date: dateFmt(ch.startsOn) }) : ch.state === "ended" ? t("circle.ended") : ch.daysLeft === 0 ? t("circle.lastDay") : ch.daysLeft === 1 ? t("circle.endsTomorrow") : t("circle.daysLeft", { n: ch.daysLeft })}
+            </span>
+          </div>
+          {ch.prize ? <p className="mt-3 text-sm"><span className="text-ink-faint">{t("circle.prize")}: </span><span className="font-medium">{ch.prize}</span></p> : null}
+          {myRank && ch.state !== "upcoming" ? <p className="mt-1 text-sm font-medium text-primary">{t("circle.rank", { n: myRank, total: view.members.length })}</p> : null}
+        </section>
+      ) : null}
+
+      {alone && !ch ? (
         <section className="panel mb-5 flex flex-col items-center px-6 pb-6 pt-7 text-center">
           <div aria-hidden="true" className="flex -space-x-2">
             {["🙂", "😄", "🥳"].map((e) => <span key={e} className="flex h-10 w-10 items-center justify-center rounded-full border-2 border-surface bg-surface-2 text-lg">{e}</span>)}
@@ -87,7 +106,7 @@ export default async function CirclePage({ searchParams }: { searchParams: Promi
         </section>
       ) : null}
 
-      {view.slotsLeft > 0 ? (
+      {(view.slotsLeft === null ? ch?.state !== "ended" : view.slotsLeft > 0) ? (
         <section aria-labelledby="code" className="panel mb-6 p-4">
           <div className="flex items-center justify-between gap-3">
             <div>
@@ -104,14 +123,14 @@ export default async function CirclePage({ searchParams }: { searchParams: Promi
                 <SubmitButton className="btn btn-ghost px-3 text-sm">{/^\d{5}$/.test(view.circle.code) ? t("circle.newCode") : t("circle.makeCode")}</SubmitButton>
               </form>
             ) : null}
-            <span className="ml-auto text-xs text-ink-faint">{t("circle.spotsLeft", { n: view.slotsLeft })}</span>
+            {view.slotsLeft !== null ? <span className="ml-auto text-xs text-ink-faint">{t("circle.spotsLeft", { n: view.slotsLeft })}</span> : null}
           </div>
         </section>
       ) : null}
 
       <section aria-labelledby="board" className="mb-7">
         <div className="flex items-center justify-between">
-          <h2 id="board" className={eyebrow}>{t("circle.week")}</h2>
+          <h2 id="board" className={eyebrow}>{ch ? t("circle.challengePoints") : t("circle.week")}</h2>
         </div>
         <ol className="panel divide-y divide-line">
           {view.members.map((m, i) => (
@@ -143,7 +162,7 @@ export default async function CirclePage({ searchParams }: { searchParams: Promi
                 <span aria-hidden="true" className="text-lg leading-6">{POST_EMOJI[p.kind] ?? "•"}</span>
                 <div className="min-w-0 flex-1">
                   <p className="text-[0.92rem]">{postText(p)} <span className="text-xs text-ink-faint">· {ago(p.createdAt, locale)}</span></p>
-                  {!p.me ? <Reactions postId={p.id} counts={p.counts} mine={p.mine} canNudge={p.kind === "missed"} /> : (p.counts.cheer + p.counts.fire + p.counts.hug + p.counts.nudge > 0 ? <p className="mt-1 text-xs text-ink-faint">{p.counts.cheer ? `👏 ${p.counts.cheer} ` : ""}{p.counts.fire ? `🔥 ${p.counts.fire} ` : ""}{p.counts.hug ? `🤗 ${p.counts.hug} ` : ""}{p.counts.nudge ? `👋 ${p.counts.nudge}` : ""}</p> : null)}
+                  {p.userId === null ? null : !p.me ? <Reactions postId={p.id} counts={p.counts} mine={p.mine} canNudge={p.kind === "missed"} /> : (p.counts.cheer + p.counts.fire + p.counts.hug + p.counts.nudge > 0 ? <p className="mt-1 text-xs text-ink-faint">{p.counts.cheer ? `👏 ${p.counts.cheer} ` : ""}{p.counts.fire ? `🔥 ${p.counts.fire} ` : ""}{p.counts.hug ? `🤗 ${p.counts.hug} ` : ""}{p.counts.nudge ? `👋 ${p.counts.nudge}` : ""}</p> : null)}
                 </div>
               </li>
             ))}

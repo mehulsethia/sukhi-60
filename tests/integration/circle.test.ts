@@ -115,3 +115,60 @@ describe("circles", () => {
     expect(await react(admin(), a.id, missed[0].id, "nudge")).toBe("added"); // can't be un-sent
   });
 });
+
+describe("challenges", () => {
+  const noonIST = (date: string) => new Date(`${date}T06:30:00Z`); // 12:00 in India
+
+  it("anyone can join with the code; it doesn't count as a circle; points count only inside the dates", async () => {
+    const { createChallenge, runChallenges, CHALLENGE_TZ } = await import("@/server/circle");
+    const today = localDateOf(new Date(), CHALLENGE_TZ);
+    const ch = await createChallenge(admin(), { name: "Pilot challenge", startsOn: addDays(today, -1), endsOn: addDays(today, 1), prize: "₹500 voucher" });
+    expect(ch.code).toMatch(/^\d{5}$/);
+    const a = await makeUser("ch-a");
+    const b = await makeUser("ch-b");
+    await admin().from("profiles").update({ display_name: "Asha" }).eq("id", a.id);
+    await admin().from("profiles").update({ display_name: "Bina" }).eq("id", b.id);
+    for (let i = 0; i < 5; i++) await createCircle(admin(), a.id, `Group ${i}`);
+    // a is in 5 real circles already; the challenge still lets them in.
+    expect(await joinCircle(admin(), a.id, ch.code)).toBe("joined");
+    // b's starter circle stays: a challenge isn't a replacement for their own circle.
+    const starter = await ensureCircle(admin(), b.id);
+    expect(await joinCircle(admin(), b.id, ch.code)).toBe("joined");
+    expect((await admin().from("circles").select("id").eq("id", starter)).data).toHaveLength(1);
+    // Points: one inside the window for b, one before the start for a.
+    await admin().from("reward_events").insert([
+      { user_id: b.id, kind: "completion", points: 6, local_date: today, week_start: today, label: "x", dedupe_key: `t-${crypto.randomUUID()}` },
+      { user_id: a.id, kind: "completion", points: 9, local_date: addDays(today, -3), week_start: today, label: "x", dedupe_key: `t-${crypto.randomUUID()}` },
+    ] as never);
+    const view = await getCircleView(admin(), a.id, TZ, ch.id);
+    expect(view.challenge?.state).toBe("live");
+    expect(view.challenge?.prize).toBe("₹500 voucher");
+    expect(view.slotsLeft).toBeNull();
+    expect(view.members.map((m) => [m.name, m.points])).toEqual([["Bina", 6], ["Asha", 0]]);
+    // Leaving doesn't delete the challenge, even when empty.
+    await leaveCircle(admin(), a.id, ch.id);
+    await leaveCircle(admin(), b.id, ch.id);
+    expect((await admin().from("circles").select("id").eq("id", ch.id)).data).toHaveLength(1);
+    expect(await runChallenges(admin(), noonIST(today), ch.id)).toBe(0); // live, not its first or last day: nothing to announce
+  });
+
+  it("announces start, last day and the winner once each; ended challenges can't be joined", async () => {
+    const { createChallenge, runChallenges, CHALLENGE_TZ } = await import("@/server/circle");
+    const today = localDateOf(new Date(), CHALLENGE_TZ);
+    const ch = await createChallenge(admin(), { name: "Sprint", startsOn: addDays(today, -2), endsOn: addDays(today, -1), prize: null });
+    const w = await makeUser("ch-winner");
+    await admin().from("profiles").update({ display_name: "Wasim" }).eq("id", w.id);
+    await admin().from("circle_members").insert({ circle_id: ch.id, user_id: w.id });
+    await admin().from("reward_events").insert({ user_id: w.id, kind: "completion", points: 7, local_date: addDays(today, -1), week_start: today, label: "x", dedupe_key: `t-${crypto.randomUUID()}` } as never);
+    expect(await runChallenges(admin(), noonIST(addDays(today, -2)), ch.id)).toBe(1); // start
+    expect(await runChallenges(admin(), noonIST(addDays(today, -1)), ch.id)).toBe(1); // last day
+    expect(await runChallenges(admin(), noonIST(today), ch.id)).toBe(1); // winner
+    expect(await runChallenges(admin(), noonIST(today), ch.id)).toBe(0); // only once
+    expect(await runChallenges(admin(), new Date(`${today}T20:00:00Z`), ch.id)).toBe(0); // 01:30 IST: quiet
+    const posts = (await admin().from("circle_posts").select("kind, meta").eq("circle_id", ch.id)).data!;
+    expect(posts.map((p) => p.kind).sort()).toEqual(["challenge_end", "challenge_last_day", "challenge_start"]);
+    expect(posts.find((p) => p.kind === "challenge_end")!.meta).toMatchObject({ label: "Wasim", n: 7 });
+    const late = await makeUser("ch-late");
+    expect(await joinCircle(admin(), late.id, ch.code)).toBe("ended");
+  });
+});

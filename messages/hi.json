@@ -1481,6 +1481,24 @@
     "spotsLeft": "{n} जगह बाकी",
     "r_created": "सर्कल तैयार है। लोगों को बुलाने के लिए कोड भेजें।",
     "r_too_many": "आप ज़्यादा से ज़्यादा 5 सर्कल में रह सकते हैं।",
-    "r_rate_limited": "बहुत बार कोशिश हुई। थोड़ी देर बाद फिर कोशिश करें।"
+    "r_rate_limited": "बहुत बार कोशिश हुई। थोड़ी देर बाद फिर कोशिश करें।",
+    "pushChallengeStart": "चैलेंज शुरू! हर पूरा काम गिना जाएगा। शुभकामनाएँ 💪",
+    "pushChallengeLastDay": "आखिरी दिन। आज पूरा किया हर काम गिना जाएगा।",
+    "pushChallengeWinner": "{name} ने चैलेंज जीता 🏆",
+    "pushChallengeOver": "चैलेंज ख़त्म। हिस्सा लेने के लिए धन्यवाद!",
+    "post_challenge_start": "चैलेंज शुरू हो गया",
+    "post_challenge_last_day": "चैलेंज का आखिरी दिन",
+    "post_challenge_end": "{label} ने चैलेंज जीता 🏆",
+    "post_challenge_end_none": "चैलेंज ख़त्म हो गया",
+    "prize": "इनाम",
+    "daysLeft": "{n} दिन बाकी",
+    "lastDay": "आखिरी दिन",
+    "startsOn": "{date} से शुरू",
+    "ended": "ख़त्म",
+    "rank": "आप {total} में #{n} पर हैं",
+    "challengePoints": "चैलेंज पॉइंट",
+    "dates": "{start} से {end}",
+    "r_ended": "यह चैलेंज ख़त्म हो चुका है।",
+    "endsTomorrow": "कल ख़त्म"
   }
 }

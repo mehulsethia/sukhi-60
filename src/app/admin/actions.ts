@@ -7,6 +7,7 @@ import { z } from "zod";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { settings } from "@/lib/config";
 import { ADMIN_COOKIE, checkAdminPassword, createAdminSession, requireAdmin } from "@/server/admin";
+import { createChallenge, newChallengeCode } from "@/server/circle";
 
 export async function adminLogin(_prev: { error?: string } | null, fd: FormData): Promise<{ error?: string } | null> {
   const email = String(fd.get("email") ?? "").trim().toLowerCase();
@@ -45,4 +46,41 @@ export async function setInternal(fd: FormData) {
   const internal = fd.get("internal") === "true";
   await createAdminClient().rpc("admin_set_internal", { p_user: id, p_internal: internal });
   revalidatePath("/admin");
+}
+
+const ChallengeSchema = z.object({
+  name: z.string().trim().min(1).max(60),
+  starts_on: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  ends_on: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  prize: z.string().trim().max(120).optional(),
+}).refine((v) => v.ends_on >= v.starts_on, { message: "end_before_start" });
+
+export async function createChallengeAction(fd: FormData) {
+  const { email } = await requireAdmin();
+  const v = ChallengeSchema.safeParse({ name: fd.get("name"), starts_on: fd.get("starts_on"), ends_on: fd.get("ends_on"), prize: fd.get("prize") || undefined });
+  if (!v.success) redirect("/admin?challenge=invalid#challenges");
+  const admin = createAdminClient();
+  const c = await createChallenge(admin, { name: v.data.name, startsOn: v.data.starts_on, endsOn: v.data.ends_on, prize: v.data.prize ?? null });
+  await admin.from("audit_events").insert({ actor: "system", action: "challenge_created", entity: "circle", entity_id: c.id, details: { by: email } as never });
+  revalidatePath("/admin");
+  redirect("/admin?challenge=created#challenges");
+}
+
+export async function newChallengeCodeAction(fd: FormData) {
+  await requireAdmin();
+  const id = z.string().uuid().parse(fd.get("circle_id"));
+  await newChallengeCode(createAdminClient(), id);
+  revalidatePath("/admin");
+  redirect("/admin#challenges");
+}
+
+/** Removes a challenge, its members and its feed (test runs, mistakes). Points stay with each person. */
+export async function deleteChallengeAction(fd: FormData) {
+  const { email } = await requireAdmin();
+  const id = z.string().uuid().parse(fd.get("circle_id"));
+  const admin = createAdminClient();
+  await admin.from("circles").delete().eq("id", id).eq("kind", "challenge");
+  await admin.from("audit_events").insert({ actor: "system", action: "challenge_deleted", entity: "circle", entity_id: id, details: { by: email } as never });
+  revalidatePath("/admin");
+  redirect("/admin#challenges");
 }

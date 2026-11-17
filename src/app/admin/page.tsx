@@ -2,11 +2,12 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { currentAdmin, getAdminMetrics, getBehaviourMetrics, type AdminMetrics } from "@/server/admin";
 import { METRIC_DEFINITIONS } from "@/domain/learning";
-import { adminLogout, setInternal } from "./actions";
+import { adminLogout, createChallengeAction, deleteChallengeAction, newChallengeCodeAction, setInternal } from "./actions";
+import { listChallenges } from "@/server/circle";
 import { AdminLogin } from "./AdminLogin";
 import { Logo } from "@/components/Logo";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { BarChart3, BookOpen, HandHeart, Bot, Clock, Download, Filter, LayoutDashboard, LogOut, Quote, RefreshCw, Scale, Users } from "lucide-react";
+import { BarChart3, BookOpen, Trophy, HandHeart, Bot, Clock, Download, Filter, LayoutDashboard, LogOut, Quote, RefreshCw, Scale, Users } from "lucide-react";
 import { Card, DayBars, HBars, HeatCell, HourBars, Stat } from "./charts";
 
 export const metadata: Metadata = { title: "Admin", robots: { index: false, follow: false } };
@@ -48,16 +49,17 @@ function pitchLines(m: AdminMetrics): string[] {
   return lines;
 }
 
-export default async function AdminPage({ searchParams }: { searchParams: Promise<{ days?: string; internal?: string }> }) {
+export default async function AdminPage({ searchParams }: { searchParams: Promise<{ days?: string; internal?: string; challenge?: string }> }) {
   const email = await currentAdmin();
   if (!email) return <AdminLogin />;
   const sp = await searchParams;
   const days = [7, 14, 30].includes(Number(sp.days)) ? Number(sp.days) : 14;
   const internal = sp.internal === "1";
-  const [m, checkinsSent, bm] = await Promise.all([
+  const [m, checkinsSent, bm, challenges] = await Promise.all([
     getAdminMetrics(days, internal),
     createAdminClient().from("audit_events").select("id", { count: "exact", head: true }).eq("action", "assistant_checkin").then((r) => r.count ?? 0),
     getBehaviourMetrics(days, internal).catch(() => null),
+    listChallenges(createAdminClient()).catch(() => []),
   ]);
   const o = m.overview;
   const q = (p: Record<string, string | number>) => `?${new URLSearchParams({ days: String(days), internal: internal ? "1" : "0", ...Object.fromEntries(Object.entries(p).map(([k, v]) => [k, String(v)])) })}`;
@@ -66,7 +68,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
   const segRows = (rows: AdminMetrics["segments"]["setup_for"]) => rows.filter((r) => r.due > 0 || (r.users ?? 0) > 0).map((r) => ({ label: L(r.key), v: r.rate, note: `${r.users !== undefined ? `${r.users} users · ` : ""}${r.done}/${r.due}` }));
 
   const sections = [
-    ["overview", "Overview", LayoutDashboard], ["pitch", "Pitch lines", Quote], ["activity", "Daily activity", BarChart3], ["funnel", "Funnel & retention", Filter],
+    ["overview", "Overview", LayoutDashboard], ["challenges", "Challenges", Trophy], ["pitch", "Pitch lines", Quote], ["activity", "Daily activity", BarChart3], ["funnel", "Funnel & retention", Filter],
     ["compare", "Comparisons", Scale], ["engagement", "Engagement", Clock], ["ai", "AI, reminders & safety", Bot], ["support", "Adaptive support", HandHeart], ["users", "Users & live feed", Users], ["defs", "Definitions", BookOpen],
   ] as const;
   const navLink = "flex min-h-10 items-center gap-2.5 rounded-xl px-3 text-[0.93rem] font-semibold text-ink-soft hover:bg-surface-2 hover:text-ink";
@@ -127,6 +129,45 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
           <Stat label="Minutes to done" value={o.median_min_to_done ?? "-"} sub="median, from scheduled time" />
           <Stat label="Active days / user" value={o.avg_active_days ?? "-"} sub="average" />
         </div>
+
+        {/* Challenges: a circle with dates, a prize and no size limit; people join with the code in the app. */}
+        <div id="challenges" />
+        <Card title="Challenges" sub="Create one, then share the 5-digit code. People join from Circle → Join with a code. Points earned between the dates count; ties go to the longer streak. Dates are IST.">
+          {sp.challenge === "created" ? <p className="mb-3 rounded-xl bg-primary-soft px-3 py-2 text-sm font-semibold text-primary">Challenge created. Share the code below.</p> : sp.challenge === "invalid" ? <p className="mb-3 rounded-xl bg-warn-bg px-3 py-2 text-sm font-semibold text-warn-ink">Check the name and dates (the end can&apos;t be before the start).</p> : null}
+          <form action={createChallengeAction} className="grid gap-3 sm:grid-cols-2 lg:grid-cols-[1.4fr_1fr_1fr_1.4fr_auto] lg:items-end">
+            <label className="field"><span className="label">Name</span><input name="name" required maxLength={60} placeholder="Pilot challenge" className="input" /></label>
+            <label className="field"><span className="label">Starts</span><input name="starts_on" type="date" required defaultValue={today} className="input" /></label>
+            <label className="field"><span className="label">Ends</span><input name="ends_on" type="date" required className="input" /></label>
+            <label className="field"><span className="label">Prize (optional)</span><input name="prize" maxLength={120} placeholder="₹500 Amazon voucher" className="input" /></label>
+            <button className="btn btn-primary">Create</button>
+          </form>
+          {challenges.length ? (
+            <ul className="mt-5 flex flex-col gap-3">
+              {challenges.map((c) => (
+                <li key={c.id} className="rounded-2xl border border-line p-4">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <p className="font-bold">🏆 {c.name}</p>
+                      <p className="text-sm text-ink-soft">{c.startsOn} → {c.endsOn} · {c.state === "live" ? (c.daysLeft === 0 ? "last day" : c.daysLeft === 1 ? "1 day left" : `${c.daysLeft} days left`) : c.state} · {c.members} joined{c.prize ? ` · ${c.prize}` : ""}</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="rounded-xl bg-surface-2 px-3 py-1.5 font-mono text-lg font-bold tracking-[0.2em]">{c.code}</span>
+                      <form action={newChallengeCodeAction}><input type="hidden" name="circle_id" value={c.id} /><button className="btn btn-secondary min-h-10 text-sm">New code</button></form>
+                      <details className="relative"><summary className="btn btn-ghost min-h-10 cursor-pointer list-none text-sm text-ink-soft">Delete</summary>
+                        <form action={deleteChallengeAction} className="absolute right-0 z-10 mt-1 w-56 rounded-xl border border-line bg-surface p-3 text-sm shadow-lg"><input type="hidden" name="circle_id" value={c.id} /><p>Delete “{c.name}” for everyone?</p><button className="btn btn-primary mt-2 min-h-9 w-full bg-danger-ink text-sm">Yes, delete</button></form>
+                      </details>
+                    </div>
+                  </div>
+                  {c.board.length ? (
+                    <ol className="mt-3 grid gap-x-6 gap-y-1 text-sm sm:grid-cols-2">
+                      {c.board.slice(0, 10).map((b, i) => <li key={b.userId} className="flex justify-between gap-2 tabular-nums"><span>{i + 1}. {b.name ?? "?"}{b.streak ? ` · 🔥${b.streak}` : ""}</span><span className="font-semibold">{b.points} pts</span></li>)}
+                    </ol>
+                  ) : <p className="mt-3 text-sm text-ink-soft">Nobody has joined yet.</p>}
+                </li>
+              ))}
+            </ul>
+          ) : null}
+        </Card>
 
         {/* Pitch lines */}
         <div id="pitch" />

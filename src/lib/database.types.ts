@@ -329,102 +329,6 @@ export type Database = {
           },
         ]
       }
-      circle_members: {
-        Row: {
-          circle_id: string
-          joined_at: string
-          user_id: string
-        }
-        Insert: {
-          circle_id: string
-          joined_at?: string
-          user_id: string
-        }
-        Update: {
-          circle_id?: string
-          joined_at?: string
-          user_id?: string
-        }
-        Relationships: []
-      }
-      circle_posts: {
-        Row: {
-          body: string | null
-          circle_id: string
-          created_at: string
-          dedupe_key: string | null
-          id: string
-          kind: string
-          meta: Json
-          user_id: string
-        }
-        Insert: {
-          body?: string | null
-          circle_id: string
-          created_at?: string
-          dedupe_key?: string | null
-          id?: string
-          kind: string
-          meta?: Json
-          user_id: string
-        }
-        Update: {
-          body?: string | null
-          circle_id?: string
-          created_at?: string
-          dedupe_key?: string | null
-          id?: string
-          kind?: string
-          meta?: Json
-          user_id?: string
-        }
-        Relationships: []
-      }
-      circle_reactions: {
-        Row: {
-          created_at: string
-          kind: string
-          post_id: string
-          user_id: string
-        }
-        Insert: {
-          created_at?: string
-          kind: string
-          post_id: string
-          user_id: string
-        }
-        Update: {
-          created_at?: string
-          kind?: string
-          post_id?: string
-          user_id?: string
-        }
-        Relationships: []
-      }
-      circles: {
-        Row: {
-          created_at: string
-          id: string
-          invite_code: string
-          name: string
-          owner_id: string | null
-        }
-        Insert: {
-          created_at?: string
-          id?: string
-          invite_code: string
-          name?: string
-          owner_id?: string | null
-        }
-        Update: {
-          created_at?: string
-          id?: string
-          invite_code?: string
-          name?: string
-          owner_id?: string | null
-        }
-        Relationships: []
-      }
       change_proposals: {
         Row: {
           change: Json
@@ -560,6 +464,138 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      circle_members: {
+        Row: {
+          circle_id: string
+          joined_at: string
+          user_id: string
+        }
+        Insert: {
+          circle_id: string
+          joined_at?: string
+          user_id: string
+        }
+        Update: {
+          circle_id?: string
+          joined_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "circle_members_circle_id_fkey"
+            columns: ["circle_id"]
+            isOneToOne: false
+            referencedRelation: "circles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      circle_posts: {
+        Row: {
+          body: string | null
+          circle_id: string
+          created_at: string
+          dedupe_key: string | null
+          id: string
+          kind: string
+          meta: Json
+          user_id: string | null
+        }
+        Insert: {
+          body?: string | null
+          circle_id: string
+          created_at?: string
+          dedupe_key?: string | null
+          id?: string
+          kind: string
+          meta?: Json
+          user_id?: string | null
+        }
+        Update: {
+          body?: string | null
+          circle_id?: string
+          created_at?: string
+          dedupe_key?: string | null
+          id?: string
+          kind?: string
+          meta?: Json
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "circle_posts_circle_id_fkey"
+            columns: ["circle_id"]
+            isOneToOne: false
+            referencedRelation: "circles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      circle_reactions: {
+        Row: {
+          created_at: string
+          kind: string
+          post_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          kind: string
+          post_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          kind?: string
+          post_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "circle_reactions_post_id_fkey"
+            columns: ["post_id"]
+            isOneToOne: false
+            referencedRelation: "circle_posts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      circles: {
+        Row: {
+          created_at: string
+          ends_on: string | null
+          id: string
+          invite_code: string
+          kind: string
+          name: string
+          owner_id: string | null
+          prize: string | null
+          starts_on: string | null
+        }
+        Insert: {
+          created_at?: string
+          ends_on?: string | null
+          id?: string
+          invite_code: string
+          kind?: string
+          name?: string
+          owner_id?: string | null
+          prize?: string | null
+          starts_on?: string | null
+        }
+        Update: {
+          created_at?: string
+          ends_on?: string | null
+          id?: string
+          invite_code?: string
+          kind?: string
+          name?: string
+          owner_id?: string | null
+          prize?: string | null
+          starts_on?: string | null
+        }
+        Relationships: []
       }
       consents: {
         Row: {
@@ -1762,7 +1798,6 @@ export type Database = {
       }
     }
     Functions: {
-      my_circle_ids: { Args: never; Returns: string[] }
       _award: {
         Args: {
           p_capped: boolean
@@ -1893,6 +1928,7 @@ export type Database = {
         Returns: Database["public"]["Enums"]["job_status"]
       }
       family_summary: { Args: { p_access: string }; Returns: Json }
+      my_circle_ids: { Args: never; Returns: string[] }
       orphan_evidence_videos: {
         Args: { p_limit?: number; p_older_than?: string }
         Returns: {

@@ -14,6 +14,7 @@ import { hashLinkCode, routeMessage, sha256Hex } from "@/domain/router";
 import { reply } from "@/domain/replies";
 import { inQuietHours, localTimeOf, reminderSendTime } from "@/domain/schedule";
 import { runCheckins } from "./checkins";
+import { runChallenges } from "./circle";
 import { cleanupOrphanVideos } from "./cleanup";
 import { sendPush } from "./push";
 import { reminderCopy } from "@/domain/tone";
@@ -26,7 +27,7 @@ class PermanentError extends Error {}
 class CancelJob extends Error {}
 
 export async function runWorkerTick(admin: AdminClient, workerId: string) {
-  const summary = { silence: 0, generation_enqueued: 0, claimed: 0, done: 0, retried: 0, dead: 0, cancelled: 0, checkins: 0, videos_removed: 0, plans_resumed: 0, family_alerts: 0 };
+  const summary = { silence: 0, generation_enqueued: 0, claimed: 0, done: 0, retried: 0, dead: 0, cancelled: 0, checkins: 0, videos_removed: 0, plans_resumed: 0, family_alerts: 0, challenges: 0 };
   const { data: silenced } = await admin.rpc("apply_silence_rule", { p_limit: 500 });
   summary.silence = Number(silenced ?? 0);
   // Proactive assistant check-ins due in this minute (bounded batch; next tick picks up the rest).
@@ -35,6 +36,8 @@ export async function runWorkerTick(admin: AdminClient, workerId: string) {
   if (new Date().getUTCMinutes() === 17) summary.videos_removed = await cleanupOrphanVideos(admin).catch(() => 0);
   // Plans paused "until a date" come back on that date (user's timezone), before occurrences are generated.
   summary.plans_resumed = await resumePausedPlans(admin).catch(() => 0);
+  // Challenge start / last day / winner announcements (each once, 9:00-21:00 IST).
+  if (new Date().getUTCMinutes() % 10 === 4) summary.challenges = await runChallenges(admin).catch(() => 0);
   // Once an hour: consented family "no activity" alerts.
   if (new Date().getUTCMinutes() === 23) summary.family_alerts = await runInactivityAlerts(admin).catch(() => 0);
 

@@ -1481,6 +1481,24 @@
     "spotsLeft": "{n} spots left",
     "r_created": "Circle ready. Share the code to invite people.",
     "r_too_many": "You can be in up to 5 circles.",
-    "r_rate_limited": "Too many tries. Please wait a little and try again."
+    "r_rate_limited": "Too many tries. Please wait a little and try again.",
+    "pushChallengeStart": "It's on! Every task you finish counts. Good luck 💪",
+    "pushChallengeLastDay": "Last day. Every task you finish today counts.",
+    "pushChallengeWinner": "{name} won the challenge 🏆",
+    "pushChallengeOver": "The challenge is over. Thanks for playing!",
+    "post_challenge_start": "The challenge has started",
+    "post_challenge_last_day": "Last day of the challenge",
+    "post_challenge_end": "{label} won the challenge 🏆",
+    "post_challenge_end_none": "The challenge is over",
+    "prize": "Prize",
+    "daysLeft": "Ends in {n} days",
+    "lastDay": "Last day",
+    "startsOn": "Starts {date}",
+    "ended": "Ended",
+    "rank": "You're #{n} of {total}",
+    "challengePoints": "Challenge points",
+    "dates": "{start} to {end}",
+    "r_ended": "That challenge has ended.",
+    "endsTomorrow": "Ends tomorrow"
   }
 }
