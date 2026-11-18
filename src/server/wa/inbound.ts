@@ -20,6 +20,7 @@ import { send, sendDirect, releaseHeld, type WaCtx } from "./send";
 import { clearState, currentState, setState, type StateData } from "./state";
 import { createWaAccount, grantPatientConsents } from "./account";
 import { hasActivePlan } from "./data";
+import { consumeCodeForBoundNumber, createConnectLink, webLoginLink } from "./link";
 import * as P from "./patient";
 import * as F from "./family";
 import * as D from "./doctor";
@@ -55,6 +56,12 @@ export async function handleWhatsAppMessage(admin: AdminClient, msg: InboundMess
   const { data: inserted } = await admin.from("messages").select("id").eq("provider_message_id", msg.id).maybeSingle();
 
   const role = (profile as { primary_role?: string }).primary_role ?? "patient";
+
+  // A web link code from a number that already has an account here (e.g. made on WhatsApp first).
+  if (!msg.replyId && text) {
+    const routed = routeMessage(text, { channel: "whatsapp" });
+    if (routed.route === "link_code") return boundLinkCode(ctx, routed.code);
+  }
 
   if (msg.replyId) return handleTap(ctx, msg.replyId, binding);
 
@@ -130,7 +137,11 @@ async function handleNewNumber(admin: AdminClient, msg: InboundMessage) {
 
   if (id.startsWith("ob:start")) return startAccount(admin, msg, id);
   if (id === "ob:no") return void (await sendDirect(from, { type: "text", body: w("en", "not_now") }));
-  if (id === "ob:web") return void (await sendDirect(from, { type: "text", body: w("en", "web_link_help") }));
+  if (id === "ob:web") {
+    // Already use the web app: a one-time link to log in and connect this number.
+    const link = await createConnectLink(admin, from).catch(() => null);
+    return void (await sendDirect(from, { type: "text", body: link ? w("en", "web_connect_link", { link }) : w("en", "web_link_help") }));
+  }
 
   // Web users linking their existing account (code from Settings → WhatsApp).
   const routed = text ? routeMessage(text, { channel: "whatsapp" }) : null;
@@ -305,6 +316,8 @@ async function handleTap(ctx: WaCtx, id: string, binding: Binding): Promise<void
       return send(ctx, { type: "buttons", body: w(b, "lang_saved"), buttons: [{ id: "m:menu", title: w(b, "btn_menu") }] });
     }
     if (a === "pause" || a === "stop") return channelCommand(ctx.admin, binding, ctx.userId, ctx.to, ctx.locale, a);
+    if (a === "web") return send(ctx, { type: "text", body: w(ctx.locale, "web_login_link", { link: await webLoginLink(ctx.admin, ctx.userId, ctx.to) }) });
+    if (a === "link") return send(ctx, { type: "text", body: w(ctx.locale, "web_connect_link", { link: await createConnectLink(ctx.admin, ctx.to) }) });
   }
   if (ns === "dr") {
     if (a === "m") {
@@ -422,4 +435,17 @@ async function inviteForExisting(ctx: WaCtx, code: InviteCode, role: string) {
   if (!doc) return send(ctx, { type: "text", body: w(ctx.locale, "doctor_invalid") });
   if (role === "family") await grantPatientConsents(ctx.admin, ctx.userId);
   return P.askDoctorConsent(ctx, doc.user_id);
+}
+
+// ---------------------------------------------------------------------------
+// Web link code from a number that already has an account
+// ---------------------------------------------------------------------------
+async function boundLinkCode(ctx: WaCtx, code: string) {
+  const r = await consumeCodeForBoundNumber(ctx.admin, await hashLinkCode(code, process.env.LINK_CODE_PEPPER!), ctx.to);
+  if (r.result === "invalid") return send(ctx, { type: "text", body: w(ctx.locale, "web_link_invalid") });
+  if (r.result === "other_account") return send(ctx, { type: "text", body: w(ctx.locale, "web_other_account") });
+  // The binding now belongs to the web account: answer as that account.
+  const profile = await getProfile(ctx.admin, r.userId!);
+  const next: WaCtx = { ...ctx, userId: r.userId!, locale: profile.locale };
+  await send(next, { type: "buttons", body: w(profile.locale, r.result === "merged" ? "web_merged" : "web_connected", { name: profile.display_name?.split(" ")[0] ?? "" }), buttons: [{ id: "m:today", title: w(profile.locale, "row_today") }, { id: "m:menu", title: w(profile.locale, "btn_menu") }] });
 }

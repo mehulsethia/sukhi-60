@@ -491,6 +491,7 @@ export async function linkDoctor(ctx: WaCtx, doctorId: string): Promise<string |
 // ---------------------------------------------------------------------------
 export async function showSettings(ctx: WaCtx) {
   const l = ctx.locale;
+  const { data: prof } = await ctx.admin.from("profiles").select("signup_channel").eq("id", ctx.userId).single();
   await send(ctx, {
     type: "list",
     body: w(l, "settings_body"),
@@ -501,6 +502,8 @@ export async function showSettings(ctx: WaCtx) {
       { id: "st:lang:mr", title: "मराठी", description: w(l, "row_language") },
       { id: "st:pause", title: w(l, "row_pause"), description: w(l, "row_pause_d") },
       { id: "st:stop", title: w(l, "row_stop") },
+      { id: "st:web", title: w(l, "row_web"), description: w(l, "row_web_d") },
+      ...(prof?.signup_channel === "whatsapp" ? [{ id: "st:link", title: w(l, "row_link_web"), description: w(l, "row_link_web_d") }] : []),
     ] }],
   });
 }

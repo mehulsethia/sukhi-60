@@ -156,6 +156,17 @@ const en = {
   reminder_body: "Time for: {title}{time}",
   after_done_next: "Next: {title}{time}.",
   expired_button: "That task has already closed. Here's today:",
+  // Web account link
+  web_connect_link: "Open this link, log in to your Sukhi account and tap Connect. It works once, for 30 minutes.\n\n{link}",
+  web_connected: "Connected to your Sukhi account. Hi {name}. Everything you do here shows in the app, and the other way round.",
+  web_merged: "Connected to your Sukhi account. What you did here on WhatsApp was added to it.",
+  web_other_account: "This WhatsApp number is linked to a different Sukhi account. Disconnect it there first.",
+  web_login_link: "Tap to open Sukhi on the web. The link works once, for 1 hour.\n\n{link}",
+  web_link_invalid: "That code didn't work or has expired. Make a new one in the app: Settings, WhatsApp.",
+  row_web: "Open on the web",
+  row_web_d: "Your plan in the browser",
+  row_link_web: "Link web account",
+  row_link_web_d: "Already use the Sukhi app?",
 } as const;
 
 export type WaKey = keyof typeof en;
@@ -290,6 +301,16 @@ const hi: Dict = {
   reminder_body: "समय हो गया: {title}{time}",
   after_done_next: "अगला: {title}{time}।",
   expired_button: "वह काम बंद हो चुका है। यह रहा आज:",
+  web_connect_link: "यह लिंक खोलें, अपने सुखी अकाउंट में लॉग इन करें और Connect दबाएँ। यह एक बार, 30 मिनट तक चलेगा।\n\n{link}",
+  web_connected: "आपके सुखी अकाउंट से जुड़ गया। नमस्ते {name}। यहाँ जो करेंगे वो ऐप में दिखेगा, और ऐप का यहाँ।",
+  web_merged: "आपके सुखी अकाउंट से जुड़ गया। WhatsApp पर जो किया था वो उसमें जोड़ दिया गया।",
+  web_other_account: "यह WhatsApp नंबर किसी दूसरे सुखी अकाउंट से जुड़ा है। पहले वहाँ से हटाएँ।",
+  web_login_link: "वेब पर सुखी खोलने के लिए दबाएँ। लिंक एक बार, 1 घंटे तक चलेगा।\n\n{link}",
+  web_link_invalid: "यह कोड नहीं चला या पुराना हो गया। ऐप में नया बनाएँ: Settings, WhatsApp।",
+  row_web: "वेब पर खोलें",
+  row_web_d: "ब्राउज़र में आपका प्लान",
+  row_link_web: "वेब अकाउंट जोड़ें",
+  row_link_web_d: "सुखी ऐप पहले से इस्तेमाल करते हैं?",
 };
 
 const mr: Dict = {
@@ -421,6 +442,16 @@ const mr: Dict = {
   reminder_body: "वेळ झाली: {title}{time}",
   after_done_next: "पुढे: {title}{time}.",
   expired_button: "ते काम बंद झाले आहे. हा घ्या आजचा प्लान:",
+  web_connect_link: "ही लिंक उघडा, तुमच्या सुखी अकाउंटमध्ये लॉग इन करा आणि Connect दाबा. ती एकदाच, 30 मिनिटे चालेल.\n\n{link}",
+  web_connected: "तुमच्या सुखी अकाउंटशी जोडले. नमस्कार {name}. इथे जे कराल ते ॲपमध्ये दिसेल, आणि ॲपचे इथे.",
+  web_merged: "तुमच्या सुखी अकाउंटशी जोडले. WhatsApp वर जे केले होते ते त्यात जोडले.",
+  web_other_account: "हा WhatsApp नंबर दुसऱ्या सुखी अकाउंटशी जोडलेला आहे. आधी तिथून काढा.",
+  web_login_link: "वेबवर सुखी उघडण्यासाठी दाबा. लिंक एकदाच, 1 तास चालेल.\n\n{link}",
+  web_link_invalid: "हा कोड चालला नाही किंवा जुना झाला. ॲपमध्ये नवीन बनवा: Settings, WhatsApp.",
+  row_web: "वेबवर उघडा",
+  row_web_d: "ब्राउझरमध्ये तुमचा प्लान",
+  row_link_web: "वेब अकाउंट जोडा",
+  row_link_web_d: "सुखी ॲप आधीच वापरता?",
 };
 
 const DICTS: Record<string, Dict> = { en, hi, mr };

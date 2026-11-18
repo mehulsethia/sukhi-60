@@ -27,6 +27,11 @@ import { decideSuggestion, reportBarrier, respondToNudge, type SupportResult, ty
 import { removeSubscription, saveSubscription, sendPush } from "@/server/push";
 import { ctext, notifyFamily } from "@/server/companion";
 import { addDays, localDateOf } from "@/domain/schedule";
+import { waLink } from "@/domain/wa-ui";
+import { w } from "@/domain/wa-copy";
+import { businessNumber } from "@/server/wa/data";
+import { claimConnectRequest } from "@/server/wa/link";
+import { notify } from "@/server/wa/send";
 import { BARRIER_CODES, cleanMotivation, normalizeRestart, normalizeStyles, parseConfidence } from "@/domain/behaviour";
 
 export type ActionState = { ok?: boolean; error?: string; data?: Record<string, unknown> } | null;
@@ -819,7 +824,28 @@ export async function createLinkCode(_prev: ActionState, fd: FormData): Promise<
   // Only the peppered hash is stored.
   const { error } = await admin.from("link_codes").insert({ user_id: user.id, code_hash: await hashLinkCode(code, process.env.LINK_CODE_PEPPER!), purpose, expires_at: expires.toISOString() });
   if (error) return { error: "save_failed" };
-  return { ok: true, data: { message: `SUKHI-${code}`, expires_at: expires.toISOString() } };
+  // One tap on the phone: opens WhatsApp with the code ready to send.
+  const num = await businessNumber();
+  return { ok: true, data: { message: `SUKHI-${code}`, expires_at: expires.toISOString(), wa_link: num ? waLink(num, `SUKHI-${code}`) : null } };
+}
+
+/** Confirm step of "connect this WhatsApp to my web account" (link sent on WhatsApp). */
+export async function connectWhatsAppAction(fd: FormData) {
+  const { user } = await requireUser();
+  const token = String(fd.get("token") ?? "");
+  const admin = createAdminClient();
+  let result: Awaited<ReturnType<typeof claimConnectRequest>>;
+  try {
+    result = await claimConnectRequest(admin, user.id, token);
+  } catch {
+    redirect(`/whatsapp/connect/${encodeURIComponent(token)}?e=failed`);
+  }
+  if (result === "invalid") redirect(`/whatsapp/connect/${encodeURIComponent(token)}?e=failed`);
+  if (result === "other_account") redirect(`/whatsapp/connect/${encodeURIComponent(token)}?e=other`);
+  const { data: p } = await admin.from("profiles").select("display_name, locale").eq("id", user.id).single();
+  await notify(admin, user.id, { type: "buttons", body: w(p?.locale, result === "merged" ? "web_merged" : "web_connected", { name: p?.display_name?.split(" ")[0] ?? "" }), buttons: [{ id: "m:today", title: w(p?.locale, "row_today") }, { id: "m:menu", title: w(p?.locale, "btn_menu") }] }, `web-connected:${user.id}:${Date.now()}`, { respectQuiet: false }).catch(() => undefined);
+  revalidatePath("/settings");
+  redirect("/settings?wa=connected#wa");
 }
 
 export async function unlinkWhatsApp() {

@@ -582,7 +582,14 @@
     "svcOff": "Not configured",
     "latency": "Reminders are checked about once a minute. WhatsApp replies usually arrive within seconds and at most a couple of minutes.",
     "waComingSoon": "WhatsApp reminders and replies are coming soon. For now, everything works right here in the Sukhi app.",
-    "scope_alerts": "Alerts (no activity, low medicine, “let my family know”)"
+    "scope_alerts": "Alerts (no activity, low medicine, “let my family know”)",
+    "waOpenApp": "Open WhatsApp and send",
+    "waConnectTitle": "Connect WhatsApp",
+    "waConnectBody": "Connect WhatsApp {number} to this account? Your plan, check-ins and chats will be the same in the app and on WhatsApp.",
+    "waConnectMerge": "This number already has a Sukhi profile from WhatsApp. Its plans and history will be added to this account.",
+    "waConnectButton": "Connect",
+    "waConnectInvalid": "This link has expired or was already used. Ask Sukhi on WhatsApp for a new one.",
+    "waConnectOther": "This number is linked to a different Sukhi account."
   },
   "family": {
     "acceptTitle": "Family support invitation",

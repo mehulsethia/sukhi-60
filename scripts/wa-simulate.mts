@@ -82,6 +82,7 @@ async function tap(from: string, replyId: string | null) {
 }
 
 let failed = false;
+let webUserId: string | null = null, web2UserId: string | null = null;
 const check = (ok: boolean, what: string) => { console.log(`${ok ? "  ✔" : "  ✘"} ${what}`); if (!ok) failed = true; };
 
 try {
@@ -138,6 +139,55 @@ try {
   await say(DOCTOR, "Keep it up, see you next week.");
   check(allText(PATIENT).includes("Message from Dr. Sim Test"), "doctor note reached the patient");
 
+  // ---- Account linking ------------------------------------------------------
+  // A web account (email) with its own plan.
+  const { hashLinkCode, generateLinkCode } = await import("../src/domain/router");
+  const { claimConnectRequest } = await import("../src/server/wa/link");
+  const webEmail = `sim-web-${stamp}@example.com`;
+  const web = await admin.auth.admin.createUser({ email: webEmail, password: `Sim-${stamp}-pass!`, email_confirm: true });
+  webUserId = web.data.user!.id;
+  await admin.from("profiles").update({ display_name: "Webby", onboarded_at: new Date().toISOString() }).eq("id", webUserId);
+
+  // 1. Web code sent from a number that already made an account on WhatsApp → merge.
+  const code = generateLinkCode();
+  await admin.from("link_codes").insert({ user_id: webUserId, code_hash: await hashLinkCode(code, process.env.LINK_CODE_PEPPER!), expires_at: new Date(Date.now() + 15 * 60_000).toISOString() });
+  const { data: patBefore } = await admin.from("channel_bindings").select("user_id").eq("external_id", PATIENT).neq("status", "revoked").single();
+  const { count: plansBefore } = await admin.from("care_plans").select("id", { count: "exact", head: true }).eq("user_id", patBefore!.user_id);
+  await say(PATIENT, `SUKHI-${code}`);
+  const { data: patAfter } = await admin.from("channel_bindings").select("user_id").eq("external_id", PATIENT).neq("status", "revoked").single();
+  const { count: plansAfter } = await admin.from("care_plans").select("id", { count: "exact", head: true }).eq("user_id", webUserId);
+  const { data: gone } = await admin.from("profiles").select("id").eq("id", patBefore!.user_id).maybeSingle();
+  const { data: dl } = await admin.from("doctor_patients").select("id").eq("patient_id", webUserId).maybeSingle();
+  check(patAfter!.user_id === webUserId, "number now belongs to the web account");
+  check((plansAfter ?? 0) >= (plansBefore ?? 1) && (plansBefore ?? 0) > 0, `plans moved to the web account (${plansBefore} → ${plansAfter})`);
+  check(!gone, "WhatsApp-only account removed");
+  check(!!dl, "doctor link moved with it");
+  check(allText(PATIENT).includes("What you did here on WhatsApp was added"), "patient told about the merge");
+  await say(PATIENT, "today");
+
+  // 2. WhatsApp → web: a new number taps "I use the web app", opens the link, confirms.
+  const WEB2 = `9199${stamp}04`;
+  label[WEB2] = "WEBUSER";
+  await say(WEB2, "hello");
+  await tap(WEB2, "ob:web");
+  const token = allText(WEB2).match(/whatsapp\/connect\/([0-9a-f]{48})/)?.[1] ?? null;
+  check(!!token, "connect link sent to the new number");
+  const web2 = await admin.auth.admin.createUser({ email: `sim-web2-${stamp}@example.com`, password: `Sim-${stamp}-pass!`, email_confirm: true });
+  web2UserId = web2.data.user!.id;
+  const res = token ? await claimConnectRequest(admin, web2UserId, token) : "invalid";
+  check(res === "linked", `link confirmed on the web (${res})`);
+  check((token ? await claimConnectRequest(admin, web2UserId, token) : "x") === "invalid", "link can't be used twice");
+  await say(WEB2, "menu");
+  check(allText(WEB2).includes("What would you like to see?"), "linked number gets the menu, no onboarding");
+
+  // 3. Open on the web: one-time login link for the verified number.
+  await tap(PATIENT, "st:web");
+  const hashed = decodeURIComponent(allText(PATIENT).match(/auth\/wa\?t=([^\s]+)/)?.[1] ?? "");
+  const { createClient } = await import("@supabase/supabase-js");
+  const anon = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!, { auth: { persistSession: false } });
+  const v = hashed ? await anon.auth.verifyOtp({ type: "magiclink", token_hash: hashed }) : { data: { user: null }, error: new Error("no link") };
+  check(!v.error && v.data.user?.id === webUserId, "web login link signs in to the right account");
+
   // Settings, help, STOP / START
   await say(PATIENT, "help");
   await say(PATIENT, "STOP");
@@ -148,9 +198,11 @@ try {
   console.error("\nERROR", e);
 } finally {
   // Clean up the throwaway accounts (cascades to plans, bindings, doctor rows).
-  const { data: bindings } = await admin.from("channel_bindings").select("user_id").in("external_id", [PATIENT, FAMILY, DOCTOR]);
-  for (const id of new Set((bindings ?? []).map((b) => b.user_id))) await admin.auth.admin.deleteUser(id);
-  console.log(`\nCleaned up ${new Set((bindings ?? []).map((b) => b.user_id)).size} test users.`);
+  const { data: bindings } = await admin.from("channel_bindings").select("user_id").in("external_id", [PATIENT, FAMILY, DOCTOR, `9199${stamp}04`]);
+  const ids = new Set([...(bindings ?? []).map((b) => b.user_id), webUserId, web2UserId].filter((x): x is string => !!x));
+  for (const id of ids) await admin.auth.admin.deleteUser(id);
+  await admin.from("wa_connect_requests").delete().eq("external_id", `9199${stamp}04`);
+  console.log(`\nCleaned up ${ids.size} test users.`);
   server.close();
   console.log(failed ? "\nSIMULATION FAILED" : "\nSIMULATION PASSED");
   process.exit(failed ? 1 : 0);

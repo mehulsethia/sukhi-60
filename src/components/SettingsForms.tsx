@@ -74,7 +74,7 @@ export function ConsentsForm({ consents, whatsappLaunched = false }: { consents:
 export function LinkCodeForm({ rebind }: { rebind: boolean }) {
   const t = useTranslations();
   const [state, action] = useActionState(createLinkCode, null);
-  const data = state?.data as { message: string; expires_at: string } | undefined;
+  const data = state?.data as { message: string; expires_at: string; wa_link?: string | null } | undefined;
   return (
     <form action={action} className="mt-3 flex flex-col gap-2">
       <p className="hint">{t("settings.waLinkIntro")}</p>
@@ -85,6 +85,7 @@ export function LinkCodeForm({ rebind }: { rebind: boolean }) {
           <Alert tone="ok">
             {t("settings.waSend")} <code className="ml-1 rounded bg-surface px-2 py-1 font-mono text-lg font-bold" data-testid="link-code">{data.message}</code>
             <span className="block text-sm">{t("settings.waExpires", { time: new Date(data.expires_at).toLocaleTimeString() })}</span>
+            {data.wa_link ? <a href={data.wa_link} target="_blank" rel="noopener noreferrer" className="btn btn-primary mt-2 self-start">{t("settings.waOpenApp")}</a> : null}
           </Alert>
         ) : null}
         {state?.error ? <Alert tone="danger">{t("common.error")}</Alert> : null}

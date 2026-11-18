@@ -639,6 +639,33 @@ export type Database = {
         }
         Relationships: []
       }
+      wa_connect_requests: {
+        Row: {
+          token_hash: string
+          external_id: string
+          expires_at: string
+          used_at: string | null
+          used_by: string | null
+          created_at: string
+        }
+        Insert: {
+          token_hash: string
+          external_id: string
+          expires_at: string
+          used_at?: string | null
+          used_by?: string | null
+          created_at?: string
+        }
+        Update: {
+          token_hash?: string
+          external_id?: string
+          expires_at?: string
+          used_at?: string | null
+          used_by?: string | null
+          created_at?: string
+        }
+        Relationships: []
+      }
       doctor_patients: {
         Row: {
           id: string
@@ -2050,6 +2077,10 @@ export type Database = {
       complete_job: {
         Args: { p_job: string; p_worker: string }
         Returns: boolean
+      }
+      merge_whatsapp_account: {
+        Args: { p_dst: string; p_src: string }
+        Returns: Json
       }
       consume_link_code: {
         Args: { p_code_hash: string; p_external_id: string }
