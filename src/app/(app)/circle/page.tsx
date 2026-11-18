@@ -2,7 +2,7 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import { getLocale, getTranslations } from "next-intl/server";
-import { Flame } from "lucide-react";
+import { Flame, Info } from "lucide-react";
 import { requireUser } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getCircleView, type CirclePost } from "@/server/circle";
@@ -129,9 +129,19 @@ export default async function CirclePage({ searchParams }: { searchParams: Promi
       ) : null}
 
       <section aria-labelledby="board" className="mb-7">
-        <div className="flex items-center justify-between">
-          <h2 id="board" className={eyebrow}>{ch ? t("circle.challengePoints") : t("circle.week")}</h2>
-        </div>
+        <details className="group mb-2.5">
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-2">
+            <h2 id="board" className={eyebrow.replace("mb-2.5", "")}>{ch ? t("circle.challengePoints") : t("circle.week")}</h2>
+            <span className="flex items-center gap-1 text-xs text-ink-faint"><Info size={13} aria-hidden="true" />{t("circle.pointsHow")}</span>
+          </summary>
+          <ul className="panel mt-2 flex flex-col gap-1 px-4 py-3 text-[0.85rem] text-ink-soft">
+            <li>{t("circle.pointsDone")}</li>
+            <li>{t("circle.pointsSkip")}</li>
+            <li>{t("circle.pointsPhoto")}</li>
+            <li>{t("circle.pointsBonus")}</li>
+            <li className="mt-1 text-ink">{ch ? t("circle.pointsChallenge") : t("circle.pointsCapWeek")}</li>
+          </ul>
+        </details>
         <ol className="panel divide-y divide-line">
           {view.members.map((m, i) => (
             <li key={m.userId} className={`flex items-center gap-3 px-4 py-3 ${m.me ? "bg-primary-soft/40" : ""}`}>
@@ -141,6 +151,7 @@ export default async function CirclePage({ searchParams }: { searchParams: Promi
                 <span className="block truncate font-medium">{name(m)}</span>
                 <span className="flex items-center gap-2 text-xs text-ink-faint">
                   {m.streak > 0 ? <span className="flex items-center gap-0.5"><Flame size={12} className="text-haldi" aria-hidden="true" />{m.streak}</span> : null}
+                  {ch && m.done ? <span>{t("circle.doneN", { n: m.done })}</span> : null}
                   {m.totalToday ? <span>{t("circle.today", { done: m.doneToday, total: m.totalToday })}</span> : null}
                 </span>
               </span>

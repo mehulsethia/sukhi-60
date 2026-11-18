@@ -1500,6 +1500,14 @@
     "challengePoints": "Challenge points",
     "dates": "{start} to {end}",
     "r_ended": "That challenge has ended.",
-    "endsTomorrow": "Ends tomorrow"
+    "endsTomorrow": "Ends tomorrow",
+    "pointsHow": "How points work",
+    "pointsDone": "Task done: 3 pts",
+    "pointsSkip": "Honest skip or \"not well today\": 1 pt",
+    "pointsPhoto": "Photo or note with it: +1",
+    "pointsBonus": "Bonuses: first task +2, back after a missed day +3, 3 good days in a week +2, 5 good days +3",
+    "pointsCapWeek": "Tasks earn up to 12 pts a day. Ties go to the longer streak.",
+    "pointsChallenge": "In a challenge every task counts, with no daily limit. Ties go to more tasks done, then the longer streak.",
+    "doneN": "{n} done"
   }
 }

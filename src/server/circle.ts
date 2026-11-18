@@ -9,6 +9,7 @@ import type { AdminClient } from "@/lib/supabase/admin";
 import { addDays, inQuietHours, localDateOf, localTimeOf, weekStart, type OccurrenceStatus } from "@/domain/schedule";
 import { sendPush } from "./push";
 import { audit } from "./core";
+import { challengeScore } from "@/domain/points";
 import en from "../../messages/en.json";
 import hi from "../../messages/hi.json";
 import mr from "../../messages/mr.json";
@@ -105,13 +106,17 @@ function streakFrom(dates: Set<string>, today: string): number {
   return n;
 }
 
-export interface CircleMember { userId: string; name: string | null; points: number; streak: number; doneToday: number; totalToday: number; me: boolean }
+export interface CircleMember { userId: string; name: string | null; points: number; streak: number; doneToday: number; totalToday: number; me: boolean; done: number }
 export interface CirclePost { id: string; userId: string | null; name: string | null; kind: PostKind; meta: Record<string, unknown>; createdAt: string; counts: Record<Reaction, number>; mine: Reaction[]; me: boolean }
 
-/** Leaderboard rows: points in [from, to] (or the current week), streaks, today's counts. Ties go to the longer streak. */
+/**
+ * Leaderboard rows. Weekly board: everyday points (12-a-day task cap) since `from`, ties to the
+ * longer streak. Challenge board (`to` given): every task at full value between the dates,
+ * ties to more tasks done, then the longer streak.
+ */
 async function boardFor(admin: AdminClient, userId: string | null, ids: string[], today: string, from: string, to?: string): Promise<CircleMember[]> {
   if (!ids.length) return [];
-  let ptsQ = admin.from("reward_events").select("user_id, points").in("user_id", ids).gte("local_date", from);
+  let ptsQ = admin.from("reward_events").select("user_id, kind, points").in("user_id", ids).gte("local_date", from);
   if (to) ptsQ = ptsQ.lte("local_date", to);
   const [{ data: profiles }, { data: pts }, { data: occ }, { data: ans }] = await Promise.all([
     admin.from("profiles").select("id, display_name").in("id", ids),
@@ -123,16 +128,19 @@ async function boardFor(admin: AdminClient, userId: string | null, ids: string[]
   return ids.map((id) => {
     const days = new Set((ans ?? []).filter((a) => a.user_id === id).map((a) => a.local_date));
     const mine = (occ ?? []).filter((o) => o.user_id === id);
+    const rows = (pts ?? []).filter((p) => p.user_id === id);
+    const score = to ? challengeScore(rows) : { points: rows.reduce((s, p) => s + Math.max(0, p.points), 0), done: rows.filter((r) => r.kind === "completion").length };
     return {
       userId: id,
       name: names.get(id) ?? null,
-      points: (pts ?? []).filter((p) => p.user_id === id).reduce((s, p) => s + Math.max(0, p.points), 0),
+      points: score.points,
+      done: score.done,
       streak: streakFrom(days, today),
       doneToday: mine.filter((o) => DONE.includes(o.status)).length,
       totalToday: mine.length,
       me: id === userId,
     };
-  }).sort((a, b) => b.points - a.points || b.streak - a.streak);
+  }).sort((a, b) => b.points - a.points || (to ? b.done - a.done : 0) || b.streak - a.streak);
 }
 
 export type ChallengeState = "upcoming" | "live" | "ended";
