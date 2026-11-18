@@ -16,6 +16,7 @@
     "check:config": "tsx scripts/check-config.ts",
     "jobs:health": "tsx scripts/job-health.mts",
     "worker:tick": "tsx scripts/worker-tick.mts",
+    "wa:simulate": "tsx --conditions=react-server scripts/wa-simulate.mts",
     "seed:demo": "tsx scripts/seed-demo.mts",
     "db:start": "supabase start -x realtime,studio,imgproxy,edge-runtime,logflare,vector,supavisor",
     "db:reset": "supabase db reset",

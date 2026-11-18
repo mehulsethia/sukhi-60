@@ -381,6 +381,9 @@ export type Database = {
       }
       channel_bindings: {
         Row: {
+          wa_state: string | null
+          wa_state_at: string | null
+          wa_state_data: Json
           channel: string
           created_at: string
           external_id: string
@@ -393,6 +396,9 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          wa_state?: string | null
+          wa_state_at?: string | null
+          wa_state_data?: Json
           channel?: string
           created_at?: string
           external_id: string
@@ -405,6 +411,9 @@ export type Database = {
           user_id: string
         }
         Update: {
+          wa_state?: string | null
+          wa_state_at?: string | null
+          wa_state_data?: Json
           channel?: string
           created_at?: string
           external_id?: string
@@ -627,6 +636,125 @@ export type Database = {
           revoked_at?: string | null
           updated_at?: string
           user_id?: string
+        }
+        Relationships: []
+      }
+      doctor_patients: {
+        Row: {
+          id: string
+          doctor_id: string
+          patient_id: string
+          status: string
+          consented_at: string
+          revoked_at: string | null
+          period_start: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          doctor_id: string
+          patient_id: string
+          status?: string
+          consented_at?: string
+          revoked_at?: string | null
+          period_start?: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          doctor_id?: string
+          patient_id?: string
+          status?: string
+          consented_at?: string
+          revoked_at?: string | null
+          period_start?: string
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "doctor_patients_doctor_id_fkey"
+            columns: ["doctor_id"]
+            isOneToOne: false
+            referencedRelation: "doctors"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
+      doctor_rewards: {
+        Row: {
+          id: string
+          link_id: string
+          doctor_id: string
+          patient_id: string
+          code: string
+          reward_text: string
+          adherence_pct: number
+          period_start: string
+          period_end: string
+          status: string
+          redeemed_at: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          link_id: string
+          doctor_id: string
+          patient_id: string
+          code: string
+          reward_text: string
+          adherence_pct: number
+          period_start: string
+          period_end: string
+          status?: string
+          redeemed_at?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          link_id?: string
+          doctor_id?: string
+          patient_id?: string
+          code?: string
+          reward_text?: string
+          adherence_pct?: number
+          period_start?: string
+          period_end?: string
+          status?: string
+          redeemed_at?: string | null
+          created_at?: string
+        }
+        Relationships: []
+      }
+      doctors: {
+        Row: {
+          user_id: string
+          name: string
+          clinic: string | null
+          code: string
+          reward_text: string | null
+          reward_target_pct: number
+          reward_days: number
+          created_at: string
+        }
+        Insert: {
+          user_id: string
+          name: string
+          clinic?: string | null
+          code: string
+          reward_text?: string | null
+          reward_target_pct?: number
+          reward_days?: number
+          created_at?: string
+        }
+        Update: {
+          user_id?: string
+          name?: string
+          clinic?: string | null
+          code?: string
+          reward_text?: string | null
+          reward_target_pct?: number
+          reward_days?: number
+          created_at?: string
         }
         Relationships: []
       }
@@ -1237,6 +1365,7 @@ export type Database = {
       }
       outbound_messages: {
         Row: {
+          payload: Json | null
           attempts: number
           binding_id: string | null
           body: string
@@ -1253,6 +1382,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          payload?: Json | null
           attempts?: number
           binding_id?: string | null
           body: string
@@ -1269,6 +1399,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          payload?: Json | null
           attempts?: number
           binding_id?: string | null
           body?: string
@@ -1445,6 +1576,8 @@ export type Database = {
       }
       profiles: {
         Row: {
+          signup_channel: string
+          primary_role: string
           accessibility: Json
           behaviour_prefs_updated_at: string | null
           behaviour_schema_version: number
@@ -1475,6 +1608,8 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          signup_channel?: string
+          primary_role?: string
           accessibility?: Json
           behaviour_prefs_updated_at?: string | null
           behaviour_schema_version?: number
@@ -1505,6 +1640,8 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          signup_channel?: string
+          primary_role?: string
           accessibility?: Json
           behaviour_prefs_updated_at?: string | null
           behaviour_schema_version?: number

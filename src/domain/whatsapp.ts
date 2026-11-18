@@ -42,6 +42,8 @@ export interface InboundMessage {
   mediaId?: string;
   mimeType?: string;
   caption?: string;
+  /** Id of the tapped reply button or list row (set by our own interactive messages). */
+  replyId?: string;
 }
 
 export interface StatusUpdate {
@@ -81,11 +83,11 @@ export function parseWebhook(payload: unknown): { messages: InboundMessage[]; st
             mimeType: typeof media.mime_type === "string" ? media.mime_type.split(";")[0].trim() : undefined,
             caption: typeof media.caption === "string" ? media.caption.slice(0, 1000) : undefined,
           });
-        } else if (t === "button" && isObj(m.button)) messages.push({ ...base, kind: "button", text: String(m.button.text ?? "").slice(0, 200) });
+        } else if (t === "button" && isObj(m.button)) messages.push({ ...base, kind: "button", text: String(m.button.text ?? "").slice(0, 200), replyId: typeof m.button.payload === "string" ? m.button.payload.slice(0, 256) : undefined });
         else if (t === "interactive" && isObj(m.interactive)) {
           const i = m.interactive;
           const reply = (isObj(i.button_reply) ? i.button_reply : isObj(i.list_reply) ? i.list_reply : null) as Json | null;
-          messages.push({ ...base, kind: "interactive", text: reply ? String(reply.title ?? reply.id ?? "") : "" });
+          messages.push({ ...base, kind: "interactive", text: reply ? String(reply.title ?? reply.id ?? "").slice(0, 200) : "", replyId: reply && typeof reply.id === "string" ? reply.id.slice(0, 256) : undefined });
         } else messages.push({ ...base, kind: "unsupported" });
       }
       for (const s of Array.isArray(value.statuses) ? value.statuses : []) {
@@ -124,6 +126,18 @@ export const PROPOSED_TEMPLATES = {
     },
     variables: 0,
   },
+  // Generic nudge when a doctor note, family update or reward is waiting. The content itself
+  // is held and delivered as soon as the person replies (inside the 24h window).
+  sukhi_update_ready: {
+    category: "UTILITY",
+    languages: ["en", "hi", "mr"],
+    bodies: {
+      en: "You have a new update on Sukhi. Reply to see it.",
+      hi: "सुखी पर आपके लिए नया अपडेट है। देखने के लिए जवाब दें।",
+      mr: "सुखीवर तुमच्यासाठी नवीन अपडेट आहे. पाहण्यासाठी उत्तर द्या.",
+    },
+    variables: 0,
+  },
   sukhi_link_confirmed: {
     category: "UTILITY",
     languages: ["en", "hi", "mr"],
@@ -154,6 +168,8 @@ export function decideSend(opts: {
   approvedTemplates: string[];
   quiet: boolean;
   now?: Date;
+  /** Template used outside the window (default: the check-in nudge). */
+  template?: TemplateName;
 }): SendDecision {
   if (!opts.binding) return { kind: "blocked", reason: "no_binding" };
   if (opts.binding.status === "revoked") return { kind: "blocked", reason: "opted_out" };
@@ -161,7 +177,8 @@ export function decideSend(opts: {
   if (!opts.consentWhatsapp) return { kind: "blocked", reason: "no_consent" };
   if (opts.quiet) return { kind: "blocked", reason: "quiet_hours" };
   if (withinServiceWindow(opts.binding.last_inbound_at, opts.now)) return { kind: "free_text" };
-  if (opts.approvedTemplates.includes("sukhi_checkin_ready")) return { kind: "template", template: "sukhi_checkin_ready" };
+  const template = opts.template ?? "sukhi_checkin_ready";
+  if (opts.approvedTemplates.includes(template)) return { kind: "template", template };
   return { kind: "blocked", reason: "template_not_approved" };
 }
 

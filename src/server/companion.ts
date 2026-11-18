@@ -102,6 +102,8 @@ export async function notifyFamily(admin: AdminClient, patientId: string, kind: 
     const l = member?.locale ?? "en";
     const name = first ?? ctext(l, "someone");
     await sendPush(admin, a.member_user_id, { title: ctext(l, "pushFamilyTitle"), body: ctext(l, `family_${kind}`, { name }), url: `/family/${a.id}`, tag: `fam-${a.id}-${kind}` }).catch(() => 0);
+    // Family members on WhatsApp get the same alert there.
+    await import("./wa/family").then((m) => m.familyAlertWhatsApp(admin, a.member_user_id!, ctext(l, `family_${kind}`, { name }), `${kind}:${a.id}:${dedupe}`)).catch(() => undefined);
   }
   if (n) await admin.from("audit_events").insert({ user_id: patientId, actor: "system", action: "family_alert", entity: "family_alert", details: { kind, recipients: n } as Json });
   return n;

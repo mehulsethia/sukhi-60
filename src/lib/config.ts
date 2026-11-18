@@ -47,6 +47,8 @@ export const VARS: VarSpec[] = [
   { name: "WHATSAPP_VERIFY_TOKEN", required: false, secret: true, group: "whatsapp", validate: (v) => v.length >= 16 },
   { name: "WHATSAPP_GRAPH_VERSION", required: false, secret: false, group: "whatsapp", validate: (v) => /^v\d+\.\d+$/.test(v) },
   { name: "WHATSAPP_APPROVED_TEMPLATES", required: false, secret: false, group: "whatsapp", validate: (v) => /^[a-z0-9_,]*$/.test(v) },
+  // Optional: the business number in digits, for wa.me links. Read from the Graph API when unset.
+  { name: "WHATSAPP_DISPLAY_NUMBER", required: false, secret: false, group: "whatsapp", validate: (v) => /^\+?\d{8,15}$/.test(v.replace(/[\s-]/g, "")) },
   { name: "WHATSAPP_TEMPLATE_LANGUAGES", required: false, secret: false, group: "whatsapp", validate: (v) => /^[a-zA-Z_,]*$/.test(v) },
 ];
 

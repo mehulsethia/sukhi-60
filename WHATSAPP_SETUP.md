@@ -1,5 +1,26 @@
 # WhatsApp setup (official Meta WhatsApp Cloud API)
 
+## WhatsApp-first interface (v1, 2026-11-18)
+
+People can now use Sukhi entirely on WhatsApp. A new number that messages the business number gets an account on the spot (no app, no password). Code: `src/server/wa/*` (inbound router, patient, family, doctor, sending), `src/domain/wa-ui.ts` (message shapes, limits, adherence), `src/domain/wa-copy.ts` (copy). Migration `20261118001600_whatsapp_interface.sql`.
+
+**Patient:** welcome + consent (Start) → language → name → plan (prescription photo that they confirm, a ready-made goal, or own words). Then a menu with Today (Done / Later / Skip buttons), My plan, Send proof (photo assessed by AI), My progress, Circle (leaderboard, invite / join), My doctor (what's shared, reward progress, stop sharing), Family (add someone), Settings. Reminders arrive with Done / Later / Skip buttons. Free text still goes to the same assistant as the web chat.
+
+**Doctor:** sends `DOCTOR` → name → clinic → reward (e.g. "10% off next visit" for 80%+ over 30 days). Gets a code `DR-123456`, a wa.me link and a QR image for the clinic. Menu: My patients (lowest adherence first; per-item 7-day dots, 30-day %, proof count, last reply), send a note, check a plan Sukhi read from their prescription, set reward, check a reward code at the desk. Weekly summary Monday 9 am IST. Patients must tap "Yes, share" first and see only adherence and proof results being shared, never chats.
+
+**Family:** the patient taps Family → Add family and forwards a link (`FAMILY-XXXXXX`, 7 days). The family member taps it, agrees, gives a name, and gets an update around 8 pm (done/total today, week %, streak), the existing alerts (no activity, low stock, not well), and a "Send a cheer" button. No task names or health details.
+
+**Codes in links:** `DR-123456` (doctor), `FAMILY-XXXXXX` (family), `JOIN 12345` (circle). Each opens WhatsApp with the text ready to send.
+
+**24-hour rule:** Meta only allows free-form messages within 24 h of the person's last message. Doctor notes, family joins, cheers and rewards that can't be sent are held and go out the moment that person writes again. Evening family updates and reminders outside the window are skipped unless the generic templates are approved (`sukhi_checkin_ready`, `sukhi_update_ready`; add them to `WHATSAPP_APPROVED_TEMPLATES`). For testing, have each tester send "hi" once a day.
+
+### To test v1
+1. Apply the migration (pooler dry run first, see the deployment note in memory / SETUP.md).
+2. Vercel env: `WHATSAPP_ACCESS_TOKEN`, `WHATSAPP_PHONE_NUMBER_ID`, `WHATSAPP_APP_SECRET`, `WHATSAPP_VERIFY_TOKEN` (optional `WHATSAPP_DISPLAY_NUMBER`, otherwise read from the Graph API). Deploy.
+3. Meta app → WhatsApp → Configuration: callback `https://sukhi-60.vercel.app/api/whatsapp/webhook`, the same verify token, subscribe to `messages`. Add every tester (patient, family member, doctor) under API Setup → To. The test number can only message those recipients.
+4. From a tester phone send "hi". For a doctor test send "DOCTOR" from a different tester phone.
+5. Without phones: `pnpm wa:simulate` runs patient, family and doctor conversations against the database with a fake Graph API, prints the transcript and deletes the test users.
+
 Sukhi uses only the official Cloud API: authenticated HTTPS to `graph.facebook.com` and HMAC-signed webhooks. There is no QR-session automation, browser scraping or unofficial transport. When WhatsApp is not configured, the web app works on its own and Settings shows "WhatsApp isn't configured".
 
 Status as of 2026-11-10: **code complete and fixture-tested. No Meta app, number, token, template or real message exchange exists yet.** Nothing below has been approved by Meta.

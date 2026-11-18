@@ -141,6 +141,11 @@ export function sendWhatsAppText(to: string, text: string) {
   return postMessage({ to, type: "text", text: { preview_url: false, body: text.slice(0, 4000) } });
 }
 
+/** Any prepared Graph message body (interactive buttons / list, image). See domain/wa-ui toGraph(). */
+export function sendWhatsAppPayload(to: string, body: Record<string, unknown>) {
+  return postMessage({ to, ...body });
+}
+
 export function sendWhatsAppTemplate(to: string, name: string, languageCode: string) {
   return postMessage({ to, type: "template", template: { name, language: { code: languageCode } } });
 }

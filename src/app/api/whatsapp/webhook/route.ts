@@ -7,7 +7,7 @@ import { timingSafeEqual } from "node:crypto";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-export const maxDuration = 60;
+export const maxDuration = 130; // WhatsApp prescription reads can take ~1 min
 
 // GET: Meta webhook verification handshake.
 export async function GET(req: Request) {

@@ -4,7 +4,7 @@ import { bearerMatches, errorJson, json } from "@/server/http";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-export const maxDuration = 60;
+export const maxDuration = 130; // WhatsApp prescription reads can take ~1 min
 
 // Secured worker trigger (Supabase Cron via pg_net, or an operator with the secret).
 // Never anonymous: requires Authorization: Bearer <WORKER_SECRET>.

@@ -5,13 +5,17 @@ import "server-only";
 import type { AdminClient } from "@/lib/supabase/admin";
 import type { Database, Json } from "@/lib/database.types";
 import { LIMITS, settings } from "@/lib/config";
-import { audit, getConsents, getProfile, getToday, materializeOccurrences, pickRelevantOccurrence } from "./core";
-import { runAssistant } from "./agent";
+import { audit, getConsents, getProfile, materializeOccurrences } from "./core";
 import { evaluateEvidence } from "./ai-tasks";
-import { fetchWhatsAppMedia, sendWhatsAppTemplate, sendWhatsAppText, transcribe, type SendResult } from "./providers";
+import { sendWhatsAppPayload, sendWhatsAppTemplate, sendWhatsAppText, type SendResult } from "./providers";
 import { decideSend, parseWebhook, type InboundMessage } from "@/domain/whatsapp";
-import { hashLinkCode, routeMessage, sha256Hex } from "@/domain/router";
-import { reply } from "@/domain/replies";
+import { time12, toGraph } from "@/domain/wa-ui";
+import { w } from "@/domain/wa-copy";
+import { enqueueOutbound } from "./wa/send";
+export { enqueueOutbound };
+import { handleWhatsAppMessage } from "./wa/inbound";
+import { runFamilyEvening } from "./wa/family";
+import { runDoctorRewards, runDoctorWeekly } from "./wa/doctor";
 import { inQuietHours, localTimeOf, reminderSendTime } from "@/domain/schedule";
 import { runCheckins } from "./checkins";
 import { runChallenges } from "./circle";
@@ -27,7 +31,7 @@ class PermanentError extends Error {}
 class CancelJob extends Error {}
 
 export async function runWorkerTick(admin: AdminClient, workerId: string) {
-  const summary = { silence: 0, generation_enqueued: 0, claimed: 0, done: 0, retried: 0, dead: 0, cancelled: 0, checkins: 0, videos_removed: 0, plans_resumed: 0, family_alerts: 0, challenges: 0 };
+  const summary = { silence: 0, generation_enqueued: 0, claimed: 0, done: 0, retried: 0, dead: 0, cancelled: 0, checkins: 0, videos_removed: 0, plans_resumed: 0, family_alerts: 0, challenges: 0, wa_family: 0, wa_doctor: 0, wa_rewards: 0 };
   const { data: silenced } = await admin.rpc("apply_silence_rule", { p_limit: 500 });
   summary.silence = Number(silenced ?? 0);
   // Proactive assistant check-ins due in this minute (bounded batch; next tick picks up the rest).
@@ -40,6 +44,13 @@ export async function runWorkerTick(admin: AdminClient, workerId: string) {
   if (new Date().getUTCMinutes() % 10 === 4) summary.challenges = await runChallenges(admin).catch(() => 0);
   // Once an hour: consented family "no activity" alerts.
   if (new Date().getUTCMinutes() === 23) summary.family_alerts = await runInactivityAlerts(admin).catch(() => 0);
+  // WhatsApp: family evening updates (8 pm local), doctor weekly summary (Mon 9 am IST),
+  // and reward periods that ended (checked hourly; each is deduplicated).
+  if (new Date().getUTCMinutes() % 10 === 7) summary.wa_family = await runFamilyEvening(admin).catch(() => 0);
+  if (new Date().getUTCMinutes() === 41) {
+    summary.wa_doctor = await runDoctorWeekly(admin).catch(() => 0);
+    summary.wa_rewards = await runDoctorRewards(admin).catch(() => 0);
+  }
 
   // Daily occurrence generation per user with confirmed items (dedupe per UTC day).
   const { data: users } = await admin.from("plan_items").select("user_id").eq("status", "confirmed").limit(1000);
@@ -151,11 +162,18 @@ async function handleReminder(admin: AdminClient, job: Job) {
   const decision = decideSend({ binding, consentWhatsapp: !!consents.whatsapp, approvedTemplates: settings.approvedTemplates(), quiet: false });
   if (decision.kind === "blocked" || !binding) return; // web-only reminder
 
+  // Lock-screen-friendly: only the item title inside an active conversation; templates are generic.
+  // Inside the window the reminder carries Done / Later / Skip buttons.
+  const l = profile.locale;
+  const body = w(l, "reminder_body", { title: item.title, time: occ.local_time && occ.target_count === 1 ? ` · ${time12(occ.local_time)}` : "" });
+  const interactive = decision.kind === "free_text"
+    ? toGraph({ type: "buttons", body, buttons: [{ id: `ci:done:${occ.id}`, title: w(l, "btn_done") }, { id: `ci:later:${occ.id}`, title: w(l, "btn_later") }, { id: `ci:skipped:${occ.id}`, title: w(l, "btn_skip") }] })
+    : null;
   const sendJob = await enqueueOutbound(admin, userId, binding.id, {
-    kind: decision.kind,
+    kind: decision.kind === "free_text" ? "interactive" : "template",
     template: decision.template,
-    // Lock-screen-friendly: only the item title inside an active conversation; templates are generic.
-    body: decision.kind === "free_text" ? reply(profile.locale, "reminder", { title: item.title }) : `[template:${decision.template}]`,
+    body: decision.kind === "free_text" ? body : `[template:${decision.template}]`,
+    payload: interactive,
     dedupeKey: `out:${job.dedupe_key}`,
   });
   // Send now; the queued send job remains the durable fallback.
@@ -165,17 +183,6 @@ async function handleReminder(admin: AdminClient, job: Job) {
 // ---------------------------------------------------------------------------
 // Outbound (outbox with uncertain-delivery handling)
 // ---------------------------------------------------------------------------
-export async function enqueueOutbound(admin: AdminClient, userId: string, bindingId: string, m: { kind: "free_text" | "template"; template?: string; body: string; dedupeKey: string }) {
-  const { data: row } = await admin
-    .from("outbound_messages")
-    .upsert({ user_id: userId, binding_id: bindingId, kind: m.kind, template_name: m.template ?? null, body: m.body, dedupe_key: m.dedupeKey }, { onConflict: "dedupe_key", ignoreDuplicates: true })
-    .select("id")
-    .maybeSingle();
-  if (!row) return null; // already enqueued earlier
-  const { data: job } = await admin.from("jobs").upsert({ user_id: userId, kind: "send_outbound", payload: { outbound_id: row.id }, dedupe_key: `send:${row.id}`, max_attempts: 4 }, { onConflict: "dedupe_key", ignoreDuplicates: true }).select("id").maybeSingle();
-  return job?.id ?? null;
-}
-
 async function handleOutbound(admin: AdminClient, job: Job) {
   const { outbound_id } = job.payload as { outbound_id: string };
   const { data: out } = await admin.from("outbound_messages").select("*, channel_bindings(external_id, status, last_inbound_at)").eq("id", outbound_id).single();
@@ -193,6 +200,8 @@ async function handleOutbound(admin: AdminClient, job: Job) {
   if (out.kind === "template") {
     const lang = settings.templateLanguages().includes(profile.locale) ? profile.locale : "en";
     r = await sendWhatsAppTemplate(b.external_id, out.template_name!, lang);
+  } else if (out.kind === "interactive" && out.payload && typeof out.payload === "object") {
+    r = await sendWhatsAppPayload(b.external_id, out.payload as Record<string, unknown>);
   } else {
     r = await sendWhatsAppText(b.external_id, out.body);
   }
@@ -217,161 +226,14 @@ async function handleOutbound(admin: AdminClient, job: Job) {
 }
 
 // ---------------------------------------------------------------------------
-// Inbound WhatsApp processing
+// Inbound WhatsApp processing (the conversation itself lives in ./wa/inbound)
 // ---------------------------------------------------------------------------
-async function replyTo(admin: AdminClient, userId: string | null, bindingId: string | null, to: string, text: string, key: string) {
-  if (userId && bindingId) {
-    const jobId = await enqueueOutbound(admin, userId, bindingId, { kind: "free_text", body: text, dedupeKey: `reply:${key}` });
-    await admin.from("messages").insert({ user_id: userId, role: "assistant", channel: "whatsapp", content: text.slice(0, 8000) });
-    // Send now; if this fails the queued send job is retried by the scheduled worker.
-    if (jobId) await runJobNow(admin, jobId, `inline-${crypto.randomUUID()}`);
-    return jobId;
-  }
-  // Unlinked number replying within its own 24h window: send directly, no patient data involved.
-  await sendWhatsAppText(to, text);
-  return null;
-}
-
 async function handleInbound(admin: AdminClient, job: Job) {
   const { inbound_event_id } = job.payload as { inbound_event_id: string };
   const { data: ev } = await admin.from("inbound_events").select("*").eq("id", inbound_event_id).single();
   if (!ev) throw new CancelJob("event_gone");
   if (ev.status === "processed" || ev.status === "ignored") return;
-  const msg = ev.payload as unknown as InboundMessage;
-  const from = msg.from;
-
-  const { data: binding } = await admin.from("channel_bindings").select("*").eq("channel", "whatsapp").eq("external_id", from).neq("status", "revoked").maybeSingle();
-  if (binding) {
-    await admin.from("channel_bindings").update({ last_inbound_at: new Date(Math.max(msg.timestamp * 1000, Date.now() - 60_000)).toISOString() }).eq("id", binding.id);
-  }
-
-  const text = msg.text ?? msg.caption ?? "";
-  const routed = text ? routeMessage(text, { channel: "whatsapp" }) : null;
-
-  if (!binding) {
-    if (routed?.route === "link_code") {
-      const hash = await hashLinkCode(routed.code, process.env.LINK_CODE_PEPPER!);
-      const { data: r } = await admin.rpc("consume_link_code", { p_code_hash: hash, p_external_id: from });
-      const res = r as { ok: boolean; reason: string; user_id?: string; binding_id?: string };
-      if (res.ok && res.user_id) {
-        const profile = await getProfile(admin, res.user_id);
-        await admin.from("consents").upsert({ user_id: res.user_id, kind: "whatsapp", granted: true, granted_at: new Date().toISOString(), revoked_at: null }, { onConflict: "user_id,kind" });
-        await replyTo(admin, res.user_id, res.binding_id!, from, reply(profile.locale, res.reason === "already_linked" ? "link_already" : "link_ok"), msg.id);
-      } else {
-        const key = { invalid_or_expired: "link_invalid", number_bound_to_other_account: "link_other", rebind_confirmation_required: "link_rebind", rate_limited: "link_rate" }[res.reason] ?? "link_invalid";
-        await sendWhatsAppText(from, reply("en", key as "link_invalid"));
-      }
-    } else {
-      await sendWhatsAppText(from, reply("en", "not_linked"));
-    }
-    await admin.from("inbound_events").update({ status: "processed", processed_at: new Date().toISOString() }).eq("id", ev.id);
-    return;
-  }
-
-  const userId = binding.user_id;
-  const profile = await getProfile(admin, userId);
-  const locale = profile.locale;
-
-  if (routed?.route === "channel_command") {
-    if (routed.command === "stop") {
-      await admin.from("channel_bindings").update({ status: "paused", opted_out_at: new Date().toISOString() }).eq("id", binding.id);
-      await admin.from("consents").upsert({ user_id: userId, kind: "whatsapp", granted: false, revoked_at: new Date().toISOString() }, { onConflict: "user_id,kind" });
-      await audit(admin, userId, "user", "whatsapp_opt_out", "channel_binding", binding.id);
-      await sendWhatsAppText(from, reply(locale, "stopped")); // single confirmation of opt-out
-    } else if (routed.command === "pause") {
-      await admin.from("channel_bindings").update({ status: "paused" }).eq("id", binding.id);
-      await sendWhatsAppText(from, reply(locale, "paused"));
-    } else {
-      await admin.from("channel_bindings").update({ status: "active", opted_out_at: null }).eq("id", binding.id);
-      await admin.from("consents").upsert({ user_id: userId, kind: "whatsapp", granted: true, granted_at: new Date().toISOString(), revoked_at: null }, { onConflict: "user_id,kind" });
-      await audit(admin, userId, "user", "whatsapp_opt_in", "channel_binding", binding.id);
-      await sendWhatsAppText(from, reply(locale, "started"));
-    }
-    await admin.from("inbound_events").update({ status: "processed", processed_at: new Date().toISOString() }).eq("id", ev.id);
-    return;
-  }
-
-  if (binding.status !== "active") {
-    // Paused/opted-out: record the message for the web app, do not reply proactively.
-    await admin.from("messages").upsert({ user_id: userId, role: "user", channel: "whatsapp", content: text || `[${msg.kind}]`, provider_message_id: msg.id }, { onConflict: "provider_message_id", ignoreDuplicates: true });
-    await admin.from("inbound_events").update({ status: "processed", processed_at: new Date().toISOString() }).eq("id", ev.id);
-    return;
-  }
-
-  let userText = text;
-  const prefix: string[] = [];
-
-  if (msg.kind === "audio" && msg.mediaId) {
-    const consents = await getConsents(admin, userId);
-    if (!consents.voice_processing) {
-      await replyTo(admin, userId, binding.id, from, reply(locale, "voice_unconfigured"), msg.id);
-      await admin.from("inbound_events").update({ status: "processed", processed_at: new Date().toISOString() }).eq("id", ev.id);
-      return;
-    }
-    const media = await fetchWhatsAppMedia(msg.mediaId, "audio");
-    if (!media.ok) throw new Error(media.error);
-    const t = await transcribe(new Blob([media.bytes as BlobPart], { type: media.mime }), null);
-    if (!t.ok) {
-      await replyTo(admin, userId, binding.id, from, reply(locale, "voice_unconfigured"), msg.id);
-      await admin.from("inbound_events").update({ status: "processed", processed_at: new Date().toISOString() }).eq("id", ev.id);
-      return;
-    }
-    userText = t.value.transcript;
-    prefix.push(reply(locale, "voice_heard", { text: userText.slice(0, 200) }));
-    // Raw audio is not retained; only the transcript is stored as the message.
-  }
-
-  if ((msg.kind === "image" || msg.kind === "document") && msg.mediaId) {
-    const media = await fetchWhatsAppMedia(msg.mediaId, msg.kind === "image" ? "image" : "document");
-    if (!media.ok) {
-      if (["unsupported_media_type", "media_too_large", "untrusted_media_host"].includes(media.error)) {
-        await replyTo(admin, userId, binding.id, from, reply(locale, "media_unsupported"), msg.id);
-        await admin.from("inbound_events").update({ status: "processed", processed_at: new Date().toISOString() }).eq("id", ev.id);
-        return;
-      }
-      throw new Error(media.error);
-    }
-    await materializeOccurrences(admin, userId, 2).catch(() => undefined);
-    const today = await getToday(admin, userId, profile.timezone);
-    const target = pickRelevantOccurrence(today, true);
-    if (!target) {
-      await replyTo(admin, userId, binding.id, from, reply(locale, "no_open_action"), msg.id);
-    } else {
-      const hash = await sha256Hex(media.bytes);
-      const ext = media.mime === "application/pdf" ? "pdf" : media.mime.split("/")[1];
-      const path = `${userId}/${target.id}/${hash.slice(0, 16)}.${ext}`;
-      await admin.storage.from("evidence").upload(path, media.bytes, { contentType: media.mime, upsert: true });
-      const { data: doc } = await admin.from("documents").upsert({ user_id: userId, bucket: "evidence", storage_path: path, mime_type: media.mime, size_bytes: media.bytes.byteLength, sha256: hash }, { onConflict: "user_id,bucket,storage_path" }).select("id").single();
-      const { data: evRow } = await admin.from("evidence").upsert({ user_id: userId, occurrence_id: target.id, kind: msg.kind === "image" ? "photo" : "document", document_id: doc!.id, text_content: msg.caption ?? null, content_hash: hash, channel: "whatsapp" }, { onConflict: "occurrence_id,content_hash", ignoreDuplicates: true }).select("id").maybeSingle();
-      const lines = [reply(locale, "evidence_saved", { title: target.item.title })];
-      if (evRow) {
-        const evaluation = await evaluateEvidence(admin, userId, evRow.id);
-        lines.push(evaluation.explanation);
-        if (evaluation.cannot_confirm.length) lines.push(`• ${evaluation.cannot_confirm.slice(0, 2).join("\n• ")}`);
-      }
-      await admin.from("messages").upsert({ user_id: userId, role: "user", channel: "whatsapp", content: `[photo] ${msg.caption ?? ""}`.trim(), provider_message_id: msg.id }, { onConflict: "provider_message_id", ignoreDuplicates: true });
-      await replyTo(admin, userId, binding.id, from, lines.join("\n"), msg.id);
-    }
-    await admin.from("inbound_events").update({ status: "processed", processed_at: new Date().toISOString() }).eq("id", ev.id);
-    return;
-  }
-
-  if (!userText) {
-    await replyTo(admin, userId, binding.id, from, reply(locale, "media_unsupported"), msg.id);
-    await admin.from("inbound_events").update({ status: "processed", processed_at: new Date().toISOString() }).eq("id", ev.id);
-    return;
-  }
-
-  // Same agent, tools and memory as the web chat.
-  const { data: inserted } = await admin.from("messages").upsert({ user_id: userId, role: "user", channel: "whatsapp", content: userText.slice(0, 8000), provider_message_id: msg.id }, { onConflict: "provider_message_id", ignoreDuplicates: true }).select("id").maybeSingle();
-  if (!inserted) {
-    // Already handled (duplicate delivery of the same provider message).
-    await admin.from("inbound_events").update({ status: "processed", processed_at: new Date().toISOString() }).eq("id", ev.id);
-    return;
-  }
-  const answer = await runAssistant({ admin, userId, channel: "whatsapp", text: userText, messageKey: msg.id });
-  if (answer.safety) await admin.from("messages").update({ safety_flag: answer.safety }).eq("id", inserted.id);
-  await replyTo(admin, userId, binding.id, from, [...prefix, answer.text].join("\n\n"), msg.id);
+  await handleWhatsAppMessage(admin, ev.payload as unknown as InboundMessage);
   await admin.from("inbound_events").update({ status: "processed", processed_at: new Date().toISOString() }).eq("id", ev.id);
 }
 
