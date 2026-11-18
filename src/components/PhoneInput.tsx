@@ -9,7 +9,7 @@ export function PhoneInput({ dial, onDial, value, onValue, onEnter, uncontrolled
   return (
     <div className="flex gap-2">
       <label htmlFor="dial" className="sr-only">{t("settings.phoneCountry")}</label>
-      <select id="dial" name="dial" className="input w-[6.5rem] shrink-0 text-lg" {...(uncontrolled ? { defaultValue: uncontrolled.dial } : { value: dial, onChange: (e) => onDial?.(e.target.value) })}>
+      <select id="dial" name="dial" className="input w-[7.75rem] shrink-0 pr-7 text-lg" {...(uncontrolled ? { defaultValue: uncontrolled.dial } : { value: dial, onChange: (e) => onDial?.(e.target.value) })}>
         {COUNTRIES.map((c) => <option key={c.iso} value={c.dial}>{`+${c.dial} ${c.iso}`}</option>)}
       </select>
       <input id="phone" name="phone" type="tel" inputMode="tel" autoComplete="tel-national" required maxLength={20} className="input min-w-0 flex-1 text-lg" placeholder={placeholder}
