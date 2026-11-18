@@ -14,7 +14,8 @@ import { DocPicker } from "@/components/DocPicker";
 import { FEATURED_PACKS, packMotivation, type PackKey } from "@/domain/templates";
 import { COMMUNICATION_STYLES, type CommunicationStyle } from "@/domain/behaviour";
 import { setLocaleCookie } from "@/lib/client-prefs";
-import { normalizePhone } from "@/domain/wa-ui";
+import { dialForTimezone, normalizePhone } from "@/domain/wa-ui";
+import { PhoneInput } from "@/components/PhoneInput";
 
 const PACK_ICON: Record<string, typeof Sparkles> = { glow: Sparkles, sleep: Moon, active: Footprints, calm: Wind, energy: Zap };
 const TONE_ICON = { warm_gentle: Heart, fun_playful: Smile, motivating: Target, simple_practical: ListChecks } as const;
@@ -30,7 +31,8 @@ export function OnboardingForm({ defaults }: { defaults: { timezone: string; loc
   const [locale, setLocale] = useState(defaults.locale);
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
-  const phoneOk = !!normalizePhone(phone);
+  const [dial, setDial] = useState(() => dialForTimezone(defaults.timezone));
+  const phoneOk = !!normalizePhone(phone, dial);
   const [packs, setPacks] = useState<PackKey[]>([]);
   const [doctor, setDoctor] = useState(false);
   const [hasFile, setHasFile] = useState(false);
@@ -67,7 +69,6 @@ export function OnboardingForm({ defaults }: { defaults: { timezone: string; loc
         <input type="hidden" name="locale" value={locale} />
         <input type="hidden" name="timezone" defaultValue={defaults.timezone} />
         <input type="hidden" name="display_name" value={name} />
-        <input type="hidden" name="phone" value={phone} />
         {["08:30", "20:00"].map((x) => <input key={x} type="hidden" name="checkin_times" value={x} />)}
         <input type="hidden" name="quiet_start" value="23:00" />
         <input type="hidden" name="quiet_end" value="07:00" />
@@ -93,7 +94,7 @@ export function OnboardingForm({ defaults }: { defaults: { timezone: string; loc
             <label htmlFor="name" className="sr-only">{t("onboarding.name")}</label>
             <input id="name" className="input mt-6 text-lg" maxLength={80} autoComplete="given-name" placeholder={t("onb.namePlaceholder")} value={name} onChange={(e) => setName(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); if (phoneOk) go(1); } }} />
             <label htmlFor="phone" className="label mt-5 block">{t("settings.phoneLabel")}</label>
-            <input id="phone" type="tel" inputMode="tel" className="input mt-1.5 text-lg" maxLength={20} autoComplete="tel" placeholder="98200 01234" value={phone} onChange={(e) => setPhone(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); if (phoneOk) go(1); } }} />
+            <div className="mt-1.5"><PhoneInput dial={dial} onDial={setDial} value={phone} onValue={setPhone} onEnter={() => { if (phoneOk) go(1); }} /></div>
             <p className="hint mt-1.5 text-sm">{t("settings.phoneHint")}</p>
           </section>
 

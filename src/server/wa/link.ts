@@ -7,7 +7,7 @@ import "server-only";
 import type { AdminClient } from "@/lib/supabase/admin";
 import { settings } from "@/lib/config";
 import { randomToken, sha256Hex } from "@/domain/router";
-import { maskEmail, normalizePhone } from "@/domain/wa-ui";
+import { COUNTRIES, maskEmail, normalizePhone } from "@/domain/wa-ui";
 
 const CONNECT_MINUTES = 30;
 
@@ -121,8 +121,9 @@ export async function matchRecentlyAsked(admin: AdminClient, userId: string, pho
 export type SavePhoneResult = { ok: true; phone: string; verified: boolean; whatsappAccount: string | null } | { ok: false; error: "invalid_phone" | "phone_taken" };
 
 /** Save the phone a web user typed. Verified only when their own WhatsApp link already proves it. */
-export async function savePhone(admin: AdminClient, userId: string, raw: string): Promise<SavePhoneResult> {
-  const phone = normalizePhone(raw);
+export async function savePhone(admin: AdminClient, userId: string, raw: string, dialRaw?: string | null): Promise<SavePhoneResult> {
+  const dial = COUNTRIES.some((c) => c.dial === dialRaw) ? dialRaw! : "91";
+  const phone = normalizePhone(raw, dial);
   if (!phone) return { ok: false, error: "invalid_phone" };
   const { data: verifiedElsewhere } = await admin.from("profiles").select("id, signup_channel").eq("phone", phone).not("phone_verified_at", "is", null).neq("id", userId).maybeSingle();
   if (verifiedElsewhere && verifiedElsewhere.signup_channel !== "whatsapp") return { ok: false, error: "phone_taken" };

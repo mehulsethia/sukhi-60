@@ -116,7 +116,7 @@ describe("webhook taps and templates", () => {
   });
 });
 
-import { maskEmail, normalizePhone, parseRange, parseTimes, phoneText } from "@/domain/wa-ui";
+import { dialForTimezone, maskEmail, normalizePhone, parseRange, parseTimes, phoneText, splitPhone } from "@/domain/wa-ui";
 describe("phones, times, emails", () => {
   it("normalizes phone numbers to WhatsApp digits", () => {
     expect(normalizePhone("82406 06847")).toBe("918240606847");
@@ -126,12 +126,25 @@ describe("phones, times, emails", () => {
     expect(normalizePhone("+1 (555) 144-8436")).toBe("15551448436");
     expect(normalizePhone("12345")).toBeNull();
     expect(normalizePhone("1234567890")).toBeNull(); // not an Indian mobile
+    // Germany: picked country, trunk 0 dropped; or typed with +49
+    expect(normalizePhone("0151 23456789", "49")).toBe("4915123456789");
+    expect(normalizePhone("151 23456789", "49")).toBe("4915123456789");
+    expect(normalizePhone("+49 151 23456789")).toBe("4915123456789");
+    expect(normalizePhone("+49 151 23456789", "91")).toBe("4915123456789");
+    expect(normalizePhone("07700 900123", "44")).toBe("447700900123");
+    expect(normalizePhone("+91 1234567890")).toBeNull(); // +91 must still be a mobile length
     expect(normalizePhone("call me")).toBeNull();
   });
   it("formats and masks", () => {
     expect(phoneText("918240606847")).toBe("+91 82406 06847");
     expect(phoneText("918240606847", true)).toBe("+91 ••••••6847");
     expect(maskEmail("mehul@gmail.com")).toBe("m•••@gmail.com");
+    expect(phoneText("4915123456789")).toBe("+49 15123456789");
+    expect(splitPhone("4915123456789")).toEqual({ dial: "49", national: "15123456789" });
+    expect(splitPhone("918240606847")).toEqual({ dial: "91", national: "8240606847" });
+    expect(dialForTimezone("Europe/Berlin")).toBe("49");
+    expect(dialForTimezone("Asia/Kolkata")).toBe("91");
+    expect(dialForTimezone(null)).toBe("91");
   });
   it("reads typed times", () => {
     expect(parseTimes("8am")).toEqual(["08:00"]);

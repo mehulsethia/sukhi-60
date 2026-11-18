@@ -4,6 +4,7 @@ import { getTranslations } from "next-intl/server";
 import { requireUser } from "@/lib/supabase/server";
 import { AuthShell } from "@/components/auth/AuthShell";
 import { PhoneForm } from "@/components/SettingsForms";
+import { dialForTimezone } from "@/domain/wa-ui";
 
 export const metadata: Metadata = { title: "Your phone number" };
 
@@ -11,13 +12,13 @@ export const metadata: Metadata = { title: "Your phone number" };
 export default async function PhonePage({ searchParams }: { searchParams: Promise<{ change?: string }> }) {
   const { change } = await searchParams;
   const { supabase, user } = await requireUser();
-  const { data: p } = await supabase.from("profiles").select("phone, onboarded_at").eq("id", user.id).single();
+  const { data: p } = await supabase.from("profiles").select("phone, onboarded_at, timezone").eq("id", user.id).single();
   if (!p?.onboarded_at) redirect("/onboarding");
   if (p.phone && !change) redirect("/today");
   const t = await getTranslations("settings");
   return (
     <AuthShell title={t("phoneTitle")}>
-      <PhoneForm current={p.phone ?? null} next={change ? "/settings#wa" : "/today"} />
+      <PhoneForm current={p.phone ?? null} defaultDial={dialForTimezone(p.timezone)} next={change ? "/settings#wa" : "/today"} />
     </AuthShell>
   );
 }

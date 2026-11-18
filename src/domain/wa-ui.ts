@@ -216,29 +216,66 @@ export function scheduleText(i: { schedule_kind: string; times: string[]; weekda
 // ---------------------------------------------------------------------------
 // Phone numbers, times, emails
 // ---------------------------------------------------------------------------
-/**
- * A phone number as WhatsApp sends it: country code + number, digits only.
- * Ten-digit Indian mobiles (and 0-prefixed ones) get +91. Returns null when it can't be a number.
- */
-export function normalizePhone(raw: string, defaultCountry = "91"): string | null {
-  let d = raw.trim().replace(/[\s().-]/g, "");
-  const plus = d.startsWith("+");
-  d = d.replace(/^\+/, "").replace(/^00/, "");
-  if (!/^\d+$/.test(d)) return null;
-  if (!plus && d.length === 11 && d.startsWith("0")) d = defaultCountry + d.slice(1);
-  else if (!plus && d.length === 10) {
-    if (defaultCountry === "91" && !/^[6-9]/.test(d)) return null;
-    d = defaultCountry + d;
-  }
-  return d.length >= 10 && d.length <= 15 ? d : null;
+/** Countries offered in the phone picker (dial code without +). Anything else: type it with +. */
+export const COUNTRIES = [
+  { iso: "IN", dial: "91", name: "India", tz: ["Asia/Kolkata", "Asia/Calcutta"] },
+  { iso: "DE", dial: "49", name: "Germany", tz: ["Europe/Berlin"] },
+  { iso: "GB", dial: "44", name: "United Kingdom", tz: ["Europe/London"] },
+  { iso: "US", dial: "1", name: "USA / Canada", tz: ["America/New_York", "America/Chicago", "America/Denver", "America/Los_Angeles", "America/Toronto", "America/Vancouver", "America/Phoenix"] },
+  { iso: "AE", dial: "971", name: "UAE", tz: ["Asia/Dubai"] },
+  { iso: "SG", dial: "65", name: "Singapore", tz: ["Asia/Singapore"] },
+  { iso: "AU", dial: "61", name: "Australia", tz: ["Australia/Sydney", "Australia/Melbourne", "Australia/Brisbane", "Australia/Perth", "Australia/Adelaide"] },
+  { iso: "NL", dial: "31", name: "Netherlands", tz: ["Europe/Amsterdam"] },
+  { iso: "FR", dial: "33", name: "France", tz: ["Europe/Paris"] },
+  { iso: "CH", dial: "41", name: "Switzerland", tz: ["Europe/Zurich"] },
+  { iso: "AT", dial: "43", name: "Austria", tz: ["Europe/Vienna"] },
+  { iso: "IE", dial: "353", name: "Ireland", tz: ["Europe/Dublin"] },
+  { iso: "SA", dial: "966", name: "Saudi Arabia", tz: ["Asia/Riyadh"] },
+  { iso: "QA", dial: "974", name: "Qatar", tz: ["Asia/Qatar"] },
+  { iso: "NP", dial: "977", name: "Nepal", tz: ["Asia/Kathmandu"] },
+  { iso: "BD", dial: "880", name: "Bangladesh", tz: ["Asia/Dhaka"] },
+  { iso: "LK", dial: "94", name: "Sri Lanka", tz: ["Asia/Colombo"] },
+] as const;
+
+/** Best guess for the picker from a time zone (India when unknown). */
+export function dialForTimezone(tz: string | null | undefined): string {
+  return COUNTRIES.find((c) => (c.tz as readonly string[]).includes(tz ?? ""))?.dial ?? "91";
 }
 
-/** "+91 98200 01234" style display, last 4 visible for privacy when `mask` is set. */
+/**
+ * A phone number as WhatsApp sends it: country code + number, digits only.
+ * "+49 151…" / "0049 151…" keep their own code. Otherwise the picked country's code is added
+ * and a leading trunk 0 is dropped ("0151…" in Germany, "098…" in India).
+ * Indian numbers must be 10-digit mobiles. Returns null when it can't be a number.
+ */
+export function normalizePhone(raw: string, dial = "91"): string | null {
+  let d = raw.trim().replace(/[\s().\/-]/g, "");
+  const intl = d.startsWith("+") || d.startsWith("00");
+  d = d.replace(/^\+/, "").replace(/^00/, "");
+  if (!/^\d+$/.test(d)) return null;
+  if (!intl) {
+    const national = d.replace(/^0/, "");
+    if (dial === "91" && !/^[6-9]\d{9}$/.test(national)) return null;
+    d = dial + national;
+  }
+  if (d.startsWith("91") && !/^91[6-9]\d{9}$/.test(d)) return null; // Indian numbers: 10-digit mobiles
+  return d.length >= 8 && d.length <= 15 ? d : null;
+}
+
+/** Split stored digits into the picker's country and the national part (for editing). */
+export function splitPhone(digits: string | null | undefined): { dial: string; national: string } | null {
+  if (!digits) return null;
+  const c = [...COUNTRIES].sort((a, b) => b.dial.length - a.dial.length).find((x) => digits.startsWith(x.dial) && digits.length - x.dial.length >= 6);
+  return c ? { dial: c.dial, national: digits.slice(c.dial.length) } : null;
+}
+
+/** "+91 82406 06847" / "+49 15123456789"; last 4 visible when `mask` is set. */
 export function phoneText(digits: string, mask = false): string {
-  const cc = digits.length > 10 ? digits.slice(0, digits.length - 10) : "";
-  const rest = digits.slice(-10);
-  const shown = mask ? `${"•".repeat(6)}${rest.slice(-4)}` : `${rest.slice(0, 5)} ${rest.slice(5)}`;
-  return `${cc ? `+${cc} ` : ""}${shown}`;
+  const sp = splitPhone(digits);
+  const dial = sp?.dial ?? "";
+  const nat = sp?.national ?? digits;
+  const shown = mask ? `${"•".repeat(Math.max(2, nat.length - 4))}${nat.slice(-4)}` : dial === "91" && nat.length === 10 ? `${nat.slice(0, 5)} ${nat.slice(5)}` : nat;
+  return `${dial ? `+${dial} ` : "+"}${shown}`;
 }
 
 /** "mehul@gmail.com" → "m•••@gmail.com". */

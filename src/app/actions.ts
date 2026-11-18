@@ -215,7 +215,7 @@ export async function completeOnboarding(_prev: ActionState, fd: FormData): Prom
   // Phone first: it is required, and a bad one should stop onboarding before anything is saved.
   {
     const { user } = await requireUser();
-    const ph = await savePhone(createAdminClient(), user.id, String(fd.get("phone") ?? ""));
+    const ph = await savePhone(createAdminClient(), user.id, String(fd.get("phone") ?? ""), String(fd.get("dial") ?? ""));
     if (!ph.ok) return { error: ph.error };
     if (ph.whatsappAccount) await askToJoin(ph.whatsappAccount, user.id);
   }
@@ -839,7 +839,7 @@ export async function createLinkCode(_prev: ActionState, fd: FormData): Promise<
 /** Save the phone number (required for every account; used to match WhatsApp). */
 export async function savePhoneAction(_prev: ActionState, fd: FormData): Promise<ActionState> {
   const { user } = await requireUser();
-  const r = await savePhone(createAdminClient(), user.id, String(fd.get("phone") ?? ""));
+  const r = await savePhone(createAdminClient(), user.id, String(fd.get("phone") ?? ""), String(fd.get("dial") ?? ""));
   if (!r.ok) return { error: r.error };
   if (r.whatsappAccount) await askToJoin(r.whatsappAccount, user.id);
   revalidatePath("/settings");

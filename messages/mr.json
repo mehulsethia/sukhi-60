@@ -598,7 +598,8 @@
     "phoneTaken": "हा नंबर दुसऱ्या सुखी अकाउंटवर वापरला जात आहे.",
     "phoneChange": "बदला",
     "waSayHi": "या नंबरवरून WhatsApp वर सुखीला मेसेज करा, ती जोडायचे विचारेल.",
-    "waSayHiButton": "WhatsApp उघडा"
+    "waSayHiButton": "WhatsApp उघडा",
+    "phoneCountry": "देशाचा कोड"
   },
   "family": {
     "acceptTitle": "कुटुंब सहाय्य आमंत्रण",

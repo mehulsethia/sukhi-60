@@ -1,5 +1,7 @@
 "use client";
-import { useActionState } from "react";
+import { PhoneInput } from "@/components/PhoneInput";
+import { splitPhone } from "@/domain/wa-ui";
+import { useActionState, useState } from "react";
 import { useTranslations } from "next-intl";
 import { createFamilyInvite, createLinkCode, saveConsents, savePhoneAction, savePreferences } from "@/app/actions";
 import { Alert } from "@/components/ui";
@@ -115,17 +117,24 @@ export function FamilyInviteForm({ disabled }: { disabled: boolean }) {
   );
 }
 
-export function PhoneForm({ current, next }: { current: string | null; next: string }) {
+export function PhoneForm({ current, next, defaultDial }: { current: string | null; next: string; defaultDial: string }) {
   const t = useTranslations();
   const [state, action] = useActionState(savePhoneAction, null);
   return (
     <form action={action} className="flex flex-col gap-2">
       <input type="hidden" name="next" value={next} />
       <label htmlFor="phone" className="label">{t("settings.phoneLabel")}</label>
-      <input id="phone" name="phone" type="tel" inputMode="tel" autoComplete="tel" required maxLength={20} className="input text-lg" placeholder="98200 01234" defaultValue={current ?? ""} />
+      <PhoneField current={current} defaultDial={defaultDial} />
       <p className="hint text-sm">{t("settings.phoneHint")}</p>
       {state?.error ? <Alert tone="danger">{state.error === "invalid_phone" ? t("settings.phoneInvalid") : state.error === "phone_taken" ? t("settings.phoneTaken") : t("common.error")}</Alert> : null}
       <SubmitButton className="btn btn-primary self-start" pendingLabel={t("common.saving")}>{t("settings.phoneSave")}</SubmitButton>
     </form>
   );
+}
+
+function PhoneField({ current, defaultDial }: { current: string | null; defaultDial: string }) {
+  const sp = splitPhone(current);
+  const [dial, setDial] = useState(sp?.dial ?? defaultDial);
+  const [phone, setPhone] = useState(sp?.national ?? "");
+  return <PhoneInput dial={dial} onDial={setDial} value={phone} onValue={setPhone} />;
 }
