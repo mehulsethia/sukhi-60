@@ -589,7 +589,16 @@
     "waConnectMerge": "इस नंबर पर WhatsApp से बनी सुखी प्रोफ़ाइल है। उसके प्लान और इतिहास इस अकाउंट में जुड़ जाएँगे।",
     "waConnectButton": "जोड़ें",
     "waConnectInvalid": "यह लिंक पुराना हो गया या इस्तेमाल हो चुका है। WhatsApp पर सुखी से नया माँगें।",
-    "waConnectOther": "यह नंबर किसी दूसरे सुखी अकाउंट से जुड़ा है।"
+    "waConnectOther": "यह नंबर किसी दूसरे सुखी अकाउंट से जुड़ा है।",
+    "phoneTitle": "आपका फ़ोन नंबर",
+    "phoneLabel": "फ़ोन (WhatsApp)",
+    "phoneHint": "वह नंबर जो आप WhatsApp पर इस्तेमाल करते हैं। सुखी इससे WhatsApp को इस अकाउंट से जोड़ता है।",
+    "phoneSave": "सेव करें",
+    "phoneInvalid": "यह फ़ोन नंबर नहीं लगता।",
+    "phoneTaken": "यह नंबर किसी दूसरे सुखी अकाउंट पर इस्तेमाल हो रहा है।",
+    "phoneChange": "बदलें",
+    "waSayHi": "इस नंबर से WhatsApp पर सुखी को मैसेज करें, वह जोड़ने का पूछेगा।",
+    "waSayHiButton": "WhatsApp खोलें"
   },
   "family": {
     "acceptTitle": "परिवार सहायता आमंत्रण",

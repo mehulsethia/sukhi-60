@@ -30,7 +30,7 @@ import { addDays, localDateOf } from "@/domain/schedule";
 import { waLink } from "@/domain/wa-ui";
 import { w } from "@/domain/wa-copy";
 import { businessNumber } from "@/server/wa/data";
-import { claimConnectRequest } from "@/server/wa/link";
+import { claimConnectRequest, savePhone } from "@/server/wa/link";
 import { notify } from "@/server/wa/send";
 import { BARRIER_CODES, cleanMotivation, normalizeRestart, normalizeStyles, parseConfidence } from "@/domain/behaviour";
 
@@ -212,6 +212,13 @@ function intakeFacts(v: z.infer<typeof IntakeSchema>): string[] {
 }
 
 export async function completeOnboarding(_prev: ActionState, fd: FormData): Promise<ActionState> {
+  // Phone first: it is required, and a bad one should stop onboarding before anything is saved.
+  {
+    const { user } = await requireUser();
+    const ph = await savePhone(createAdminClient(), user.id, String(fd.get("phone") ?? ""));
+    if (!ph.ok) return { error: ph.error };
+    if (ph.whatsappAccount) await askToJoin(ph.whatsappAccount, user.id);
+  }
   const r = await saveProfile(fd, true);
   if ("error" in r) return { error: r.error };
   const { supabase, user } = r;
@@ -827,6 +834,26 @@ export async function createLinkCode(_prev: ActionState, fd: FormData): Promise<
   // One tap on the phone: opens WhatsApp with the code ready to send.
   const num = await businessNumber();
   return { ok: true, data: { message: `SUKHI-${code}`, expires_at: expires.toISOString(), wa_link: num ? waLink(num, `SUKHI-${code}`) : null } };
+}
+
+/** Save the phone number (required for every account; used to match WhatsApp). */
+export async function savePhoneAction(_prev: ActionState, fd: FormData): Promise<ActionState> {
+  const { user } = await requireUser();
+  const r = await savePhone(createAdminClient(), user.id, String(fd.get("phone") ?? ""));
+  if (!r.ok) return { error: r.error };
+  if (r.whatsappAccount) await askToJoin(r.whatsappAccount, user.id);
+  revalidatePath("/settings");
+  const next = String(fd.get("next") ?? "/today");
+  redirect(next.startsWith("/") && !next.startsWith("//") ? next : "/today");
+}
+
+/** This phone already chats with Sukhi on a WhatsApp-made account: ask there to join the two. */
+async function askToJoin(whatsappUserId: string, webUserId: string) {
+  const admin = createAdminClient();
+  const [{ data: wa }, { data: u }] = await Promise.all([admin.from("profiles").select("locale").eq("id", whatsappUserId).single(), admin.auth.admin.getUserById(webUserId)]);
+  const l = wa?.locale ?? "en";
+  const { maskEmail } = await import("@/domain/wa-ui");
+  await notify(admin, whatsappUserId, { type: "buttons", body: w(l, "merge_prompt", { email: maskEmail(u.user?.email) }), buttons: [{ id: `lk:merge:${webUserId}`, title: w(l, "btn_merge") }, { id: "lk:no", title: w(l, "btn_not_now") }] }, `join-ask:${whatsappUserId}:${webUserId}`, { hold: true, respectQuiet: false }).catch(() => undefined);
 }
 
 /** Confirm step of "connect this WhatsApp to my web account" (link sent on WhatsApp). */

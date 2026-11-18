@@ -7,6 +7,7 @@ import "server-only";
 import type { AdminClient } from "@/lib/supabase/admin";
 import { settings } from "@/lib/config";
 import { randomToken, sha256Hex } from "@/domain/router";
+import { maskEmail, normalizePhone } from "@/domain/wa-ui";
 
 const CONNECT_MINUTES = 30;
 
@@ -57,6 +58,8 @@ export async function connectNumber(admin: AdminClient, userId: string, external
     result = "linked";
   }
   await admin.from("consents").upsert({ user_id: userId, kind: "whatsapp", granted: true, granted_at: new Date().toISOString(), revoked_at: null }, { onConflict: "user_id,kind" });
+  // The number is now proven for this account.
+  await admin.rpc("merge_phone_after_link", { p_user: userId, p_phone: externalId });
   await admin.from("audit_events").insert({ user_id: userId, actor: "user", action: "whatsapp_connected", entity: "channel_binding", details: { result } });
   return result;
 }
@@ -91,4 +94,41 @@ export async function webLoginLink(admin: AdminClient, userId: string, externalI
   const hashed = link.data.properties?.hashed_token;
   if (link.error || !hashed) throw new Error("web_login_link_failed");
   return `${settings.appUrl()}/auth/wa?t=${encodeURIComponent(hashed)}`;
+}
+
+// ---------------------------------------------------------------------------
+// Matching a WhatsApp number to a web account by the phone saved on it
+// ---------------------------------------------------------------------------
+export interface WebMatch { userId: string; name: string; email: string }
+
+/** The one web account (other than `exclude`) that has this phone on it, if exactly one does. */
+export async function findWebMatch(admin: AdminClient, phone: string, exclude?: string): Promise<WebMatch | null> {
+  let q = admin.from("profiles").select("id, display_name").eq("phone", phone).eq("signup_channel", "web").limit(2);
+  if (exclude) q = q.neq("id", exclude);
+  const { data } = await q;
+  if (data?.length !== 1) return null;
+  const { data: u } = await admin.auth.admin.getUserById(data[0].id);
+  return { userId: data[0].id, name: data[0].display_name?.split(" ")[0] ?? "", email: maskEmail(u.user?.email) };
+}
+
+/** A prompt was answered for this pair recently: don't ask again. */
+export async function matchRecentlyAsked(admin: AdminClient, userId: string, phone: string, withinHours: number) {
+  const since = new Date(Date.now() - withinHours * 3600_000).toISOString();
+  const { count } = await admin.from("audit_events").select("id", { count: "exact", head: true }).eq("user_id", userId).in("action", ["wa_match_prompted", "wa_match_declined"]).eq("entity_id", phone).gte("created_at", since);
+  return (count ?? 0) > 0;
+}
+
+export type SavePhoneResult = { ok: true; phone: string; verified: boolean; whatsappAccount: string | null } | { ok: false; error: "invalid_phone" | "phone_taken" };
+
+/** Save the phone a web user typed. Verified only when their own WhatsApp link already proves it. */
+export async function savePhone(admin: AdminClient, userId: string, raw: string): Promise<SavePhoneResult> {
+  const phone = normalizePhone(raw);
+  if (!phone) return { ok: false, error: "invalid_phone" };
+  const { data: verifiedElsewhere } = await admin.from("profiles").select("id, signup_channel").eq("phone", phone).not("phone_verified_at", "is", null).neq("id", userId).maybeSingle();
+  if (verifiedElsewhere && verifiedElsewhere.signup_channel !== "whatsapp") return { ok: false, error: "phone_taken" };
+  const { data: bound } = await admin.from("channel_bindings").select("user_id").eq("channel", "whatsapp").eq("external_id", phone).neq("status", "revoked").maybeSingle();
+  const verified = bound?.user_id === userId;
+  await admin.from("profiles").update({ phone, phone_verified_at: verified ? new Date().toISOString() : null }).eq("id", userId);
+  // Already chatting on WhatsApp with an account made there: that account is asked to join.
+  return { ok: true, phone, verified, whatsappAccount: bound && bound.user_id !== userId && verifiedElsewhere?.signup_channel === "whatsapp" ? bound.user_id : null };
 }

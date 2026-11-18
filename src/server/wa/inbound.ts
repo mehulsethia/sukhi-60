@@ -20,7 +20,7 @@ import { send, sendDirect, releaseHeld, type WaCtx } from "./send";
 import { clearState, currentState, setState, type StateData } from "./state";
 import { createWaAccount, grantPatientConsents } from "./account";
 import { hasActivePlan } from "./data";
-import { consumeCodeForBoundNumber, createConnectLink, webLoginLink } from "./link";
+import { connectNumber, consumeCodeForBoundNumber, createConnectLink, findWebMatch, matchRecentlyAsked, webLoginLink } from "./link";
 import * as P from "./patient";
 import * as F from "./family";
 import * as D from "./doctor";
@@ -56,6 +56,15 @@ export async function handleWhatsAppMessage(admin: AdminClient, msg: InboundMess
   const { data: inserted } = await admin.from("messages").select("id").eq("provider_message_id", msg.id).maybeSingle();
 
   const role = (profile as { primary_role?: string }).primary_role ?? "patient";
+
+  // An account made on WhatsApp whose number is also saved on a web account: offer to join them.
+  if (!msg.replyId && (profile as { signup_channel?: string }).signup_channel === "whatsapp") {
+    const match = await findWebMatch(admin, from, userId);
+    if (match && !(await matchRecentlyAsked(admin, userId, from, 24))) {
+      await audit(admin, userId, "system", "wa_match_prompted", "phone", from);
+      return send(ctx, { type: "buttons", body: w(ctx.locale, "merge_prompt", { email: match.email }), buttons: [{ id: `lk:merge:${match.userId}`, title: w(ctx.locale, "btn_merge") }, { id: "lk:no", title: w(ctx.locale, "btn_not_now") }] });
+    }
+  }
 
   // A web link code from a number that already has an account here (e.g. made on WhatsApp first).
   if (!msg.replyId && text) {
@@ -130,12 +139,14 @@ function startButtons(l: string, startId: string, extra?: { id: string; title: s
   return [{ id: startId, title: w(l, "btn_start") }, { id: "ob:no", title: w(l, "btn_not_now") }, ...(extra ? [extra] : [])];
 }
 
-async function handleNewNumber(admin: AdminClient, msg: InboundMessage) {
+async function handleNewNumber(admin: AdminClient, msg: InboundMessage): Promise<void> {
   const from = msg.from;
   const text = (msg.text ?? msg.caption ?? "").trim();
   const id = msg.replyId ?? "";
 
   if (id.startsWith("ob:start")) return startAccount(admin, msg, id);
+  if (id.startsWith("lk:yes:")) return connectMatched(admin, msg, id.slice(7));
+  if (id === "lk:no") return void (await sendDirect(from, { type: "buttons", body: w("en", "welcome_new"), buttons: startButtons("en", "ob:start", { id: "ob:web", title: w("en", "btn_web") }) }));
   if (id === "ob:no") return void (await sendDirect(from, { type: "text", body: w("en", "not_now") }));
   if (id === "ob:web") {
     // Already use the web app: a one-time link to log in and connect this number.
@@ -147,6 +158,16 @@ async function handleNewNumber(admin: AdminClient, msg: InboundMessage) {
   const routed = text ? routeMessage(text, { channel: "whatsapp" }) : null;
   if (routed?.route === "link_code") return linkExisting(admin, from, routed.code);
   if (routed?.route === "channel_command") return; // STOP from a stranger: nothing to stop, send nothing
+
+  // The number is saved on a web account: offer to connect it (one tap on this phone proves it).
+  if (!id) {
+    const match = await findWebMatch(admin, from);
+    if (match) {
+      const { data: prof } = await admin.from("profiles").select("locale").eq("id", match.userId).single();
+      const l = prof?.locale ?? "en";
+      return void (await sendDirect(from, { type: "buttons", body: w(l, "match_prompt", { name: match.name, email: match.email }), buttons: [{ id: `lk:yes:${match.userId}`, title: w(l, "btn_connect") }, { id: "lk:no", title: w(l, "btn_not_me") }] }));
+    }
+  }
 
   const code = parseInviteCode(text);
   if (code?.kind === "doctor") {
@@ -255,7 +276,21 @@ async function handleTap(ctx: WaCtx, id: string, binding: Binding): Promise<void
   const [ns, a, b, c] = parts;
   const st = currentState(binding);
 
-  if (ns === "m") return view(ctx, a);
+  if (ns === "m") return a === "addplan" ? P.askPath(ctx) : view(ctx, a);
+  if (ns === "lk") {
+    if (a === "merge" && UUID.test(b ?? "")) return mergeMatched(ctx, b);
+    if (a === "no") {
+      await audit(ctx.admin, ctx.userId, "user", "wa_match_declined", "phone", ctx.to);
+      return P.showMenu(ctx);
+    }
+  }
+  if (ns === "tn") return P.saveTone(ctx, a ?? "");
+  if (ns === "rm") return P.saveReminders(ctx, a ?? "");
+  if (ns === "pe") return a === "list" || !UUID.test(a ?? "") ? P.pickEdit(ctx) : P.showItem(ctx, a);
+  if (ns === "pt" && UUID.test(a ?? "")) return P.askTime(ctx, a);
+  if (ns === "pp" && UUID.test(a ?? "")) return P.setItemStatus(ctx, a, "paused");
+  if (ns === "pr" && UUID.test(a ?? "")) return P.setItemStatus(ctx, a, "confirmed");
+  if (ns === "px" && UUID.test(a ?? "")) return P.setItemStatus(ctx, a, "retired");
   if (ns === "ci") {
     if (a === "pick" && (b === "done" || b === "later" || b === "skipped")) return P.pickTask(ctx, b);
     if ((a === "done" || a === "later" || a === "skipped" || a === "unable") && UUID.test(b ?? "")) return P.checkInTap(ctx, a, b);
@@ -316,6 +351,10 @@ async function handleTap(ctx: WaCtx, id: string, binding: Binding): Promise<void
       return send(ctx, { type: "buttons", body: w(b, "lang_saved"), buttons: [{ id: "m:menu", title: w(b, "btn_menu") }] });
     }
     if (a === "pause" || a === "stop") return channelCommand(ctx.admin, binding, ctx.userId, ctx.to, ctx.locale, a);
+    if (a === "langs") return P.showLanguages(ctx);
+    if (a === "tone") return P.askTone(ctx);
+    if (a === "rem") return P.askReminders(ctx);
+    if (a === "quiet") return P.askQuiet(ctx);
     if (a === "web") return send(ctx, { type: "text", body: w(ctx.locale, "web_login_link", { link: await webLoginLink(ctx.admin, ctx.userId, ctx.to) }) });
     if (a === "link") return send(ctx, { type: "text", body: w(ctx.locale, "web_connect_link", { link: await createConnectLink(ctx.admin, ctx.to) }) });
   }
@@ -411,6 +450,10 @@ async function handleStateText(ctx: WaCtx, state: string, data: StateData, text:
     case "dr_note":
       if (data.linkId) await D.sendNote(ctx, String(data.linkId), text, !!data.review);
       return true;
+    case "quiet":
+      return P.saveQuiet(ctx, text);
+    case "pe_time":
+      return data.itemId ? P.saveTime(ctx, String(data.itemId), text) : false;
     case "dr_redeem":
       await D.redeem(ctx, text);
       return true;
@@ -448,4 +491,29 @@ async function boundLinkCode(ctx: WaCtx, code: string) {
   const profile = await getProfile(ctx.admin, r.userId!);
   const next: WaCtx = { ...ctx, userId: r.userId!, locale: profile.locale };
   await send(next, { type: "buttons", body: w(profile.locale, r.result === "merged" ? "web_merged" : "web_connected", { name: profile.display_name?.split(" ")[0] ?? "" }), buttons: [{ id: "m:today", title: w(profile.locale, "row_today") }, { id: "m:menu", title: w(profile.locale, "btn_menu") }] });
+}
+
+// ---------------------------------------------------------------------------
+// Phone match: connect a new number, or join a WhatsApp-made account into the web one
+// ---------------------------------------------------------------------------
+async function connectMatched(admin: AdminClient, msg: InboundMessage, webUserId: string): Promise<void> {
+  // Check again that this number is still the one saved on that account.
+  const match = await findWebMatch(admin, msg.from);
+  if (!match || match.userId !== webUserId) return handleNewNumber(admin, { ...msg, replyId: undefined, text: "hi" });
+  await connectNumber(admin, webUserId, msg.from);
+  await welcomeLinked(admin, webUserId, msg, "web_connected");
+}
+
+async function mergeMatched(ctx: WaCtx, webUserId: string) {
+  const match = await findWebMatch(ctx.admin, ctx.to, ctx.userId);
+  if (!match || match.userId !== webUserId) return P.showMenu(ctx);
+  await connectNumber(ctx.admin, webUserId, ctx.to);
+  await welcomeLinked(ctx.admin, webUserId, { id: ctx.key, from: ctx.to } as InboundMessage, "web_merged");
+}
+
+async function welcomeLinked(admin: AdminClient, userId: string, msg: Pick<InboundMessage, "id" | "from">, key: "web_connected" | "web_merged") {
+  const { data: b } = await admin.from("channel_bindings").select("id").eq("user_id", userId).eq("external_id", msg.from).neq("status", "revoked").single();
+  const profile = await getProfile(admin, userId);
+  const ctx: WaCtx = { admin, userId, bindingId: b!.id, to: msg.from, locale: profile.locale, key: `${msg.id}:linked`, n: 0 };
+  await send(ctx, { type: "buttons", body: w(profile.locale, key, { name: profile.display_name?.split(" ")[0] ?? "" }), buttons: [{ id: "m:today", title: w(profile.locale, "row_today") }, { id: "m:menu", title: w(profile.locale, "btn_menu") }] });
 }

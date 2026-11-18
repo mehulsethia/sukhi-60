@@ -589,7 +589,16 @@
     "waConnectMerge": "This number already has a Sukhi profile from WhatsApp. Its plans and history will be added to this account.",
     "waConnectButton": "Connect",
     "waConnectInvalid": "This link has expired or was already used. Ask Sukhi on WhatsApp for a new one.",
-    "waConnectOther": "This number is linked to a different Sukhi account."
+    "waConnectOther": "This number is linked to a different Sukhi account.",
+    "phoneTitle": "Your phone number",
+    "phoneLabel": "Phone (WhatsApp)",
+    "phoneHint": "The number you use on WhatsApp. Sukhi uses it to connect WhatsApp to this account.",
+    "phoneSave": "Save",
+    "phoneInvalid": "That doesn't look like a phone number.",
+    "phoneTaken": "This number is already in use on another Sukhi account.",
+    "phoneChange": "Change",
+    "waSayHi": "Message Sukhi on WhatsApp from this number and it will offer to connect.",
+    "waSayHiButton": "Open WhatsApp"
   },
   "family": {
     "acceptTitle": "Family support invitation",

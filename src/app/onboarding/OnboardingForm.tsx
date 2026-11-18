@@ -14,6 +14,7 @@ import { DocPicker } from "@/components/DocPicker";
 import { FEATURED_PACKS, packMotivation, type PackKey } from "@/domain/templates";
 import { COMMUNICATION_STYLES, type CommunicationStyle } from "@/domain/behaviour";
 import { setLocaleCookie } from "@/lib/client-prefs";
+import { normalizePhone } from "@/domain/wa-ui";
 
 const PACK_ICON: Record<string, typeof Sparkles> = { glow: Sparkles, sleep: Moon, active: Footprints, calm: Wind, energy: Zap };
 const TONE_ICON = { warm_gentle: Heart, fun_playful: Smile, motivating: Target, simple_practical: ListChecks } as const;
@@ -28,6 +29,8 @@ export function OnboardingForm({ defaults }: { defaults: { timezone: string; loc
   const [step, setStep] = useState(0);
   const [locale, setLocale] = useState(defaults.locale);
   const [name, setName] = useState("");
+  const [phone, setPhone] = useState("");
+  const phoneOk = !!normalizePhone(phone);
   const [packs, setPacks] = useState<PackKey[]>([]);
   const [doctor, setDoctor] = useState(false);
   const [hasFile, setHasFile] = useState(false);
@@ -64,6 +67,7 @@ export function OnboardingForm({ defaults }: { defaults: { timezone: string; loc
         <input type="hidden" name="locale" value={locale} />
         <input type="hidden" name="timezone" defaultValue={defaults.timezone} />
         <input type="hidden" name="display_name" value={name} />
+        <input type="hidden" name="phone" value={phone} />
         {["08:30", "20:00"].map((x) => <input key={x} type="hidden" name="checkin_times" value={x} />)}
         <input type="hidden" name="quiet_start" value="23:00" />
         <input type="hidden" name="quiet_end" value="07:00" />
@@ -80,14 +84,17 @@ export function OnboardingForm({ defaults }: { defaults: { timezone: string; loc
           {Array.from({ length: TOTAL }).map((_, i) => <span key={i} className={`h-1 flex-1 rounded-full transition-colors duration-300 ${i <= step ? "bg-primary" : "bg-surface-3"}`} />)}
         </div>
 
-        {state?.error ? <div className="mt-5"><Alert tone="danger">{t("common.error")}</Alert></div> : null}
+        {state?.error ? <div className="mt-5"><Alert tone="danger">{state.error === "invalid_phone" ? t("settings.phoneInvalid") : state.error === "phone_taken" ? t("settings.phoneTaken") : t("common.error")}</Alert></div> : null}
 
         <div className="mt-8 flex-1">
           {/* 1. You */}
           <section className={`pop-in ${show(0)}`} aria-labelledby="s0">
             <h1 id="s0" className="text-[1.5rem] leading-tight">{t("onb.nameTitle")}</h1>
             <label htmlFor="name" className="sr-only">{t("onboarding.name")}</label>
-            <input id="name" className="input mt-6 text-lg" maxLength={80} autoComplete="given-name" placeholder={t("onb.namePlaceholder")} value={name} onChange={(e) => setName(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); go(1); } }} />
+            <input id="name" className="input mt-6 text-lg" maxLength={80} autoComplete="given-name" placeholder={t("onb.namePlaceholder")} value={name} onChange={(e) => setName(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); if (phoneOk) go(1); } }} />
+            <label htmlFor="phone" className="label mt-5 block">{t("settings.phoneLabel")}</label>
+            <input id="phone" type="tel" inputMode="tel" className="input mt-1.5 text-lg" maxLength={20} autoComplete="tel" placeholder="98200 01234" value={phone} onChange={(e) => setPhone(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); if (phoneOk) go(1); } }} />
+            <p className="hint mt-1.5 text-sm">{t("settings.phoneHint")}</p>
           </section>
 
           {/* 2. What you want */}
@@ -147,7 +154,7 @@ export function OnboardingForm({ defaults }: { defaults: { timezone: string; loc
           <div className="mx-auto flex max-w-md items-center justify-between gap-3">
             <button type="button" className={`btn btn-ghost ${step === 0 ? "invisible" : ""}`} onClick={() => go(-1)} aria-label={t("onb.back")}><ChevronLeft size={20} aria-hidden="true" /></button>
             {step < TOTAL - 1 ? (
-              <button type="button" className="btn btn-primary min-w-36" onClick={() => go(1)}>{step === 1 && packs.length === 0 && !doctor ? t("onb.skipForNow") : t("onb.next")}</button>
+              <button type="button" className="btn btn-primary min-w-36" disabled={step === 0 && !phoneOk} onClick={() => go(1)}>{step === 1 && packs.length === 0 && !doctor ? t("onb.skipForNow") : t("onb.next")}</button>
             ) : (
               <SubmitButton className="btn btn-primary min-w-36" pendingLabel={doctor && hasFile ? t("onb.uploadReading") : t("common.saving")}>{t("onb.finish")}</SubmitButton>
             )}

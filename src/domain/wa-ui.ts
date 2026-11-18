@@ -212,3 +212,71 @@ export function scheduleText(i: { schedule_kind: string; times: string[]; weekda
   }
   return t || "any time";
 }
+
+// ---------------------------------------------------------------------------
+// Phone numbers, times, emails
+// ---------------------------------------------------------------------------
+/**
+ * A phone number as WhatsApp sends it: country code + number, digits only.
+ * Ten-digit Indian mobiles (and 0-prefixed ones) get +91. Returns null when it can't be a number.
+ */
+export function normalizePhone(raw: string, defaultCountry = "91"): string | null {
+  let d = raw.trim().replace(/[\s().-]/g, "");
+  const plus = d.startsWith("+");
+  d = d.replace(/^\+/, "").replace(/^00/, "");
+  if (!/^\d+$/.test(d)) return null;
+  if (!plus && d.length === 11 && d.startsWith("0")) d = defaultCountry + d.slice(1);
+  else if (!plus && d.length === 10) {
+    if (defaultCountry === "91" && !/^[6-9]/.test(d)) return null;
+    d = defaultCountry + d;
+  }
+  return d.length >= 10 && d.length <= 15 ? d : null;
+}
+
+/** "+91 98200 01234" style display, last 4 visible for privacy when `mask` is set. */
+export function phoneText(digits: string, mask = false): string {
+  const cc = digits.length > 10 ? digits.slice(0, digits.length - 10) : "";
+  const rest = digits.slice(-10);
+  const shown = mask ? `${"•".repeat(6)}${rest.slice(-4)}` : `${rest.slice(0, 5)} ${rest.slice(5)}`;
+  return `${cc ? `+${cc} ` : ""}${shown}`;
+}
+
+/** "mehul@gmail.com" → "m•••@gmail.com". */
+export function maskEmail(email: string | null | undefined): string {
+  if (!email || !email.includes("@")) return "";
+  const [user, domain] = email.split("@");
+  return `${user.slice(0, 1)}•••@${domain}`;
+}
+
+/**
+ * Times someone typed: "8am", "8:30 pm", "20:00", "8.30pm, 9 pm", "7 and 21:15".
+ * Returns sorted unique HH:MM, or null if any part can't be read.
+ */
+export function parseTimes(raw: string): string[] | null {
+  const parts = raw.toLowerCase().replace(/\band\b|&|aur|आणि|और/g, ",").split(/[,;\/]+|\s{2,}/).map((s) => s.trim()).filter(Boolean);
+  if (!parts.length || parts.length > 8) return null;
+  const out: string[] = [];
+  for (const p of parts) {
+    const m = p.match(/^(\d{1,2})(?:[:.](\d{2}))?\s*(am|pm|a\.m\.|p\.m\.)?$/);
+    if (!m) return null;
+    let h = Number(m[1]);
+    const min = Number(m[2] ?? "0");
+    const ap = m[3]?.replace(/\./g, "");
+    if (min > 59) return null;
+    if (ap) {
+      if (h < 1 || h > 12) return null;
+      if (ap === "pm" && h !== 12) h += 12;
+      if (ap === "am" && h === 12) h = 0;
+    } else if (h > 23) return null;
+    out.push(`${String(h).padStart(2, "0")}:${String(min).padStart(2, "0")}`);
+  }
+  return [...new Set(out)].sort();
+}
+
+/** Quiet hours typed as "10pm-7am" / "22:30 to 07:00". */
+export function parseRange(raw: string): [string, string] | null {
+  const m = raw.toLowerCase().split(/\s*(?:-|–|to|se|ते|से)\s*/);
+  if (m.length !== 2) return null;
+  const a = parseTimes(m[0]), b = parseTimes(m[1]);
+  return a?.length === 1 && b?.length === 1 && a[0] !== b[0] ? [a[0], b[0]] : null;
+}

@@ -6,7 +6,8 @@ import type { AdminClient } from "@/lib/supabase/admin";
 import { addDays, localDateOf, weekStart } from "@/domain/schedule";
 import { applyCheckIn, getProfile, getToday, materializeOccurrences, pickRelevantOccurrence, type TodayAction } from "../core";
 import { reply, rewardLine } from "@/domain/replies";
-import { scheduleText, time12, waLink, type WaRow } from "@/domain/wa-ui";
+import { parseRange, parseTimes, scheduleText, time12, waLink, type WaRow } from "@/domain/wa-ui";
+import { COMMUNICATION_STYLES } from "@/domain/behaviour";
 import { w } from "@/domain/wa-copy";
 import { FEATURED_PACKS, PACK_KEYS, isPackKey, packFor, packMotivation, type PackKey } from "@/domain/templates";
 import { pointsTotal } from "../points";
@@ -171,7 +172,7 @@ export async function showPlan(ctx: WaCtx) {
     })
     .filter(Boolean);
   if (!blocks.length) return askPath(ctx, w(l, "no_plan"));
-  await send(ctx, { type: "buttons", body: `${blocks.join("\n\n")}`, buttons: [{ id: "ob:path:pack", title: w(l, "btn_add_goal") }, { id: "ob:path:rx", title: w(l, "btn_path_rx") }, menuBtn(l)] });
+  await send(ctx, { type: "buttons", body: `${blocks.join("\n\n")}`, buttons: [{ id: "pe:list", title: w(l, "btn_edit") }, { id: "m:addplan", title: w(l, "btn_add_goal") }, menuBtn(l)] });
 }
 
 /** How to make a plan: doctor's note, a ready-made goal, or own words. */
@@ -201,6 +202,7 @@ export async function choosePath(ctx: WaCtx, path: "rx" | "pack" | "words") {
 
 async function finishPlan(ctx: WaCtx, planId: string) {
   const l = ctx.locale;
+  const { data: before } = await ctx.admin.from("profiles").select("onboarded_at").eq("id", ctx.userId).single();
   await materializeOccurrences(ctx.admin, ctx.userId, 7).catch(() => undefined);
   await ctx.admin.from("profiles").update({ onboarded_at: new Date().toISOString(), primary_role: "patient" }).eq("id", ctx.userId).is("onboarded_at", null);
   await ctx.admin.from("profiles").update({ primary_role: "patient" }).eq("id", ctx.userId).eq("primary_role", "family");
@@ -208,6 +210,7 @@ async function finishPlan(ctx: WaCtx, planId: string) {
   const items = (plan?.plan_items ?? []).filter((i) => i.status === "confirmed").map((i) => `• ${i.title} · ${scheduleText(i, w(l, "per_week"))}`).join("\n");
   await clearState(ctx.admin, ctx.bindingId);
   await send(ctx, { type: "buttons", body: w(l, "plan_ready", { title: plan?.title ?? "", items }), buttons: [{ id: "m:today", title: w(l, "row_today") }, { id: "ob:path:pack", title: w(l, "btn_add_goal") }, menuBtn(l)] });
+  if (!before?.onboarded_at) await askTone(ctx);
 }
 
 export async function addPack(ctx: WaCtx, key: string) {
@@ -299,6 +302,7 @@ export async function confirmDrafts(ctx: WaCtx, planId: string) {
   }
   await clearState(ctx.admin, ctx.bindingId);
   await materializeOccurrences(ctx.admin, ctx.userId, 7).catch(() => undefined);
+  const { data: before } = await ctx.admin.from("profiles").select("onboarded_at").eq("id", ctx.userId).single();
   await ctx.admin.from("profiles").update({ onboarded_at: new Date().toISOString() }).eq("id", ctx.userId).is("onboarded_at", null);
   const doc = await linkedDoctor(ctx.admin, ctx.userId);
   if (doc) {
@@ -306,6 +310,7 @@ export async function confirmDrafts(ctx: WaCtx, planId: string) {
     await notifyDoctorPlan(ctx.admin, doc.doctorId, ctx.userId, doc.linkId, planId, confirmed).catch(() => undefined);
   }
   await showToday(ctx, doc ? w(l, "rx_confirmed_dr", { doctor: doc.name }) : w(l, "rx_confirmed"));
+  if (!before?.onboarded_at) await askTone(ctx);
 }
 
 export async function askFix(ctx: WaCtx, planId: string) {
@@ -491,15 +496,16 @@ export async function linkDoctor(ctx: WaCtx, doctorId: string): Promise<string |
 // ---------------------------------------------------------------------------
 export async function showSettings(ctx: WaCtx) {
   const l = ctx.locale;
-  const { data: prof } = await ctx.admin.from("profiles").select("signup_channel").eq("id", ctx.userId).single();
+  const { data: prof } = await ctx.admin.from("profiles").select("signup_channel, quiet_start, quiet_end").eq("id", ctx.userId).single();
   await send(ctx, {
     type: "list",
     body: w(l, "settings_body"),
     button: w(l, "settings_body"),
     sections: [{ rows: [
-      { id: "st:lang:en", title: "English", description: w(l, "row_language") },
-      { id: "st:lang:hi", title: "हिंदी", description: w(l, "row_language") },
-      { id: "st:lang:mr", title: "मराठी", description: w(l, "row_language") },
+      { id: "st:langs", title: w(l, "row_language"), description: "English · हिंदी · मराठी" },
+      { id: "st:tone", title: w(l, "row_tone") },
+      { id: "st:rem", title: w(l, "row_reminders"), description: w(l, "row_reminders_d") },
+      { id: "st:quiet", title: w(l, "row_quiet"), description: w(l, "row_quiet_d", { start: time12(prof?.quiet_start), end: time12(prof?.quiet_end) }) },
       { id: "st:pause", title: w(l, "row_pause"), description: w(l, "row_pause_d") },
       { id: "st:stop", title: w(l, "row_stop") },
       { id: "st:web", title: w(l, "row_web"), description: w(l, "row_web_d") },
@@ -510,4 +516,113 @@ export async function showSettings(ctx: WaCtx) {
 
 export async function showHelp(ctx: WaCtx) {
   await send(ctx, { type: "buttons", body: w(ctx.locale, "help"), buttons: [menuBtn(ctx.locale)] });
+}
+
+export async function showLanguages(ctx: WaCtx) {
+  await send(ctx, { type: "list", body: w(ctx.locale, "row_language"), button: w(ctx.locale, "row_language"), sections: [{ rows: [{ id: "st:lang:en", title: "English" }, { id: "st:lang:hi", title: "हिंदी" }, { id: "st:lang:mr", title: "मराठी" }] }] });
+}
+
+// How Sukhi talks (same four styles as the web onboarding)
+export async function askTone(ctx: WaCtx) {
+  const l = ctx.locale;
+  await send(ctx, { type: "list", body: w(l, "tone_ask"), button: w(l, "btn_tone"), sections: [{ rows: COMMUNICATION_STYLES.map((t) => ({ id: `tn:${t}`, title: w(l, `tone_${t}`) })) }] });
+}
+
+export async function saveTone(ctx: WaCtx, style: string) {
+  if (!(COMMUNICATION_STYLES as readonly string[]).includes(style)) return askTone(ctx);
+  await ctx.admin.from("profiles").update({ communication_styles: [style], behaviour_prefs_updated_at: new Date().toISOString() }).eq("id", ctx.userId);
+  await send(ctx, { type: "buttons", body: w(ctx.locale, "tone_saved"), buttons: [{ id: "m:today", title: w(ctx.locale, "row_today") }, menuBtn(ctx.locale)] });
+}
+
+export async function askReminders(ctx: WaCtx) {
+  const l = ctx.locale;
+  await send(ctx, { type: "list", body: w(l, "row_reminders"), button: w(l, "row_reminders"), sections: [{ rows: (["normal", "gentle", "off"] as const).map((f) => ({ id: `rm:${f}`, title: w(l, `reminders_${f}`) })) }] });
+}
+
+export async function saveReminders(ctx: WaCtx, f: string) {
+  if (!["normal", "gentle", "off"].includes(f)) return askReminders(ctx);
+  await ctx.admin.from("profiles").update({ reminder_frequency: f }).eq("id", ctx.userId);
+  await materializeOccurrences(ctx.admin, ctx.userId, 7).catch(() => undefined);
+  await send(ctx, { type: "buttons", body: w(ctx.locale, "reminders_saved"), buttons: [menuBtn(ctx.locale)] });
+}
+
+export async function askQuiet(ctx: WaCtx) {
+  await setState(ctx.admin, ctx.bindingId, "quiet");
+  await send(ctx, { type: "text", body: w(ctx.locale, "quiet_ask") });
+}
+
+export async function saveQuiet(ctx: WaCtx, text: string): Promise<boolean> {
+  const r = parseRange(text);
+  if (!r) {
+    await send(ctx, { type: "text", body: w(ctx.locale, "quiet_invalid") });
+    return true;
+  }
+  await clearState(ctx.admin, ctx.bindingId);
+  await ctx.admin.from("profiles").update({ quiet_start: r[0], quiet_end: r[1] }).eq("id", ctx.userId);
+  await send(ctx, { type: "buttons", body: w(ctx.locale, "quiet_saved", { start: time12(r[0]), end: time12(r[1]) }), buttons: [menuBtn(ctx.locale)] });
+  return true;
+}
+
+// ---------------------------------------------------------------------------
+// Editing tasks: change time, pause / resume, remove (same rules as the web plan page)
+// ---------------------------------------------------------------------------
+async function ownItem(ctx: WaCtx, itemId: string) {
+  const { data } = await ctx.admin.from("plan_items").select("id, plan_id, title, status, schedule_kind, times, weekdays, weekly_target, care_plans!inner(mode, clinician_name)").eq("id", itemId).eq("user_id", ctx.userId).maybeSingle();
+  return data;
+}
+
+export async function pickEdit(ctx: WaCtx) {
+  const l = ctx.locale;
+  const { data: items } = await ctx.admin.from("plan_items").select("id, title, status, schedule_kind, times, weekdays, weekly_target, care_plans!inner(status)").eq("user_id", ctx.userId).in("status", ["confirmed", "paused"]).eq("care_plans.status", "active").order("created_at").limit(10);
+  if (!items?.length) return askPath(ctx, w(l, "no_plan"));
+  await send(ctx, { type: "list", body: w(l, "edit_pick"), button: w(l, "btn_tasks"), sections: [{ rows: items.map((i) => ({ id: `pe:${i.id}`, title: i.title, description: i.status === "paused" ? w(l, "item_paused_tag") : scheduleText(i, w(l, "per_week")) })) }] });
+}
+
+export async function showItem(ctx: WaCtx, itemId: string) {
+  const l = ctx.locale;
+  const it = await ownItem(ctx, itemId);
+  if (!it || !["confirmed", "paused"].includes(it.status)) return pickEdit(ctx);
+  const buttons = [
+    ...(it.schedule_kind !== "weekly_target" && it.status === "confirmed" ? [{ id: `pt:${it.id}`, title: w(l, "btn_change_time") }] : []),
+    it.status === "paused" ? { id: `pr:${it.id}`, title: w(l, "btn_resume") } : { id: `pp:${it.id}`, title: w(l, "btn_pause") },
+    { id: `px:${it.id}`, title: w(l, "btn_remove") },
+  ];
+  await send(ctx, { type: "buttons", body: `*${it.title}*\n${it.status === "paused" ? w(l, "item_paused_tag") : scheduleText(it, w(l, "per_week"))}`, buttons });
+}
+
+export async function askTime(ctx: WaCtx, itemId: string) {
+  const l = ctx.locale;
+  const it = await ownItem(ctx, itemId);
+  if (!it) return pickEdit(ctx);
+  await setState(ctx.admin, ctx.bindingId, "pe_time", { itemId });
+  const doctor = (it.care_plans as unknown as { mode: string }).mode === "clinician_instructions";
+  await send(ctx, { type: "text", body: [w(l, "time_ask", { title: it.title }), doctor ? w(l, "time_doctor_note") : ""].filter(Boolean).join("\n\n") });
+}
+
+export async function saveTime(ctx: WaCtx, itemId: string, text: string): Promise<boolean> {
+  const l = ctx.locale;
+  const times = parseTimes(text);
+  if (!times?.length) {
+    await send(ctx, { type: "text", body: w(l, "time_invalid") });
+    return true;
+  }
+  const it = await ownItem(ctx, itemId);
+  await clearState(ctx.admin, ctx.bindingId);
+  if (!it) return (await pickEdit(ctx), true);
+  // As on the web: the edit and the move back to draft together, then confirm again.
+  const { error } = await ctx.admin.from("plan_items").update({ times, status: "draft" }).eq("id", it.id).eq("user_id", ctx.userId);
+  if (!error) await ctx.admin.from("plan_items").update({ status: "confirmed" }).eq("id", it.id).eq("user_id", ctx.userId);
+  await materializeOccurrences(ctx.admin, ctx.userId, 7).catch(() => undefined);
+  await send(ctx, { type: "buttons", body: w(l, "time_saved", { title: it.title, times: times.map(time12).join(", ") }), buttons: [{ id: "m:plan", title: w(l, "row_plan") }, menuBtn(l)] });
+  return true;
+}
+
+export async function setItemStatus(ctx: WaCtx, itemId: string, status: "paused" | "confirmed" | "retired") {
+  const l = ctx.locale;
+  const it = await ownItem(ctx, itemId);
+  if (!it) return pickEdit(ctx);
+  await ctx.admin.from("plan_items").update({ status }).eq("id", it.id).eq("user_id", ctx.userId);
+  if (status === "confirmed") await materializeOccurrences(ctx.admin, ctx.userId, 7).catch(() => undefined);
+  const key = status === "paused" ? "item_paused" : status === "confirmed" ? "item_resumed" : "item_removed";
+  await send(ctx, { type: "buttons", body: w(l, key, { title: it.title }), buttons: [{ id: "m:plan", title: w(l, "row_plan") }, menuBtn(l)] });
 }

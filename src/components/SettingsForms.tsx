@@ -1,7 +1,7 @@
 "use client";
 import { useActionState } from "react";
 import { useTranslations } from "next-intl";
-import { createFamilyInvite, createLinkCode, saveConsents, savePreferences } from "@/app/actions";
+import { createFamilyInvite, createLinkCode, saveConsents, savePhoneAction, savePreferences } from "@/app/actions";
 import { Alert } from "@/components/ui";
 import { SubmitButton } from "@/components/SubmitButton";
 import { TimesInput } from "@/components/TimesInput";
@@ -111,6 +111,21 @@ export function FamilyInviteForm({ disabled }: { disabled: boolean }) {
         {link ? <Alert tone="ok">{t("settings.familyLink")}<code className="mt-1 block break-all text-sm" data-testid="family-link">{link}</code></Alert> : null}
         {state?.error ? <Alert tone="danger">{t("common.error")}</Alert> : null}
       </div>
+    </form>
+  );
+}
+
+export function PhoneForm({ current, next }: { current: string | null; next: string }) {
+  const t = useTranslations();
+  const [state, action] = useActionState(savePhoneAction, null);
+  return (
+    <form action={action} className="flex flex-col gap-2">
+      <input type="hidden" name="next" value={next} />
+      <label htmlFor="phone" className="label">{t("settings.phoneLabel")}</label>
+      <input id="phone" name="phone" type="tel" inputMode="tel" autoComplete="tel" required maxLength={20} className="input text-lg" placeholder="98200 01234" defaultValue={current ?? ""} />
+      <p className="hint text-sm">{t("settings.phoneHint")}</p>
+      {state?.error ? <Alert tone="danger">{state.error === "invalid_phone" ? t("settings.phoneInvalid") : state.error === "phone_taken" ? t("settings.phoneTaken") : t("common.error")}</Alert> : null}
+      <SubmitButton className="btn btn-primary self-start" pendingLabel={t("common.saving")}>{t("settings.phoneSave")}</SubmitButton>
     </form>
   );
 }

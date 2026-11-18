@@ -1,4 +1,7 @@
 import type { Metadata } from "next";
+import Link from "next/link";
+import { phoneText, waLink } from "@/domain/wa-ui";
+import { businessNumber } from "@/server/wa/data";
 import { getLocale, getTranslations } from "next-intl/server";
 import { BellRing, Brain, HandHeart, MessageCircle, ShieldCheck, Trash2, UserRound, Users } from "lucide-react";
 import { requireUser } from "@/lib/supabase/server";
@@ -22,6 +25,7 @@ export default async function SettingsPage() {
   const { supabase, user } = await requireUser();
   const t = await getTranslations();
   const locale = await getLocale();
+  const waNumber = features.whatsapp() ? await businessNumber() : null;
   const [{ data: profile }, { data: consents }, { data: binding }, { data: family }, { data: memory }] = await Promise.all([
     supabase.from("profiles").select("*").eq("id", user.id).single(),
     supabase.from("consents").select("kind, granted"),
@@ -98,6 +102,10 @@ export default async function SettingsPage() {
           </>
         ) : (
         <>
+        <p><span className="font-semibold">{t("settings.phoneLabel")}:</span> {profile?.phone ? phoneText(profile.phone) : "-"} <Link href="/phone?change=1" className="ml-1 text-primary underline">{t("settings.phoneChange")}</Link></p>
+        {!binding && profile?.phone && waNumber ? (
+          <p className="mt-1">{t("settings.waSayHi")} <a href={waLink(waNumber, "Hi")} target="_blank" rel="noopener noreferrer" className="text-primary underline">{t("settings.waSayHiButton")}</a></p>
+        ) : null}
         <p><span className="font-semibold">{t("settings.waStatus")}:</span> {binding ? (binding.status === "active" ? t("settings.waActive") : t("settings.waPaused")) : t("settings.waNotLinked")}</p>
         {binding?.last_inbound_at ? <p className="hint">{t("settings.waWindow", { time: fmtDateTime(binding.last_inbound_at, tz, locale) })}</p> : null}
         <p className="hint mt-1">{t("settings.waWindowNote")}</p>

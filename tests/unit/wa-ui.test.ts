@@ -115,3 +115,34 @@ describe("webhook taps and templates", () => {
     expect(decideSend({ binding, consentWhatsapp: true, approvedTemplates: ["sukhi_checkin_ready"], quiet: false, template: "sukhi_update_ready" }).kind).toBe("blocked");
   });
 });
+
+import { maskEmail, normalizePhone, parseRange, parseTimes, phoneText } from "@/domain/wa-ui";
+describe("phones, times, emails", () => {
+  it("normalizes phone numbers to WhatsApp digits", () => {
+    expect(normalizePhone("82406 06847")).toBe("918240606847");
+    expect(normalizePhone("+91 82406-06847")).toBe("918240606847");
+    expect(normalizePhone("08240606847")).toBe("918240606847");
+    expect(normalizePhone("00918240606847")).toBe("918240606847");
+    expect(normalizePhone("+1 (555) 144-8436")).toBe("15551448436");
+    expect(normalizePhone("12345")).toBeNull();
+    expect(normalizePhone("1234567890")).toBeNull(); // not an Indian mobile
+    expect(normalizePhone("call me")).toBeNull();
+  });
+  it("formats and masks", () => {
+    expect(phoneText("918240606847")).toBe("+91 82406 06847");
+    expect(phoneText("918240606847", true)).toBe("+91 ••••••6847");
+    expect(maskEmail("mehul@gmail.com")).toBe("m•••@gmail.com");
+  });
+  it("reads typed times", () => {
+    expect(parseTimes("8am")).toEqual(["08:00"]);
+    expect(parseTimes("8:30 pm, 9am")).toEqual(["09:00", "20:30"]);
+    expect(parseTimes("20:00 and 7")).toEqual(["07:00", "20:00"]);
+    expect(parseTimes("12 am")).toEqual(["00:00"]);
+    expect(parseTimes("8.15pm")).toEqual(["20:15"]);
+    expect(parseTimes("after dinner")).toBeNull();
+    expect(parseTimes("25:00")).toBeNull();
+    expect(parseRange("10pm-7am")).toEqual(["22:00", "07:00"]);
+    expect(parseRange("22:30 to 06:45")).toEqual(["22:30", "06:45"]);
+    expect(parseRange("late")).toBeNull();
+  });
+});

@@ -1603,6 +1603,8 @@ export type Database = {
       }
       profiles: {
         Row: {
+          phone: string | null
+          phone_verified_at: string | null
           signup_channel: string
           primary_role: string
           accessibility: Json
@@ -1635,6 +1637,8 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          phone?: string | null
+          phone_verified_at?: string | null
           signup_channel?: string
           primary_role?: string
           accessibility?: Json
@@ -1667,6 +1671,8 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          phone?: string | null
+          phone_verified_at?: string | null
           signup_channel?: string
           primary_role?: string
           accessibility?: Json
@@ -2077,6 +2083,10 @@ export type Database = {
       complete_job: {
         Args: { p_job: string; p_worker: string }
         Returns: boolean
+      }
+      merge_phone_after_link: {
+        Args: { p_phone: string; p_user: string }
+        Returns: undefined
       }
       merge_whatsapp_account: {
         Args: { p_dst: string; p_src: string }

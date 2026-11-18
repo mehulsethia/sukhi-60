@@ -83,6 +83,7 @@ async function tap(from: string, replyId: string | null) {
 
 let failed = false;
 let webUserId: string | null = null, web2UserId: string | null = null;
+const extraUsers: string[] = [];
 const check = (ok: boolean, what: string) => { console.log(`${ok ? "  ✔" : "  ✘"} ${what}`); if (!ok) failed = true; };
 
 try {
@@ -188,6 +189,47 @@ try {
   const v = hashed ? await anon.auth.verifyOtp({ type: "magiclink", token_hash: hashed }) : { data: { user: null }, error: new Error("no link") };
   check(!v.error && v.data.user?.id === webUserId, "web login link signs in to the right account");
 
+  // 4. Phone saved on a web account → a new number is recognised and connects with one tap.
+  const WEB3 = `9199${stamp}05`;
+  label[WEB3] = "WEB3   ";
+  const web3 = await admin.auth.admin.createUser({ email: `sim-web3-${stamp}@example.com`, password: `Sim-${stamp}-pass!`, email_confirm: true });
+  extraUsers.push(web3.data.user!.id);
+  await admin.from("profiles").update({ display_name: "Tara", phone: WEB3, onboarded_at: new Date().toISOString() }).eq("id", web3.data.user!.id);
+  await say(WEB3, "hi");
+  check(allText(WEB3).includes("This number is on your Sukhi account"), "new number recognised from the phone on the web account");
+  await tap(WEB3, lastId(WEB3, "lk:yes:"));
+  const { data: b3 } = await admin.from("channel_bindings").select("user_id").eq("external_id", WEB3).neq("status", "revoked").maybeSingle();
+  const { data: p3 } = await admin.from("profiles").select("phone_verified_at").eq("id", web3.data.user!.id).single();
+  check(b3?.user_id === web3.data.user!.id && !!p3?.phone_verified_at, "connected and phone verified");
+
+  // 5. A WhatsApp-made account whose number is on a web account is asked to join them.
+  const web4 = await admin.auth.admin.createUser({ email: `sim-web4-${stamp}@example.com`, password: `Sim-${stamp}-pass!`, email_confirm: true });
+  extraUsers.push(web4.data.user!.id);
+  await admin.from("profiles").update({ display_name: "Ravi", phone: FAMILY, onboarded_at: new Date().toISOString() }).eq("id", web4.data.user!.id);
+  await say(FAMILY, "hello");
+  check(allText(FAMILY).includes("Join them into one"), "WhatsApp-made account offered a merge");
+  await tap(FAMILY, lastId(FAMILY, "lk:merge:"));
+  const { data: b4 } = await admin.from("channel_bindings").select("user_id").eq("external_id", FAMILY).neq("status", "revoked").maybeSingle();
+  const { data: fa } = await admin.from("family_access").select("id").eq("member_user_id", web4.data.user!.id).maybeSingle();
+  check(b4?.user_id === web4.data.user!.id && !!fa, "merged: number and family link now on the web account");
+
+  // 6. Set up from WhatsApp: quiet hours, tone, reminder style, change a task's time.
+  await tap(PATIENT, "st:quiet");
+  await say(PATIENT, "10pm-7am");
+  const { data: q } = await admin.from("profiles").select("quiet_start, quiet_end").eq("id", webUserId!).single();
+  check(q?.quiet_start === "22:00" && q?.quiet_end === "07:00", "quiet hours saved from WhatsApp");
+  await tap(PATIENT, "tn:fun_playful");
+  await tap(PATIENT, "rm:gentle");
+  const { data: t1 } = await admin.from("profiles").select("communication_styles, reminder_frequency").eq("id", webUserId!).single();
+  check((t1?.communication_styles ?? []).includes("fun_playful") && t1?.reminder_frequency === "gentle", "tone and reminder style saved");
+  await tap(PATIENT, "pe:list");
+  const item = lastId(PATIENT, "pe:");
+  await tap(PATIENT, item);
+  await tap(PATIENT, lastId(PATIENT, "pt:"));
+  await say(PATIENT, "8am, 8:30 pm");
+  const { data: it } = await admin.from("plan_items").select("times, status").eq("id", item!.slice(3)).single();
+  check(JSON.stringify(it?.times) === JSON.stringify(["08:00", "20:30"]) && it?.status === "confirmed", "task time changed from WhatsApp");
+
   // Settings, help, STOP / START
   await say(PATIENT, "help");
   await say(PATIENT, "STOP");
@@ -198,8 +240,8 @@ try {
   console.error("\nERROR", e);
 } finally {
   // Clean up the throwaway accounts (cascades to plans, bindings, doctor rows).
-  const { data: bindings } = await admin.from("channel_bindings").select("user_id").in("external_id", [PATIENT, FAMILY, DOCTOR, `9199${stamp}04`]);
-  const ids = new Set([...(bindings ?? []).map((b) => b.user_id), webUserId, web2UserId].filter((x): x is string => !!x));
+  const { data: bindings } = await admin.from("channel_bindings").select("user_id").in("external_id", [PATIENT, FAMILY, DOCTOR, `9199${stamp}04`, `9199${stamp}05`]);
+  const ids = new Set([...(bindings ?? []).map((b) => b.user_id), webUserId, web2UserId, ...extraUsers].filter((x): x is string => !!x));
   for (const id of ids) await admin.auth.admin.deleteUser(id);
   await admin.from("wa_connect_requests").delete().eq("external_id", `9199${stamp}04`);
   console.log(`\nCleaned up ${ids.size} test users.`);

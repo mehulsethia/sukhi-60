@@ -37,6 +37,7 @@ export async function createWaAccount(admin: AdminClient, from: string, role: Wa
   }
   const now = new Date().toISOString();
   const kinds = role === "patient" ? (["whatsapp", "reminders", "ai_processing", "voice_processing"] as const) : (["whatsapp", "ai_processing"] as const);
+  await admin.rpc("merge_phone_after_link", { p_user: userId, p_phone: from });
   await admin.from("consents").upsert(kinds.map((kind) => ({ user_id: userId!, kind, granted: true, granted_at: now, revoked_at: null, policy_version: "2026-11-wa-v1" })), { onConflict: "user_id,kind" });
   await audit(admin, userId, "user", "whatsapp_signup", "channel_binding", bindingId, { role });
   return { userId, bindingId };

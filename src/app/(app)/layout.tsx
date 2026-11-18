@@ -16,8 +16,10 @@ export const dynamic = "force-dynamic";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const { supabase, user } = await requireUser();
-  const { data: profile } = await supabase.from("profiles").select("onboarded_at, display_name").eq("id", user.id).single();
+  const { data: profile } = await supabase.from("profiles").select("onboarded_at, display_name, phone").eq("id", user.id).single();
   if (!profile?.onboarded_at) redirect("/onboarding");
+  // Every account has a phone number (it connects WhatsApp to this account).
+  if (!profile.phone) redirect("/phone");
   const chatSeen = (await cookies()).get("sukhi_chat_seen")?.value ?? profile.onboarded_at;
   const [t, unreadChat] = await Promise.all([
     getTranslations(),
