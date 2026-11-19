@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { overdueReviewCount } from "@/server/review";
 import Link from "next/link";
 import { currentAdmin, getAdminMetrics, getBehaviourMetrics, type AdminMetrics } from "@/server/admin";
 import { METRIC_DEFINITIONS } from "@/domain/learning";
@@ -55,13 +56,16 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
   const sp = await searchParams;
   const days = [7, 14, 30].includes(Number(sp.days)) ? Number(sp.days) : 14;
   const internal = sp.internal === "1";
-  const [m, checkinsSent, bm, challenges, openReviews] = await Promise.all([
+  const [m, checkinsSent, bm, challenges, openReviews, overdueReviews] = await Promise.all([
     getAdminMetrics(days, internal),
     createAdminClient().from("audit_events").select("id", { count: "exact", head: true }).eq("action", "assistant_checkin").then((r) => r.count ?? 0),
     getBehaviourMetrics(days, internal).catch(() => null),
     listChallenges(createAdminClient()).catch(() => []),
     createAdminClient().from("review_requests").select("id", { count: "exact", head: true }).eq("status", "open").then((r) => r.count ?? 0, () => 0),
+    overdueReviewCount(createAdminClient()).catch(() => 0),
   ]);
+  const reviewsHref = overdueReviews ? "/admin/reviews?f=overdue" : "/admin/reviews";
+  const overdueTag = overdueReviews ? <span className="ml-1 rounded-full bg-danger-bg px-2 py-0.5 text-xs font-semibold text-danger-ink">{overdueReviews} overdue</span> : null;
   const o = m.overview;
   const q = (p: Record<string, string | number>) => `?${new URLSearchParams({ days: String(days), internal: internal ? "1" : "0", ...Object.fromEntries(Object.entries(p).map(([k, v]) => [k, String(v)])) })}`;
   const funnelTop = m.funnel[0]?.n ?? 0;
@@ -83,7 +87,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
           <ul className="flex flex-col gap-0.5">
             {sections.map(([id, label, Icon]) => <li key={id}><a href={`#${id}`} className={navLink}><Icon size={17} aria-hidden="true" />{label}</a></li>)}
           </ul>
-          <Link href="/admin/reviews" className={`${navLink} mt-4 text-primary`}><ShieldCheck size={17} aria-hidden="true" />Proof reviews{openReviews ? ` (${openReviews})` : ""}</Link>
+          <Link href={reviewsHref} className={`${navLink} mt-4 text-primary`}><ShieldCheck size={17} aria-hidden="true" />Proof reviews{openReviews ? ` (${openReviews})` : ""}{overdueTag}</Link>
           <p className="mb-2 mt-6 px-3 text-xs font-semibold text-ink-faint">Range</p>
           <div className="flex flex-wrap gap-1.5 px-3">
             {[7, 14, 30].map((d) => <Link key={d} href={`?days=${d}&internal=${internal ? 1 : 0}`} className={chip(d === days)}>{d}d</Link>)}
@@ -114,7 +118,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
           </div>
         </div>
         <nav aria-label="Dashboard sections" className="no-scrollbar flex gap-2 overflow-x-auto px-4 pb-3 lg:hidden">
-          <Link href="/admin/reviews" className="shrink-0 whitespace-nowrap rounded-lg border border-primary px-2.5 py-1 text-sm font-semibold text-primary">Proof reviews{openReviews ? ` (${openReviews})` : ""}</Link>
+          <Link href={reviewsHref} className="shrink-0 whitespace-nowrap rounded-lg border border-primary px-2.5 py-1 text-sm font-semibold text-primary">Proof reviews{openReviews ? ` (${openReviews})` : ""}{overdueTag}</Link>
           {[7, 14, 30].map((d) => <Link key={d} href={`?days=${d}&internal=${internal ? 1 : 0}`} className={`shrink-0 ${chip(d === days)}`}>{d}d</Link>)}
           {sections.map(([id, label]) => <a key={id} href={`#${id}`} className="shrink-0 whitespace-nowrap rounded-lg border border-line px-2.5 py-1 text-sm font-semibold text-ink-soft">{label}</a>)}
         </nav>

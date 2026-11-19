@@ -12,7 +12,18 @@ function loadVideo(file: File): Promise<HTMLVideoElement> {
     v.muted = true;
     v.playsInline = true;
     v.src = URL.createObjectURL(file);
-    v.onloadedmetadata = () => resolve(v);
+    v.onloadedmetadata = () => {
+      if (Number.isFinite(v.duration)) return resolve(v);
+      // Clips straight from MediaRecorder (webm) carry no duration until the end is reached.
+      v.ondurationchange = () => {
+        if (!Number.isFinite(v.duration)) return;
+        v.ondurationchange = null;
+        v.currentTime = 0;
+        resolve(v);
+      };
+      v.currentTime = 1e7;
+      setTimeout(() => { v.ondurationchange = null; resolve(v); }, 4000); // give up: frames from the start
+    };
     v.onerror = () => reject(new Error("video_unreadable"));
   });
 }

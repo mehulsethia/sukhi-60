@@ -10,6 +10,7 @@ import { d, w } from "@/domain/wa-copy";
 import { send, notify, type WaCtx } from "./send";
 import { clearState, setState } from "./state";
 import { adherenceFor, businessNumber, pctText, todayCounts } from "./data";
+import { formatReading, recentReadings } from "../readings";
 
 const TZ = "Asia/Kolkata";
 const menuBtn = { id: "dr:m:menu", title: "Menu" };
@@ -163,6 +164,12 @@ export async function showPatient(ctx: WaCtx, linkId: string) {
   const last = lastCi?.created_at ? new Date(lastCi.created_at).toLocaleString("en-IN", { timeZone: tz, day: "numeric", month: "short", hour: "numeric", minute: "2-digit" }) : d("never");
   const share = (n: number) => pctText(week.proof.done ? Math.round((100 * n) / week.proof.done) : null);
   const parts = [d("patient_detail", { name: p?.display_name ?? "Patient", pct: pctText(week.pct), done: week.done, due: week.due, pct30: pctText(month.pct), photo: share(week.proof.photo), fresh: share(week.proof.fresh), human: week.proof.human, flagged: week.proof.flagged ? d("patient_flagged", { n: week.proof.flagged }) : "", last, items })];
+  // Device readings from the last 7 days, as read (or typed) by the patient. Never interpreted.
+  const readings = await recentReadings(ctx.admin, link.patient_id, new Date(Date.now() - 7 * 86_400_000), 4);
+  if (readings.length) {
+    const when = (iso: string) => new Date(iso).toLocaleString("en-IN", { timeZone: tz, day: "numeric", month: "short", hour: "numeric", minute: "2-digit" });
+    parts.push(d("patient_readings", { list: readings.map((r) => `${when(r.measured_at)} · ${formatReading(r)}${r.source === "corrected" ? " (typed)" : ""}`).join("\n") }));
+  }
   if (doc?.reward_text) {
     const period = await adherenceFor(ctx.admin, link.patient_id, link.period_start, today);
     const day = Math.min(doc.reward_days, Math.max(1, Math.round((Date.parse(today) - Date.parse(link.period_start)) / 86_400_000) + 1));

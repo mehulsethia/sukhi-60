@@ -15,7 +15,19 @@ export const ModelAssessmentSchema = z.object({
   challenge_met: z.boolean().optional().describe("Only when a fresh-photo instruction is given: true if the evidence clearly shows it."),
   label_match: z.enum(["yes", "no", "not_visible"]).optional().describe("Medicines/products: does a readable label or name match the agreed action's medicine or product?"),
   blister_empty_slots: z.number().int().nullable().optional().describe("If a blister strip is visible: how many slots are empty (pills already taken out). Null if no strip or can't count."),
-  screen_or_edited: z.boolean().optional().describe("True if this is a photo of a screen, a printout of a photo, a screenshot, or looks digitally edited or generated."),
+  screen_or_edited: z.boolean().optional().describe("True if this is a photo of a phone, computer or TV screen, a printout of a photo, a screenshot, or looks digitally edited or generated. A measuring device's own display (BP monitor, glucometer, scale, thermometer, oximeter) is NOT a screen."),
+  device_reading: z
+    .object({
+      kind: z.enum(["blood_pressure", "glucose", "weight", "temperature", "spo2", "other"]),
+      value: z.number().nullable().describe("Main number exactly as shown: systolic, glucose, weight, temperature or SpO2."),
+      value2: z.number().nullable().describe("Blood pressure only: diastolic."),
+      pulse: z.number().nullable().describe("Pulse / heart rate if the display shows one."),
+      unit: z.string().describe("Unit printed on the display, e.g. mmHg, mg/dL, mmol/L, kg, lb, °C, °F, %. Empty if none is shown."),
+      legible: z.boolean().describe("True only if every number you report is clearly readable."),
+    })
+    .nullable()
+    .optional()
+    .describe("Only when a measuring device's display is visible: the numbers it shows. Null otherwise."),
 });
 export type ModelAssessment = z.infer<typeof ModelAssessmentSchema>;
 

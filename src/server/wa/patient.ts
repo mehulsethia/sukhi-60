@@ -8,7 +8,9 @@ import { applyCheckIn, getProfile, getToday, materializeOccurrences, pickRelevan
 import { reply, rewardLine } from "@/domain/replies";
 import { parseRange, parseTimes, scheduleText, time12, waLink, type WaRow } from "@/domain/wa-ui";
 import { COMMUNICATION_STYLES } from "@/domain/behaviour";
-import { isHard } from "@/domain/proof";
+import { isHard, REVIEW_PROMISE_HOURS } from "@/domain/proof";
+import { formatReading, readingExample, type ReadingKind } from "@/domain/readings";
+import { correctReading, getReading } from "../readings";
 import { challengeFor } from "../proof";
 import { w, type WaKey } from "@/domain/wa-copy";
 import { FEATURED_PACKS, PACK_KEYS, isPackKey, packFor, packMotivation, type PackKey } from "@/domain/templates";
@@ -358,7 +360,7 @@ export async function saveProof(ctx: WaCtx, media: { bytes: Uint8Array; mime: st
   const ext = media.mime === "application/pdf" ? "pdf" : media.mime.split("/")[1];
   const path = `${ctx.userId}/${target.id}/${hash.slice(0, 16)}.${ext}`;
   await ctx.admin.storage.from("evidence").upload(path, media.bytes, { contentType: media.mime, upsert: true });
-  const { data: doc } = await ctx.admin.from("documents").upsert({ user_id: ctx.userId, bucket: "evidence", storage_path: path, mime_type: media.mime, size_bytes: media.bytes.byteLength, sha256: hash }, { onConflict: "user_id,bucket,storage_path" }).select("id").single();
+  const { data: doc } = await ctx.admin.from("documents").upsert({ user_id: ctx.userId, bucket: "evidence", storage_path: path, mime_type: media.mime, size_bytes: media.bytes.byteLength, sha256: hash, purged_at: null }, { onConflict: "user_id,bucket,storage_path" }).select("id").single();
   const { data: evRow } = await ctx.admin.from("evidence").upsert({ user_id: ctx.userId, occurrence_id: target.id, kind: kind === "image" ? "photo" : "document", document_id: doc!.id, text_content: caption ?? null, content_hash: hash, channel: "whatsapp" }, { onConflict: "occurrence_id,content_hash", ignoreDuplicates: true }).select("id").maybeSingle();
   await ctx.admin.from("messages").upsert({ user_id: ctx.userId, role: "user", channel: "whatsapp", content: `[photo] ${caption ?? ""}`.trim(), provider_message_id: msgId }, { onConflict: "provider_message_id", ignoreDuplicates: true });
   await clearState(ctx.admin, ctx.bindingId);
@@ -371,16 +373,21 @@ export async function saveProof(ctx: WaCtx, media: { bytes: Uint8Array; mime: st
   const lines = [reply(l, "evidence_saved", { title: target.item.title })];
   if (hard.length) {
     const challenge = e.challenge ? (e.challenge.kind === "fingers" ? w(l, "challenge_fingers_short", { n: e.challenge.value }) : e.challenge.value) : "";
-    lines.push(hard.map((f) => w(l, `flag_${f}` as WaKey, { challenge })).join("\n"), w(l, "flag_next"));
+    lines.push(hard.map((f) => w(l, `flag_${f}` as WaKey, { challenge })).join("\n"), w(l, "flag_next", { hours: REVIEW_PROMISE_HOURS }));
     await send(ctx, { type: "buttons", body: lines.join("\n\n"), buttons: [{ id: `pf:${target.id}`, title: w(l, "btn_new_photo") }, { id: `ap:${e.id}`, title: w(l, "btn_disagree") }, { id: "m:today", title: w(l, "row_today") }] });
     return;
   }
   if (e.proof_level === "photo_fresh") lines.push(w(l, "proof_level_fresh"));
   else if (e.proof_level === "video_action") lines.push(w(l, "proof_level_video"));
   else if (e.proof_level === "photo_ai") lines.push(w(l, "proof_level_ai"));
+  if (e.reading) lines.push(w(l, "reading_saved", { reading: formatReading(e.reading, w(l, "reading_pulse")) }));
   lines.push(e.explanation);
   if (e.cannot_confirm.length) lines.push(`• ${e.cannot_confirm.slice(0, 2).join("\n• ")}`);
-  await send(ctx, { type: "buttons", body: lines.join("\n\n"), buttons: [{ id: "m:today", title: w(l, "row_today") }, { id: `ap:${e.id}`, title: w(l, "btn_disagree") }, menuBtn(l)] });
+  if (e.needs_review) lines.push(w(l, "review_pending", { hours: REVIEW_PROMISE_HOURS }));
+  const buttons = e.reading
+    ? [{ id: `rf:${e.reading.id}`, title: w(l, "btn_fix_reading") }, { id: "m:today", title: w(l, "row_today") }, { id: `ap:${e.id}`, title: w(l, "btn_disagree") }]
+    : [{ id: "m:today", title: w(l, "row_today") }, { id: `ap:${e.id}`, title: w(l, "btn_disagree") }, menuBtn(l)];
+  await send(ctx, { type: "buttons", body: lines.join("\n\n"), buttons });
 }
 
 /** "Disagree" on a verdict: ask for an optional note, then it goes to a human reviewer. */
@@ -401,7 +408,27 @@ export async function fileAppeal(ctx: WaCtx, evaluationId: string, note: string 
     return send(ctx, { type: "buttons", body: w(ctx.locale, "appeal_exists"), buttons: [menuBtn(ctx.locale)] });
   }
   await ctx.admin.from("review_requests").insert({ user_id: ctx.userId, occurrence_id: ev.occurrence_id, evaluation_id: ev.id, evidence_id: ev.evidence_id, item_id: (ev.action_occurrences as unknown as { item_id: string }).item_id, reason: "The person disagrees with the assessment", source: "appeal", patient_note: note?.slice(0, 500) ?? null });
-  await send(ctx, { type: "buttons", body: w(ctx.locale, "appeal_sent"), buttons: [{ id: "m:today", title: w(ctx.locale, "row_today") }, menuBtn(ctx.locale)] });
+  await send(ctx, { type: "buttons", body: w(ctx.locale, "appeal_sent", { hours: REVIEW_PROMISE_HOURS }), buttons: [{ id: "m:today", title: w(ctx.locale, "row_today") }, menuBtn(ctx.locale)] });
+}
+
+/** "Fix reading": ask for the right numbers (the AI misread the device). */
+export async function askReadingFix(ctx: WaCtx, readingId: string) {
+  const r = await getReading(ctx.admin, ctx.userId, readingId);
+  if (!r) return showMenu(ctx);
+  await setState(ctx.admin, ctx.bindingId, "reading_fix", { readingId });
+  await send(ctx, { type: "text", body: w(ctx.locale, "reading_fix_ask", { example: readingExample(r.kind, r.unit) }) });
+}
+
+export async function fixReading(ctx: WaCtx, readingId: string, text: string) {
+  const l = ctx.locale;
+  const res = await correctReading(ctx.admin, ctx.userId, readingId, text);
+  if (!res.ok && res.error === "invalid") {
+    const r = await getReading(ctx.admin, ctx.userId, readingId);
+    return send(ctx, { type: "text", body: w(l, "reading_fix_invalid", { example: readingExample((r?.kind ?? "blood_pressure") as ReadingKind, r?.unit ?? "mmHg") }) });
+  }
+  await clearState(ctx.admin, ctx.bindingId);
+  if (!res.ok) return showMenu(ctx);
+  await send(ctx, { type: "buttons", body: w(l, "reading_fixed", { reading: formatReading(res.reading, w(l, "reading_pulse")) }), buttons: [{ id: "m:today", title: w(l, "row_today") }, menuBtn(l)] });
 }
 
 // ---------------------------------------------------------------------------

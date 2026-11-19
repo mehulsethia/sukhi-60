@@ -140,3 +140,23 @@ export function proofBreakdown(rows: readonly { status: string; proof_level: str
     flagged: rows.filter((r) => lvl(r) === "flagged").length,
   };
 }
+
+// ---------------------------------------------------------------------------
+// Review turnaround and photo retention
+// ---------------------------------------------------------------------------
+/** What the person is promised: a human checks an appeal or flagged photo within this many hours. */
+export const REVIEW_PROMISE_HOURS = 12;
+/** Review sources the person knows about (audits are silent, safety has its own flow). */
+export const PROMISED_SOURCES = ["appeal", "flag", "evaluator", "user", "assistant"] as const;
+
+export function reviewDue(r: { source: string; status: string; created_at: string }, now = new Date()): { dueAt: Date; overdue: boolean; hoursLeft: number } | null {
+  if (r.status !== "open" || !(PROMISED_SOURCES as readonly string[]).includes(r.source)) return null;
+  const dueAt = new Date(Date.parse(r.created_at) + REVIEW_PROMISE_HOURS * 3600_000);
+  const hoursLeft = (dueAt.getTime() - now.getTime()) / 3600_000;
+  return { dueAt, overdue: hoursLeft < 0, hoursLeft };
+}
+
+/** Proof photos and clips are deleted after this many days; the decision and fingerprints stay. */
+export const PROOF_MEDIA_RETENTION_DAYS = 7;
+/** A photo with an undecided review is kept for the reviewer, but never longer than this. */
+export const PROOF_MEDIA_HOLD_MAX_DAYS = 30;

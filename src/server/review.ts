@@ -6,8 +6,11 @@ import type { AdminClient } from "@/lib/supabase/admin";
 import { w } from "@/domain/wa-copy";
 import { notify } from "./wa/send";
 import { challengeFor } from "./proof";
+import { PROMISED_SOURCES, REVIEW_PROMISE_HOURS, reviewDue } from "@/domain/proof";
+export { REVIEW_PROMISE_HOURS };
 
-export type ReviewFilter = "open" | "waiting" | "decided";
+export type ReviewFilter = "open" | "overdue" | "waiting" | "decided";
+const overdueBefore = () => new Date(Date.now() - REVIEW_PROMISE_HOURS * 3600_000).toISOString();
 const SOURCE_ORDER = ["appeal", "flag", "evaluator", "user", "assistant", "safety", "audit"];
 
 async function signed(admin: AdminClient, bucket: string | undefined, path: string | undefined) {
@@ -18,9 +21,14 @@ async function signed(admin: AdminClient, bucket: string | undefined, path: stri
 
 export async function reviewQueue(admin: AdminClient, filter: ReviewFilter) {
   let q = admin.from("review_requests").select("*").order("created_at", { ascending: filter !== "decided" }).limit(filter === "decided" ? 50 : 100);
-  q = filter === "open" ? q.eq("status", "open") : filter === "waiting" ? q.eq("status", "waiting_patient") : q.in("status", ["resolved", "dismissed"]);
+  q = filter === "open" ? q.eq("status", "open")
+    : filter === "overdue" ? q.eq("status", "open").in("source", [...PROMISED_SOURCES]).lt("created_at", overdueBefore())
+    : filter === "waiting" ? q.eq("status", "waiting_patient")
+    : q.in("status", ["resolved", "dismissed"]);
   const { data: reqs } = await q;
-  const rows = (reqs ?? []).sort((a, b) => (filter === "decided" ? 0 : SOURCE_ORDER.indexOf(a.source) - SOURCE_ORDER.indexOf(b.source)));
+  // Overdue promises first (oldest first), then by kind; the query already orders by age.
+  const late = (r: { source: string; status: string; created_at: string }) => (reviewDue(r)?.overdue ? 0 : 1);
+  const rows = (reqs ?? []).sort((a, b) => (filter === "decided" ? 0 : late(a) - late(b) || SOURCE_ORDER.indexOf(a.source) - SOURCE_ORDER.indexOf(b.source)));
   return Promise.all(
     rows.map(async (r) => {
       const [{ data: prof }, { data: item }, { data: ev }, { data: occ }] = await Promise.all([
@@ -30,8 +38,8 @@ export async function reviewQueue(admin: AdminClient, filter: ReviewFilter) {
         r.occurrence_id ? admin.from("action_occurrences").select("local_date, local_time, status, proof_level").eq("id", r.occurrence_id).maybeSingle() : Promise.resolve({ data: null }),
       ]);
       const evidenceId = r.evidence_id ?? ev?.evidence_id ?? null;
-      const { data: evidence } = evidenceId ? await admin.from("evidence").select("id, kind, text_content, created_at, taken_at, documents(bucket, storage_path, mime_type)").eq("id", evidenceId).maybeSingle() : { data: null };
-      const docOf = (e: { documents: unknown } | null) => (e?.documents as { bucket: string; storage_path: string; mime_type: string } | null) ?? null;
+      const { data: evidence } = evidenceId ? await admin.from("evidence").select("id, kind, text_content, created_at, taken_at, documents(bucket, storage_path, mime_type, purged_at)").eq("id", evidenceId).maybeSingle() : { data: null };
+      const docOf = (e: { documents: unknown } | null) => (e?.documents as { bucket: string; storage_path: string; mime_type: string; purged_at?: string | null } | null) ?? null;
       const doc = docOf(evidence);
       // Earlier photos of the same task, and the photo it may have been copied from.
       const { data: earlier } = r.item_id
@@ -45,7 +53,8 @@ export async function reviewQueue(admin: AdminClient, filter: ReviewFilter) {
         item,
         occ,
         ev,
-        evidence: evidence ? { id: evidence.id, kind: evidence.kind, text: evidence.text_content, createdAt: evidence.created_at, takenAt: evidence.taken_at, mime: doc?.mime_type ?? null, url: await signed(admin, doc?.bucket, doc?.storage_path) } : null,
+        due: reviewDue(r),
+        evidence: evidence ? { id: evidence.id, kind: evidence.kind, text: evidence.text_content, createdAt: evidence.created_at, takenAt: evidence.taken_at, mime: doc?.mime_type ?? null, purged: !!doc?.purged_at, url: doc?.purged_at ? null : await signed(admin, doc?.bucket, doc?.storage_path) } : null,
         earlier: await Promise.all((earlier ?? []).map(async (e) => ({ id: e.id, createdAt: e.created_at, url: await signed(admin, docOf(e)?.bucket, docOf(e)?.storage_path) }))),
         reused: reused ? { createdAt: reused.created_at, url: await signed(admin, docOf(reused)?.bucket, docOf(reused)?.storage_path) } : null,
       };
@@ -55,13 +64,14 @@ export async function reviewQueue(admin: AdminClient, filter: ReviewFilter) {
 
 export async function reviewStats(admin: AdminClient) {
   const [{ data: open }, { data: audits }] = await Promise.all([
-    admin.from("review_requests").select("source, status").in("status", ["open", "waiting_patient"]),
+    admin.from("review_requests").select("source, status, created_at").in("status", ["open", "waiting_patient"]),
     admin.from("review_requests").select("decision").eq("source", "audit").eq("status", "resolved"),
   ]);
   const bySource = (s: string) => (open ?? []).filter((r) => r.source === s && r.status === "open").length;
   const decided = (audits ?? []).filter((a) => a.decision === "verified" || a.decision === "rejected");
   return {
     open: (open ?? []).filter((r) => r.status === "open").length,
+    overdue: (open ?? []).filter((r) => reviewDue(r)?.overdue).length,
     waiting: (open ?? []).filter((r) => r.status === "waiting_patient").length,
     appeals: bySource("appeal"),
     flags: bySource("flag") + bySource("evaluator"),
@@ -69,6 +79,12 @@ export async function reviewStats(admin: AdminClient) {
     auditDecided: decided.length,
     auditAgreed: decided.filter((a) => a.decision === "verified").length,
   };
+}
+
+/** Open reviews the person was promised within REVIEW_PROMISE_HOURS that are past it. */
+export async function overdueReviewCount(admin: AdminClient): Promise<number> {
+  const { count } = await admin.from("review_requests").select("id", { count: "exact", head: true }).eq("status", "open").in("source", [...PROMISED_SOURCES]).lt("created_at", overdueBefore());
+  return count ?? 0;
 }
 
 export type Decision = "verified" | "rejected" | "more_photo" | "dismissed";

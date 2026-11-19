@@ -4,12 +4,13 @@ import { useTranslations } from "next-intl";
 import { requestReview } from "@/app/actions";
 import { Alert } from "@/components/ui";
 import { SubmitButton } from "@/components/SubmitButton";
+import { REVIEW_PROMISE_HOURS } from "@/domain/proof";
 
 export function ReviewForm({ occurrenceId, evaluationId }: { occurrenceId: string; evaluationId?: string }) {
   const t = useTranslations();
   const [open, setOpen] = useState(false);
   const [state, action] = useActionState(requestReview, null);
-  if (state?.ok) return <Alert tone="ok">{t("action.reviewRequested")}</Alert>;
+  if (state?.ok) return <Alert tone="ok">{t("action.reviewRequested", { hours: REVIEW_PROMISE_HOURS })}</Alert>;
   return open ? (
     <form action={action} className="mt-3 flex flex-col gap-2">
       <input type="hidden" name="occurrence_id" value={occurrenceId} />

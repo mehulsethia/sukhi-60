@@ -3,7 +3,7 @@ import Link from "next/link";
 import { ChevronLeft } from "lucide-react";
 import { currentAdmin } from "@/server/admin";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { reviewQueue, reviewStats, type ReviewFilter } from "@/server/review";
+import { REVIEW_PROMISE_HOURS, reviewQueue, reviewStats, type ReviewFilter } from "@/server/review";
 import { decideReviewAction } from "../actions";
 import { AdminLogin } from "../AdminLogin";
 
@@ -17,13 +17,14 @@ const FLAG: Record<string, string> = {
 };
 const LEVEL: Record<string, string> = { photo_ai: "Photo, AI-checked", photo_fresh: "Fresh photo", video_action: "Video shows act", human_verified: "Human-verified", flagged: "Flagged" };
 const OUTCOME: Record<string, string> = { supports: "Supports", partially_supports: "Partly supports", does_not_support: "Doesn't support", unclear: "Unclear", not_applicable: "N/A" };
+const hrs = (h: number) => (h >= 1 ? `${Math.floor(h)}h ${Math.round((h % 1) * 60)}m` : `${Math.max(1, Math.round(h * 60))}m`);
 const when = (iso: string | null | undefined) => (iso ? new Date(iso).toLocaleString("en-IN", { timeZone: "Asia/Kolkata", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" }) : "-");
 
 export default async function ReviewsPage({ searchParams }: { searchParams: Promise<{ f?: string; done?: string }> }) {
   const email = await currentAdmin();
   if (!email) return <AdminLogin />;
   const sp = await searchParams;
-  const filter: ReviewFilter = sp.f === "waiting" || sp.f === "decided" ? sp.f : "open";
+  const filter: ReviewFilter = sp.f === "waiting" || sp.f === "decided" || sp.f === "overdue" ? sp.f : "open";
   const admin = createAdminClient();
   const [items, s] = await Promise.all([reviewQueue(admin, filter), reviewStats(admin)]);
   const tab = (f: ReviewFilter, label: string) => (
@@ -37,6 +38,7 @@ export default async function ReviewsPage({ searchParams }: { searchParams: Prom
           <div className="min-w-0">
             <Link href="/admin" className="inline-flex items-center gap-1 text-sm font-semibold text-ink-soft hover:text-ink"><ChevronLeft size={16} aria-hidden="true" />Dashboard</Link>
             <h1 className="mt-1 text-xl font-bold">Proof reviews</h1>
+            <p className="text-xs text-ink-soft">Appeals and flagged photos are promised a check within {REVIEW_PROMISE_HOURS} hours{s.overdue ? <> · <span className="font-semibold text-warn-ink">{s.overdue} overdue</span></> : null}</p>
             <p className="text-xs text-ink-soft">{s.open} open ({s.appeals} appeals · {s.flags} flagged or unclear · {s.audits} audits) · {s.waiting} waiting for a new photo · signed in as {email}</p>
           </div>
           <div className="rounded-xl border border-line px-3 py-2 text-sm">
@@ -45,18 +47,21 @@ export default async function ReviewsPage({ searchParams }: { searchParams: Prom
           </div>
         </div>
         <nav className="mx-auto flex max-w-5xl gap-2 px-4 pb-3 sm:px-6" aria-label="Review filters">
-          {tab("open", `Open (${s.open})`)}{tab("waiting", `Waiting (${s.waiting})`)}{tab("decided", "Decided")}
+          {tab("open", `Open (${s.open})`)}{tab("overdue", `Overdue (${s.overdue})`)}{tab("waiting", `Waiting (${s.waiting})`)}{tab("decided", "Decided")}
         </nav>
       </header>
 
       <main className="mx-auto flex max-w-5xl flex-col gap-4 px-4 py-6 sm:px-6">
         {sp.done ? <p className="rounded-xl bg-primary-soft px-3 py-2 text-sm font-semibold text-primary">Saved. The person has been told.</p> : null}
         {items.length === 0 ? <p className="text-ink-soft">Nothing here.</p> : null}
-        {items.map(({ req, name, item, occ, ev, evidence, earlier, reused }) => (
+        {items.map(({ req, name, item, occ, ev, evidence, earlier, reused, due }) => (
           <article key={req.id} className="rounded-2xl border border-line bg-surface p-4">
             <div className="flex flex-wrap items-baseline justify-between gap-2">
               <h2 className="text-base font-semibold">{name} · {item?.title ?? "Task"}</h2>
+              <span className="flex flex-wrap items-center gap-1.5">
+              {due ? <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold tabular-nums ${due.overdue ? "bg-danger-bg text-danger-ink" : due.hoursLeft < 3 ? "bg-warn-bg text-warn-ink" : "bg-surface-2 text-ink-soft"}`}>{due.overdue ? `Overdue ${hrs(-due.hoursLeft)}` : `Due in ${hrs(due.hoursLeft)}`}</span> : null}
               <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${req.source === "appeal" ? "bg-warn-bg text-warn-ink" : req.source === "audit" ? "bg-surface-2 text-ink-soft" : "bg-primary-soft text-primary"}`}>{SOURCE[req.source] ?? req.source}</span>
+              </span>
             </div>
             <p className="text-xs text-ink-soft">Task on {occ?.local_date ?? "-"}{occ?.local_time ? ` at ${occ.local_time}` : ""} · sent {when(evidence?.createdAt ?? req.created_at)}{evidence?.takenAt ? ` · photo taken ${when(evidence.takenAt)}` : ""}</p>
 
@@ -65,7 +70,7 @@ export default async function ReviewsPage({ searchParams }: { searchParams: Prom
                 {evidence?.url && evidence.mime?.startsWith("image/") ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <a href={evidence.url} target="_blank" rel="noopener noreferrer"><img src={evidence.url} alt={`Proof for ${item?.title ?? "task"}`} className="max-h-80 w-full rounded-xl border border-line object-contain" /></a>
-                ) : evidence?.url ? <a href={evidence.url} target="_blank" rel="noopener noreferrer" className="text-primary underline">Open {evidence.kind}</a> : <p className="text-sm text-ink-soft">No photo attached.</p>}
+                ) : evidence?.url ? <a href={evidence.url} target="_blank" rel="noopener noreferrer" className="text-primary underline">Open {evidence.kind}</a> : <p className="text-sm text-ink-soft">{evidence?.purged ? "Photo deleted after 7 days (retention). The decision and fingerprints are kept." : "No photo attached."}</p>}
                 {reused?.url ? (
                   <div className="rounded-xl border border-warn-ink/40 p-2">
                     <p className="text-xs font-semibold text-warn-ink">Earlier photo it resembles ({when(reused.createdAt)})</p>

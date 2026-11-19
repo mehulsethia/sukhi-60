@@ -11,6 +11,8 @@ import { errorJson, json } from "@/server/http";
 import { createHash } from "node:crypto";
 import { getTranslations } from "next-intl/server";
 import { z } from "zod";
+import { REVIEW_PROMISE_HOURS } from "@/domain/proof";
+import { formatReading } from "@/domain/readings";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -101,9 +103,12 @@ export async function POST(req: Request) {
     const path = `${user.id}/${f.occurrence_id}/${v.file.sha256.slice(0, 16)}.${v.file.ext}`;
     const up = await supabase.storage.from("evidence").upload(path, v.file.bytes, { contentType: v.file.mime, upsert: false });
     if (up.error && !/exists|duplicate/i.test(up.error.message)) return errorJson("upload_failed", 500);
-    const existing = await supabase.from("documents").select("id").eq("bucket", "evidence").eq("storage_path", path).maybeSingle();
-    if (existing.data) documentId = existing.data.id;
-    else {
+    const existing = await supabase.from("documents").select("id, purged_at").eq("bucket", "evidence").eq("storage_path", path).maybeSingle();
+    if (existing.data) {
+      documentId = existing.data.id;
+      // Same picture again after the old copy was deleted: the file is back in storage.
+      if (existing.data.purged_at) await admin.from("documents").update({ purged_at: null }).eq("id", existing.data.id);
+    } else {
       const { data: doc, error } = await supabase.from("documents").insert({ user_id: user.id, bucket: "evidence", storage_path: path, mime_type: v.file.mime, size_bytes: v.file.size, sha256: v.file.sha256 }).select("id").single();
       if (error || !doc) return errorJson("document_insert_failed", 500);
       documentId = doc.id;
@@ -139,11 +144,13 @@ export async function POST(req: Request) {
     const reply = [
       f.mark_done === "true" ? t("chatUi.markedDone", { title }) : null,
       evaluation.outcome !== "not_applicable" ? `**${t(`action.outcome_${evaluation.outcome}`)}**: ${evaluation.explanation}` : t("chatUi.savedNote"),
+      evaluation.reading ? `${t("action.reading")}: ${formatReading(evaluation.reading, t("action.readingPulse"))}` : null,
+      evaluation.needs_review ? t("action.reviewPending", { hours: REVIEW_PROMISE_HOURS }) : null,
       points > 0 ? t("today.pointsEarned", { points }) : null,
     ].filter(Boolean).join("\n\n");
     // Two statements so the timestamps keep the order (one statement shares now()).
     await admin.from("messages").insert({ user_id: user.id, role: "user", channel: "web", content: userText.slice(0, 8000), source_refs: [{ type: "evidence", id: ev.id, label: f.kind }, ...ref] as never });
     await admin.from("messages").insert({ user_id: user.id, role: "assistant", channel: "web", content: reply.slice(0, 8000), source_refs: ref as never });
   }
-  return json({ evidence_id: ev.id, check_in: checkIn, evaluation });
+  return json({ evidence_id: ev.id, check_in: checkIn, evaluation, review_hours: REVIEW_PROMISE_HOURS });
 }

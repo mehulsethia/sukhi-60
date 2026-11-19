@@ -1,14 +1,17 @@
 "use client";
-// Proof capture: camera photo, recorded video, or anything from the gallery, plus an
-// optional note. Used on the action page and inside the chat.
+// Proof capture: a photo or clip taken live with the camera (no gallery, so old or borrowed
+// pictures can't be picked), or a note. Used on the action page and inside the chat.
 import { useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
-import { Camera, Images, PenLine, Video, X } from "lucide-react";
+import { Camera, PenLine, Video, X } from "lucide-react";
 import { Alert } from "@/components/ui";
 import { shrinkImage } from "@/lib/client-image";
+import { CameraCapture, liveCameraSupported } from "@/components/CameraCapture";
+import type { Reading } from "@/domain/readings";
+import { formatReading } from "@/domain/readings";
 import { removeUpload, uploadVideo, videoFrames, VIDEO_MAX_BYTES, VIDEO_MAX_SECONDS } from "@/lib/client-video";
 
-export type EvidenceResult = { ok: true; outcome: string; explanation: string; points: number } | { ok: false; error: string };
+export type EvidenceResult = { ok: true; outcome: string; explanation: string; points: number; needsReview: boolean; reading: Reading | null; hours: number } | { ok: false; error: string };
 
 /** Send one piece of evidence through the same pipeline WhatsApp media uses. */
 export async function submitEvidence(o: { occurrenceId: string; file?: File | null; text?: string; markDone: boolean; via: "chat" | "action"; key: string }): Promise<EvidenceResult> {
@@ -45,7 +48,7 @@ export async function submitEvidence(o: { occurrenceId: string; file?: File | nu
     if (res.status === 429) return { ok: false, error: "rate_limited" };
     if (!res.ok) return { ok: false, error: "error" };
     const points = ((j.check_in?.rewards ?? []) as { points: number }[]).reduce((a, r) => a + r.points, 0);
-    return { ok: true, outcome: j.evaluation.outcome, explanation: j.evaluation.explanation, points };
+    return { ok: true, outcome: j.evaluation.outcome, explanation: j.evaluation.explanation, points, needsReview: !!j.evaluation.needs_review, reading: j.evaluation.reading ?? null, hours: Number(j.review_hours) || 12 };
   } catch {
     return { ok: false, error: "error" };
   }
@@ -59,20 +62,29 @@ export function EvidenceCapture({ occurrenceId, canMarkDone, via, onDone, compac
   const [text, setText] = useState("");
   const [markDone, setMarkDone] = useState(canMarkDone);
   const [busy, setBusy] = useState(false);
+  const [cam, setCam] = useState<"photo" | "video" | null>(null);
   const [msg, setMsg] = useState<{ tone: "ok" | "danger" | "info"; text: string } | null>(null);
   const keyRef = useRef(crypto.randomUUID());
   const id = `ev-${occurrenceId.slice(0, 8)}-${via}`;
 
   useEffect(() => () => { if (preview) URL.revokeObjectURL(preview); }, [preview]);
 
-  function pick(e: React.ChangeEvent<HTMLInputElement>) {
-    const f = e.currentTarget.files?.[0] ?? null;
-    e.currentTarget.value = "";
-    if (!f) return;
+  function take(f: File) {
+    setCam(null);
     setMsg(null);
     setNoteOnly(false);
     setFile(f);
     setPreview((old) => { if (old) URL.revokeObjectURL(old); return URL.createObjectURL(f); });
+  }
+  /** Fallback for browsers without a live camera API: the OS camera via the capture attribute. */
+  function pick(e: React.ChangeEvent<HTMLInputElement>) {
+    const f = e.currentTarget.files?.[0] ?? null;
+    e.currentTarget.value = "";
+    if (f) take(f);
+  }
+  function open(mode: "photo" | "video") {
+    if (liveCameraSupported(mode)) setCam(mode);
+    else document.getElementById(`${id}-${mode === "photo" ? "cam" : "vid"}`)?.click();
   }
   function clear() {
     setFile(null);
@@ -89,7 +101,7 @@ export function EvidenceCapture({ occurrenceId, canMarkDone, via, onDone, compac
     setBusy(false);
     if (r.ok) {
       keyRef.current = crypto.randomUUID();
-      setMsg({ tone: "ok", text: t(`action.outcome_${r.outcome}`) });
+      setMsg({ tone: "ok", text: [t(`action.outcome_${r.outcome}`), r.reading ? `${t("action.reading")}: ${formatReading(r.reading, t("action.readingPulse"))}` : null, r.needsReview ? t("action.reviewPending", { hours: r.hours }) : null].filter(Boolean).join(" · ") });
       setText("");
       clear();
     } else {
@@ -105,15 +117,13 @@ export function EvidenceCapture({ occurrenceId, canMarkDone, via, onDone, compac
     <div className="flex flex-col gap-3">
       {!file && !noteOnly ? (
         <>
-          <div className={`grid gap-2 ${compact ? "grid-cols-4" : "grid-cols-2 sm:grid-cols-4"}`}>
-            <label htmlFor={`${id}-cam`} className={tile}><Camera size={22} className="text-primary" aria-hidden="true" />{t("evidenceUi.camera")}</label>
-            <label htmlFor={`${id}-vid`} className={tile}><Video size={22} className="text-primary" aria-hidden="true" />{t("evidenceUi.video")}</label>
-            <label htmlFor={`${id}-gal`} className={tile}><Images size={22} className="text-primary" aria-hidden="true" />{t("evidenceUi.gallery")}</label>
+          <div className="grid grid-cols-3 gap-2">
+            <button type="button" onClick={() => open("photo")} className={tile}><Camera size={22} className="text-primary" aria-hidden="true" />{t("evidenceUi.camera")}</button>
+            <button type="button" onClick={() => open("video")} className={tile}><Video size={22} className="text-primary" aria-hidden="true" />{t("evidenceUi.video")}</button>
             <button type="button" onClick={() => setNoteOnly(true)} className={tile}><PenLine size={22} className="text-primary" aria-hidden="true" />{t("action.note")}</button>
           </div>
-          <input id={`${id}-cam`} type="file" accept="image/*" capture="environment" className="sr-only" aria-label={t("action.choosePhoto")} onChange={pick} />
-          <input id={`${id}-vid`} type="file" accept="video/mp4,video/webm,video/quicktime,video/*" capture="environment" className="sr-only" aria-label={t("evidenceUi.video")} onChange={pick} />
-          <input id={`${id}-gal`} type="file" accept="image/jpeg,image/png,image/webp,video/mp4,video/webm,video/quicktime" className="sr-only" aria-label={t("evidenceUi.gallery")} onChange={pick} />
+          <input id={`${id}-cam`} type="file" accept="image/*" capture="environment" className="sr-only" tabIndex={-1} aria-hidden="true" onChange={pick} />
+          <input id={`${id}-vid`} type="file" accept="video/*" capture="environment" className="sr-only" tabIndex={-1} aria-hidden="true" onChange={pick} />
           {!compact ? <p className="hint">{t("evidenceUi.help")}</p> : null}
         </>
       ) : (
@@ -124,6 +134,7 @@ export function EvidenceCapture({ occurrenceId, canMarkDone, via, onDone, compac
                 ? <video src={preview} controls playsInline className="max-h-72 w-full rounded-xl bg-black object-contain" />
                 // eslint-disable-next-line @next/next/no-img-element
                 : <img src={preview} alt={t("evidenceUi.previewAlt")} className="max-h-72 w-full rounded-xl bg-surface-2 object-contain" />}
+              <button type="button" onClick={() => { const m = isVideo ? "video" : "photo"; clear(); open(m); }} className="absolute bottom-2 left-2 rounded-full bg-ink/70 px-3 py-1.5 text-sm font-semibold text-white">{t("evidenceUi.retake")}</button>
               <button type="button" onClick={clear} aria-label={t("evidenceUi.remove")} className="absolute right-2 top-2 flex h-9 w-9 items-center justify-center rounded-full bg-ink/70 text-white"><X size={18} aria-hidden="true" /></button>
             </div>
           ) : (
@@ -137,6 +148,7 @@ export function EvidenceCapture({ occurrenceId, canMarkDone, via, onDone, compac
           <button type="button" className="btn btn-primary" disabled={busy || (!file && !text.trim())} onClick={send}>{busy ? (isVideo ? t("evidenceUi.uploadingVideo") : t("action.submitting")) : t("action.submit")}</button>
         </div>
       )}
+      {cam ? <CameraCapture mode={cam} onCapture={take} onClose={() => setCam(null)} /> : null}
       <div aria-live="polite">{msg ? <Alert tone={msg.tone}>{msg.text}</Alert> : null}</div>
     </div>
   );

@@ -32,6 +32,7 @@ import { w } from "@/domain/wa-copy";
 import { businessNumber } from "@/server/wa/data";
 import { claimConnectRequest, savePhone } from "@/server/wa/link";
 import { notify } from "@/server/wa/send";
+import { correctReading } from "@/server/readings";
 import { BARRIER_CODES, cleanMotivation, normalizeRestart, normalizeStyles, parseConfidence } from "@/domain/behaviour";
 
 export type ActionState = { ok?: boolean; error?: string; data?: Record<string, unknown> } | null;
@@ -817,6 +818,19 @@ export async function requestReview(_prev: ActionState, fd: FormData): Promise<A
   const { error } = await createAdminClient().from("review_requests").insert({ user_id: user.id, occurrence_id: occurrence, evaluation_id: evaluation, evidence_id: ev?.evidence_id ?? null, item_id: occRow?.item_id ?? null, reason: evaluation ? "The person disagrees with the assessment" : reason.data, patient_note: reason.data, source: evaluation ? "appeal" : "user" });
   if (error) return { error: "save_failed" };
   revalidatePath(`/actions/${occurrence}`);
+  return { ok: true };
+}
+
+/** The person fixing numbers the AI read off their device. */
+export async function fixReadingAction(_prev: ActionState, fd: FormData): Promise<ActionState> {
+  const { user } = await requireUser();
+  const id = z.string().uuid().safeParse(fd.get("reading_id"));
+  const text = z.string().trim().min(1).max(40).safeParse(fd.get("value"));
+  if (!id.success || !text.success) return { error: "invalid" };
+  const res = await correctReading(createAdminClient(), user.id, id.data, text.data);
+  if (!res.ok) return { error: res.error };
+  const occ = z.string().uuid().safeParse(fd.get("occurrence_id"));
+  if (occ.success) revalidatePath(`/actions/${occ.data}`);
   return { ok: true };
 }
 

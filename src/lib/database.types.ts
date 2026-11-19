@@ -699,6 +699,60 @@ export type Database = {
         }
         Relationships: []
       }
+      readings: {
+        Row: {
+          id: string
+          user_id: string
+          occurrence_id: string | null
+          item_id: string | null
+          evidence_id: string | null
+          kind: string
+          value: number
+          value2: number | null
+          pulse: number | null
+          unit: string
+          source: string
+          read_as: Json | null
+          measured_at: string
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          occurrence_id?: string | null
+          item_id?: string | null
+          evidence_id?: string | null
+          kind: string
+          value: number
+          value2?: number | null
+          pulse?: number | null
+          unit: string
+          source?: string
+          read_as?: Json | null
+          measured_at?: string
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          occurrence_id?: string | null
+          item_id?: string | null
+          evidence_id?: string | null
+          kind?: string
+          value?: number
+          value2?: number | null
+          pulse?: number | null
+          unit?: string
+          source?: string
+          read_as?: Json | null
+          measured_at?: string
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       doctor_patients: {
         Row: {
           id: string
@@ -826,6 +880,7 @@ export type Database = {
           extraction_status: string
           id: string
           mime_type: string
+          purged_at: string | null
           original_name: string | null
           sha256: string
           size_bytes: number
@@ -839,6 +894,7 @@ export type Database = {
           extraction_status?: string
           id?: string
           mime_type: string
+          purged_at?: string | null
           original_name?: string | null
           sha256: string
           size_bytes: number
@@ -852,6 +908,7 @@ export type Database = {
           extraction_status?: string
           id?: string
           mime_type?: string
+          purged_at?: string | null
           original_name?: string | null
           sha256?: string
           size_bytes?: number
@@ -2188,6 +2245,13 @@ export type Database = {
       }
       family_summary: { Args: { p_access: string }; Returns: Json }
       my_circle_ids: { Args: never; Returns: string[] }
+      expired_evidence_files: {
+        Args: { p_hold_max?: string; p_limit?: number; p_older_than?: string }
+        Returns: {
+          document_id: string
+          name: string
+        }[]
+      }
       orphan_evidence_videos: {
         Args: { p_limit?: number; p_older_than?: string }
         Returns: {
