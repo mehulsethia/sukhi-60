@@ -1,5 +1,6 @@
 "use client";
 import { PhoneInput } from "@/components/PhoneInput";
+import { FAMILY_LIMIT } from "@/domain/family";
 import { splitPhone } from "@/domain/wa-ui";
 import { useActionState, useState } from "react";
 import { useTranslations } from "next-intl";
@@ -96,22 +97,19 @@ export function LinkCodeForm({ rebind }: { rebind: boolean }) {
   );
 }
 
-export function FamilyInviteForm({ disabled }: { disabled: boolean }) {
+export function FamilyInviteForm({ disabled, full }: { disabled: boolean; full: boolean }) {
   const t = useTranslations();
   const [state, action] = useActionState(createFamilyInvite, null);
   const link = (state?.data as { link?: string } | undefined)?.link;
   if (disabled) return <p className="hint">{t("onboarding.consentFamily")}</p>;
+  if (full && !link) return <p className="hint">{t("settings.familyFull", { n: FAMILY_LIMIT })}</p>;
   return (
     <form action={action} className="flex flex-col gap-2">
       <div className="field"><label htmlFor="fam-label">{t("settings.familyLabel")}</label><input id="fam-label" name="label" className="input" required maxLength={80} /></div>
-      <fieldset><legend className="label mb-1">{t("settings.familyScopes")}</legend>
-        {["weekly_summary", "garden"].map((s) => <label key={s} className="flex min-h-10 items-center gap-3"><input type="checkbox" name="scopes" value={s} defaultChecked={s === "weekly_summary"} className="h-5 w-5" />{t(`settings.scope_${s}`)}</label>)}
-        <label className="flex min-h-10 items-start gap-3 py-1"><input type="checkbox" name="scopes" value="alerts" className="mt-0.5 h-5 w-5" /><span>{t("settings.scope_alerts")}<span className="hint block text-sm">{t("companion.alertsScopeHelp")}</span></span></label>
-      </fieldset>
       <SubmitButton className="btn btn-secondary self-start" pendingLabel={t("common.saving")}>{t("settings.familyInvite")}</SubmitButton>
       <div aria-live="polite">
         {link ? <Alert tone="ok">{t("settings.familyLink")}<code className="mt-1 block break-all text-sm" data-testid="family-link">{link}</code></Alert> : null}
-        {state?.error ? <Alert tone="danger">{t("common.error")}</Alert> : null}
+        {state?.error ? <Alert tone="danger">{state.error === "family_limit" ? t("settings.familyFull", { n: FAMILY_LIMIT }) : t("common.error")}</Alert> : null}
       </div>
     </form>
   );

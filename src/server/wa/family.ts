@@ -1,4 +1,5 @@
 import "server-only";
+import { FAMILY_LIMIT, FAMILY_SCOPES, familySeats } from "@/domain/family";
 // Family on WhatsApp. The patient sends a forwardable link (FAMILY-XXXXXX); the family
 // member taps it, agrees, and from then on gets a short evening update and alerts. They see
 // counts, streak and alerts only: never task names, chats or health details.
@@ -32,17 +33,41 @@ export async function showFamily(ctx: WaCtx) {
   const { data: profs } = ids.length ? await ctx.admin.from("profiles").select("id, display_name").in("id", ids) : { data: [] };
   const names = (rows ?? []).map((r) => (profs ?? []).find((p) => p.id === r.member_user_id)?.display_name ?? r.invitee_label);
   const body = names.length ? w(l, "family_list", { list: names.map((n) => `• ${n}`).join("\n") }) : w(l, "family_none");
-  await send(ctx, { type: "buttons", body, buttons: [{ id: "fm:add", title: w(l, "btn_add_family") }, menuBtn(l)] });
+  const full = await familyFull(ctx.admin, ctx.userId);
+  // Full: offer to remove someone (WhatsApp-only patients have no Settings page).
+  const removeBtns = full ? (rows ?? []).slice(0, FAMILY_LIMIT).map((r, i) => ({ id: `fm:rm:${r.id}`, title: w(l, "btn_remove_family", { name: names[i].split(" ")[0] }).slice(0, 20) })) : [];
+  await send(ctx, { type: "buttons", body: full ? `${body}\n\n${w(l, "family_full", { n: FAMILY_LIMIT })}` : body, buttons: full ? [...removeBtns, menuBtn(l)] : [{ id: "fm:add", title: w(l, "btn_add_family") }, menuBtn(l)] });
+}
+
+/** Patient stops sharing with one family member. */
+export async function removeFamily(ctx: WaCtx, accessId: string) {
+  const { data } = await ctx.admin.from("family_access").update({ status: "revoked", revoked_at: new Date().toISOString() }).eq("id", accessId).eq("patient_id", ctx.userId).in("status", ["active", "invited"]).select("id").maybeSingle();
+  if (data) await ctx.admin.from("audit_events").insert({ user_id: ctx.userId, actor: "user", action: "family_revoked", entity: "family_access", entity_id: accessId, details: { via: "whatsapp" } });
+  await send(ctx, { type: "text", body: w(ctx.locale, "family_removed") });
+  return showFamily(ctx);
+}
+
+async function familyFull(admin: AdminClient, patientId: string) {
+  const { data } = await admin.from("family_access").select("status, expires_at").eq("patient_id", patientId);
+  return familySeats(data ?? []) >= FAMILY_LIMIT;
 }
 
 export async function addFamily(ctx: WaCtx) {
   const l = ctx.locale;
+  if (await familyFull(ctx.admin, ctx.userId)) {
+    await send(ctx, { type: "buttons", body: w(l, "family_full", { n: FAMILY_LIMIT }), buttons: [menuBtn(l)] });
+    return;
+  }
   let code = "";
   for (let i = 0; i < 5; i++) {
     code = newFamilyCode();
-    const { error } = await ctx.admin.from("family_access").insert({ patient_id: ctx.userId, invitee_label: "Family (WhatsApp)", invite_token_hash: await familyCodeHash(code), scopes: ["weekly_summary", "alerts"], expires_at: new Date(Date.now() + 7 * 86_400_000).toISOString() });
+    const { error } = await ctx.admin.from("family_access").insert({ patient_id: ctx.userId, invitee_label: "Family (WhatsApp)", invite_token_hash: await familyCodeHash(code), scopes: [...FAMILY_SCOPES], expires_at: new Date(Date.now() + 7 * 86_400_000).toISOString() });
     if (!error) break;
     code = "";
+    if (error.message.includes("family_limit")) {
+      await send(ctx, { type: "buttons", body: w(l, "family_full", { n: FAMILY_LIMIT }), buttons: [menuBtn(l)] });
+      return;
+    }
   }
   if (!code) throw new Error("family_invite_failed");
   const num = await businessNumber();

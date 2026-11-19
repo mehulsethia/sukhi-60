@@ -330,6 +330,7 @@ async function handleTap(ctx: WaCtx, id: string, binding: Binding): Promise<void
   if (ns === "ds" && a === "stop" && UUID.test(b ?? "")) return P.stopSharing(ctx, b);
   if (ns === "fm") {
     if (a === "add") return F.addFamily(ctx);
+    if (a === "rm" && UUID.test(b ?? "")) return F.removeFamily(ctx, b);
     if (a === "see" && UUID.test(b ?? "")) return F.showFollow(ctx, b);
     if (a === "cheer" && UUID.test(b ?? "")) return F.cheer(ctx, b);
     if (a === "own") {

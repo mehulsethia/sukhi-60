@@ -570,7 +570,7 @@
     "waWindow": "Last message from you: {time}",
     "waWindowNote": "Outside 24 hours after your last message, Sukhi can only send an approved generic notice like “Your Sukhi check-in is ready.”",
     "family": "Family support",
-    "familyIntro": "Share a weekly progress summary with someone you choose. They never see your chat, documents or plan details. You can stop sharing instantly.",
+    "familyIntro": "Share your progress with up to {n} family members. They see your weekly summary, points and alerts, and can't change anything. They never see your chats or documents. You can stop sharing any time.",
     "familyLabel": "Who is this for?",
     "familyScopes": "What they can see",
     "scope_weekly_summary": "Weekly participation summary",
@@ -618,7 +618,8 @@
     "phoneChange": "Change",
     "waSayHi": "Message Sukhi on WhatsApp from this number and it will offer to connect.",
     "waSayHiButton": "Open WhatsApp",
-    "phoneCountry": "Country code"
+    "phoneCountry": "Country code",
+    "familyFull": "You're sharing with {n} family members, the most allowed. Remove one to invite someone else."
   },
   "family": {
     "acceptTitle": "Family support invitation",

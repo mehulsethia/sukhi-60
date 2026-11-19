@@ -7,6 +7,7 @@ import { BellRing, Brain, HandHeart, MessageCircle, ShieldCheck, Trash2, UserRou
 import { requireUser } from "@/lib/supabase/server";
 import { features } from "@/lib/config";
 import { revokeFamily, setMemoryStatus, unlinkWhatsApp } from "@/app/actions";
+import { FAMILY_LIMIT, familySeats } from "@/domain/family";
 import { ConsentsForm, FamilyInviteForm, LinkCodeForm, PreferencesForm } from "@/components/SettingsForms";
 import { PageHeader, Section } from "@/components/ui";
 import { SubmitButton } from "@/components/SubmitButton";
@@ -116,12 +117,12 @@ export default async function SettingsPage() {
       </Section> : null}
 
       <Section title={t("settings.family")} id="family" icon={<Users size={20} aria-hidden="true" />}>
-        <p className="mb-2">{t("settings.familyIntro")}</p>
+        <p className="mb-2">{t("settings.familyIntro", { n: FAMILY_LIMIT })}</p>
         {(family ?? []).length === 0 ? <p className="hint mb-2">{t("settings.familyNone")}</p> : (
           <ul className="mb-3 flex flex-col gap-2">
             {(family ?? []).map((f) => (
               <li key={f.id} className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-line p-3">
-                <span><span className="font-semibold">{f.invitee_label}</span> · {t(`settings.fam_${f.status === "invited" && new Date(f.expires_at) < new Date() ? "expired" : f.status}`)} · {f.scopes.map((s) => t(`settings.scope_${s}`)).join(", ")}</span>
+                <span><span className="font-semibold">{f.invitee_label}</span> · {t(`settings.fam_${f.status === "invited" && new Date(f.expires_at) < new Date() ? "expired" : f.status}`)}</span>
                 {f.status !== "revoked" ? (
                   <form action={revokeFamily}><input type="hidden" name="access_id" value={f.id} /><SubmitButton className="btn btn-danger">{t("settings.familyRevoke")}</SubmitButton></form>
                 ) : null}
@@ -129,7 +130,7 @@ export default async function SettingsPage() {
             ))}
           </ul>
         )}
-        <FamilyInviteForm disabled={!consentMap.family_sharing} />
+        <FamilyInviteForm disabled={!consentMap.family_sharing} full={familySeats(family ?? []) >= FAMILY_LIMIT} />
         <details className="mt-3">
           <summary className="cursor-pointer font-semibold">{t("settings.familyPreview")}</summary>
           <ul className="mt-2 text-sm">{preview.map((d) => <li key={d.date}>{fmtDate(d.date, locale)}: {t("progress.responded")} {d.responded} · {t("progress.completed")} {d.completed}</li>)}</ul>

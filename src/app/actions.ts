@@ -33,6 +33,7 @@ import { businessNumber } from "@/server/wa/data";
 import { claimConnectRequest, savePhone } from "@/server/wa/link";
 import { notify } from "@/server/wa/send";
 import { correctReading } from "@/server/readings";
+import { FAMILY_LIMIT, FAMILY_SCOPES, familySeats } from "@/domain/family";
 import { BARRIER_CODES, cleanMotivation, normalizeRestart, normalizeStyles, parseConfidence } from "@/domain/behaviour";
 
 export type ActionState = { ok?: boolean; error?: string; data?: Record<string, unknown> } | null;
@@ -905,13 +906,15 @@ export async function unlinkWhatsApp() {
 export async function createFamilyInvite(_prev: ActionState, fd: FormData): Promise<ActionState> {
   const { supabase, user } = await requireUser();
   const label = z.string().trim().min(1).max(80).safeParse(fd.get("label"));
-  const scopes = fd.getAll("scopes").map(String).filter((s) => s === "weekly_summary" || s === "garden" || s === "alerts");
-  if (!label.success || scopes.length === 0) return { error: "invalid_input" };
+  if (!label.success) return { error: "invalid_input" };
   const { data: consent } = await supabase.from("consents").select("granted").eq("kind", "family_sharing").maybeSingle();
   if (!consent?.granted) return { error: "family_consent_required" };
+  const { data: existing } = await supabase.from("family_access").select("status, expires_at").eq("patient_id", user.id);
+  if (familySeats(existing ?? []) >= FAMILY_LIMIT) return { error: "family_limit" };
   const token = randomToken(32);
-  const { error } = await supabase.from("family_access").insert({ patient_id: user.id, invitee_label: label.data, invite_token_hash: await sha256Hex(token), scopes });
-  if (error) return { error: "save_failed" };
+  // Every family member sees everything family can see; the database also enforces the limit.
+  const { error } = await supabase.from("family_access").insert({ patient_id: user.id, invitee_label: label.data, invite_token_hash: await sha256Hex(token), scopes: [...FAMILY_SCOPES] });
+  if (error) return { error: error.message.includes("family_limit") ? "family_limit" : "save_failed" };
   revalidatePath("/settings");
   return { ok: true, data: { link: `${settings.appUrl()}/family/accept?token=${token}` } };
 }
