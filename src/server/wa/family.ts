@@ -72,7 +72,8 @@ async function summaryText(admin: AdminClient, patientId: string, locale: string
   const today = localDateOf(new Date(), tz);
   const [counts, week, streak] = await Promise.all([todayCounts(admin, patientId, tz), adherenceFor(admin, patientId, addDays(today, -6), today), streakFor(admin, patientId, tz)]);
   if (!counts.total) return w(locale, "family_no_plan", { name });
-  return w(locale, "family_summary", { name, done: counts.done, total: counts.total, pct: pctText(week.pct), streak });
+  const proof = week.proof.done ? `\n${w(locale, "family_proof", { photo: week.proof.photo, done: week.proof.done })}` : "";
+  return w(locale, "family_summary", { name, done: counts.done, total: counts.total, pct: pctText(week.pct), streak }) + proof;
 }
 
 /** Member: how is my person doing. */

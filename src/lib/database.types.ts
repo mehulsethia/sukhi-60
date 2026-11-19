@@ -36,6 +36,7 @@ export type Database = {
     Tables: {
       action_occurrences: {
         Row: {
+          proof_level: string | null
           completed_count: number
           created_at: string
           due_at: string
@@ -54,6 +55,7 @@ export type Database = {
           window_end_at: string
         }
         Insert: {
+          proof_level?: string | null
           completed_count?: number
           created_at?: string
           due_at: string
@@ -72,6 +74,7 @@ export type Database = {
           window_end_at: string
         }
         Update: {
+          proof_level?: string | null
           completed_count?: number
           created_at?: string
           due_at?: string
@@ -666,6 +669,36 @@ export type Database = {
         }
         Relationships: []
       }
+      proof_challenges: {
+        Row: {
+          id: string
+          user_id: string
+          occurrence_id: string
+          kind: string
+          value: string
+          created_at: string
+          expires_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          occurrence_id: string
+          kind: string
+          value: string
+          created_at?: string
+          expires_at: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          occurrence_id?: string
+          kind?: string
+          value?: string
+          created_at?: string
+          expires_at?: string
+        }
+        Relationships: []
+      }
       doctor_patients: {
         Row: {
           id: string
@@ -829,6 +862,13 @@ export type Database = {
       }
       evaluations: {
         Row: {
+          flags: string[]
+          flag_detail: Json
+          challenge_met: boolean | null
+          label_match: string | null
+          blister_empty: number | null
+          proof_level: string | null
+          reviewer: string | null
           cannot_confirm: string[]
           created_at: string
           evidence_id: string | null
@@ -843,6 +883,13 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          flags?: string[]
+          flag_detail?: Json
+          challenge_met?: boolean | null
+          label_match?: string | null
+          blister_empty?: number | null
+          proof_level?: string | null
+          reviewer?: string | null
           cannot_confirm?: string[]
           created_at?: string
           evidence_id?: string | null
@@ -857,6 +904,13 @@ export type Database = {
           user_id: string
         }
         Update: {
+          flags?: string[]
+          flag_detail?: Json
+          challenge_met?: boolean | null
+          label_match?: string | null
+          blister_empty?: number | null
+          proof_level?: string | null
+          reviewer?: string | null
           cannot_confirm?: string[]
           created_at?: string
           evidence_id?: string | null
@@ -889,6 +943,9 @@ export type Database = {
       }
       evidence: {
         Row: {
+          phash: string | null
+          taken_at: string | null
+          challenge_id: string | null
           channel: Database["public"]["Enums"]["channel_kind"]
           check_in_id: string | null
           content_hash: string
@@ -902,6 +959,9 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          phash?: string | null
+          taken_at?: string | null
+          challenge_id?: string | null
           channel?: Database["public"]["Enums"]["channel_kind"]
           check_in_id?: string | null
           content_hash: string
@@ -915,6 +975,9 @@ export type Database = {
           user_id: string
         }
         Update: {
+          phash?: string | null
+          taken_at?: string | null
+          challenge_id?: string | null
           channel?: Database["public"]["Enums"]["channel_kind"]
           check_in_id?: string | null
           content_hash?: string
@@ -1744,6 +1807,12 @@ export type Database = {
       }
       review_requests: {
         Row: {
+          evidence_id: string | null
+          patient_note: string | null
+          decision: string | null
+          decision_note: string | null
+          decided_by: string | null
+          decided_at: string | null
           created_at: string
           evaluation_id: string | null
           id: string
@@ -1755,6 +1824,12 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          evidence_id?: string | null
+          patient_note?: string | null
+          decision?: string | null
+          decision_note?: string | null
+          decided_by?: string | null
+          decided_at?: string | null
           created_at?: string
           evaluation_id?: string | null
           id?: string
@@ -1766,6 +1841,12 @@ export type Database = {
           user_id: string
         }
         Update: {
+          evidence_id?: string | null
+          patient_note?: string | null
+          decision?: string | null
+          decision_note?: string | null
+          decided_by?: string | null
+          decided_at?: string | null
           created_at?: string
           evaluation_id?: string | null
           id?: string

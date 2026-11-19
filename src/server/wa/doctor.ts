@@ -116,7 +116,7 @@ async function patientRows(admin: AdminClient, doctorId: string) {
       const p = (profs ?? []).find((x) => x.id === l.patient_id);
       const tz = p?.timezone ?? TZ;
       const [a, t] = await Promise.all([adherenceFor(admin, l.patient_id, addDays(today, -6), today), todayCounts(admin, l.patient_id, tz)]);
-      return { linkId: l.id, patientId: l.patient_id, name: p?.display_name ?? "Patient", pct: a.pct, done: a.done, due: a.due, today: t };
+      return { linkId: l.id, patientId: l.patient_id, name: p?.display_name ?? "Patient", pct: a.pct, done: a.done, due: a.due, today: t, photoPct: a.proof.done ? Math.round((100 * a.proof.photo) / a.proof.done) : null };
     }),
   );
 }
@@ -135,7 +135,7 @@ export async function showPatients(ctx: WaCtx) {
     type: "list",
     body: d("patients_body") + (rows.length > 10 ? `\n(${rows.length} patients, 10 lowest shown)` : ""),
     button: "Patients",
-    sections: [{ rows: rows.slice(0, 10).map((r) => ({ id: `dr:p:${r.linkId}`, title: r.name, description: d("patient_row_d", { pct: pctText(r.pct), today: d("patient_today", { done: r.today.done, total: r.today.total }) }) })) }],
+    sections: [{ rows: rows.slice(0, 10).map((r) => ({ id: `dr:p:${r.linkId}`, title: r.name, description: d("patient_row_d", { pct: pctText(r.pct), photo: pctText(r.photoPct), today: d("patient_today", { done: r.today.done, total: r.today.total }) }) })) }],
   });
 }
 
@@ -161,7 +161,8 @@ export async function showPatient(ctx: WaCtx, linkId: string) {
     ? week.items.map((i) => `${dots(i.pct, 7)} ${i.done}/${i.due} ${i.title}${i.clinician ? "" : " (own goal)"}`).join("\n")
     : d("patient_no_items");
   const last = lastCi?.created_at ? new Date(lastCi.created_at).toLocaleString("en-IN", { timeZone: tz, day: "numeric", month: "short", hour: "numeric", minute: "2-digit" }) : d("never");
-  const parts = [d("patient_detail", { name: p?.display_name ?? "Patient", pct: pctText(week.pct), done: week.done, due: week.due, pct30: pctText(month.pct), proofs: week.proofs, last, items })];
+  const share = (n: number) => pctText(week.proof.done ? Math.round((100 * n) / week.proof.done) : null);
+  const parts = [d("patient_detail", { name: p?.display_name ?? "Patient", pct: pctText(week.pct), done: week.done, due: week.due, pct30: pctText(month.pct), photo: share(week.proof.photo), fresh: share(week.proof.fresh), human: week.proof.human, flagged: week.proof.flagged ? d("patient_flagged", { n: week.proof.flagged }) : "", last, items })];
   if (doc?.reward_text) {
     const period = await adherenceFor(ctx.admin, link.patient_id, link.period_start, today);
     const day = Math.min(doc.reward_days, Math.max(1, Math.round((Date.parse(today) - Date.parse(link.period_start)) / 86_400_000) + 1));
@@ -302,7 +303,7 @@ export async function runDoctorWeekly(admin: AdminClient, now = new Date()): Pro
     const rows = await patientRows(admin, doc.user_id);
     if (!rows.length) continue;
     rows.sort((a, b) => (a.pct ?? 101) - (b.pct ?? 101));
-    const lines = rows.slice(0, 15).map((r) => `${dots(r.pct)} ${pctText(r.pct)} ${r.name}`).join("\n");
+    const lines = rows.slice(0, 15).map((r) => `${dots(r.pct)} ${pctText(r.pct)} · ${pctText(r.photoPct)} ${r.name}`).join("\n");
     const res = await notify(admin, doc.user_id, { type: "buttons", body: d("weekly", { lines }), buttons: [{ id: "dr:m:patients", title: d("row_patients") }] }, `dr-week:${doc.user_id}:${localDateOf(now, TZ)}`, { hold: true, respectQuiet: false });
     if (res !== "blocked") n++;
   }

@@ -8,6 +8,8 @@ import { EvidenceForm } from "@/components/EvidenceForm";
 import { ReviewForm } from "@/components/ReviewForm";
 import { PageHeader, Section, StatusBadge } from "@/components/ui";
 import { fmtDateTime } from "@/lib/format";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { challengeFor } from "@/server/proof";
 
 export default async function ActionPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -26,6 +28,9 @@ export default async function ActionPage({ params }: { params: Promise<{ id: str
     supabase.from("evaluations").select("*").eq("occurrence_id", id).order("created_at", { ascending: false }),
   ]);
   const status = displayStatus(occ);
+  // Fresh-photo sign for today's proof (an old or borrowed photo can't contain it).
+  const canProve = !["paused", "skipped", "unable", "missed"].includes(status);
+  const challenge = canProve ? await challengeFor(createAdminClient(), user.id, id).catch(() => null) : null;
 
   return (
     <div className="mx-auto max-w-4xl">
@@ -40,6 +45,7 @@ export default async function ActionPage({ params }: { params: Promise<{ id: str
       <div className="grid gap-5 lg:grid-cols-2 [&>section]:mb-0">
       <Section title={t("action.evidence")} id="ev">
         <p className="hint mb-3">{t("action.evidenceIntro")}</p>
+        {challenge ? <p className="mb-3 rounded-xl bg-primary-soft px-3 py-2 text-sm"><span className="font-semibold">{t("action.challengeTitle")}</span> {challenge.kind === "fingers" ? t("action.challengeFingers", { n: challenge.value }) : t("action.challengeCode", { code: challenge.value })} <span className="hint block">{t("action.reviewerNote")}</span></p> : null}
         <EvidenceForm occurrenceId={id} canMarkDone={["pending", "due", "awaiting_response", "later", "no_response"].includes(status)} />
       </Section>
 
@@ -50,11 +56,11 @@ export default async function ActionPage({ params }: { params: Promise<{ id: str
           {(evaluations ?? []).map((e) => (
             <li key={e.id} className="rounded-xl border border-line p-3">
               <p className="font-semibold">{t(`action.outcome_${e.outcome}`)}</p>
-              <p className="hint">{e.method === "model" ? t("action.method_model") : t("action.method_rule")} · {t("action.notProbability")}</p>
+              <p className="hint">{e.method === "manual_review" ? t("action.method_manual") : e.method === "model" ? t("action.method_model") : t("action.method_rule")}{e.proof_level ? ` · ${t(`action.proof_${e.proof_level}`)}` : ""} · {t("action.notProbability")}</p>
               <p className="mt-2">{e.explanation}</p>
               {e.observed.length ? (<><h3 className="mt-2 font-semibold">{t("action.observed")}</h3><ul className="list-disc pl-6">{e.observed.map((o, i) => <li key={i}>{o}</li>)}</ul></>) : null}
               {e.cannot_confirm.length ? (<><h3 className="mt-2 font-semibold">{t("action.cannotConfirm")}</h3><ul className="list-disc pl-6">{e.cannot_confirm.map((o, i) => <li key={i}>{o}</li>)}</ul></>) : null}
-              <ReviewForm occurrenceId={id} evaluationId={e.id} />
+              {e.method !== "manual_review" ? <ReviewForm occurrenceId={id} evaluationId={e.id} /> : null}
             </li>
           ))}
         </ul>

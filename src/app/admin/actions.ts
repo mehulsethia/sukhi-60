@@ -8,6 +8,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { settings } from "@/lib/config";
 import { ADMIN_COOKIE, checkAdminPassword, createAdminSession, requireAdmin } from "@/server/admin";
 import { createChallenge, newChallengeCode } from "@/server/circle";
+import { decideReview, type Decision } from "@/server/review";
 
 export async function adminLogin(_prev: { error?: string } | null, fd: FormData): Promise<{ error?: string } | null> {
   const email = String(fd.get("email") ?? "").trim().toLowerCase();
@@ -83,4 +84,15 @@ export async function deleteChallengeAction(fd: FormData) {
   await admin.from("audit_events").insert({ actor: "system", action: "challenge_deleted", entity: "circle", entity_id: id, details: { by: email } as never });
   revalidatePath("/admin");
   redirect("/admin#challenges");
+}
+
+/** A reviewer's decision on a proof photo, appeal or audit. Final, logged, told to the person. */
+export async function decideReviewAction(fd: FormData) {
+  const { email } = await requireAdmin();
+  const id = z.string().uuid().parse(fd.get("id"));
+  const decision = z.enum(["verified", "rejected", "more_photo", "dismissed"]).parse(fd.get("decision")) as Decision;
+  const note = String(fd.get("note") ?? "").slice(0, 500) || null;
+  await decideReview(createAdminClient(), email, id, decision, note);
+  revalidatePath("/admin/reviews");
+  redirect("/admin/reviews?done=1");
 }

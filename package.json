@@ -17,6 +17,7 @@
     "jobs:health": "tsx scripts/job-health.mts",
     "worker:tick": "tsx scripts/worker-tick.mts",
     "wa:simulate": "tsx --conditions=react-server scripts/wa-simulate.mts",
+    "proof:simulate": "tsx --conditions=react-server scripts/proof-simulate.mts",
     "seed:demo": "tsx scripts/seed-demo.mts",
     "db:start": "supabase start -x realtime,studio,imgproxy,edge-runtime,logflare,vector,supavisor",
     "db:reset": "supabase db reset",
@@ -38,6 +39,7 @@
     "react": "19.3.0",
     "react-dom": "19.3.0",
     "server-only": "^0.0.1",
+    "sharp": "0.35.5",
     "tailwind-merge": "^3.7.0",
     "web-push": "3.6.7",
     "zod": "4.6.7"

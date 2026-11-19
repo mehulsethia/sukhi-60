@@ -810,7 +810,11 @@ export async function requestReview(_prev: ActionState, fd: FormData): Promise<A
   const reason = z.string().trim().min(3).max(500).safeParse(fd.get("reason"));
   if (!reason.success) return { error: "invalid_input" };
   const evaluation = fd.get("evaluation_id") ? z.string().uuid().parse(fd.get("evaluation_id")) : null;
-  const { error } = await supabase.from("review_requests").insert({ user_id: user.id, occurrence_id: occurrence, evaluation_id: evaluation, reason: reason.data, source: "user" });
+  // With a verdict attached it's an appeal against that verdict; either way a human decides.
+  const { data: ev } = evaluation ? await supabase.from("evaluations").select("evidence_id").eq("id", evaluation).maybeSingle() : { data: null };
+  const { data: occRow } = await supabase.from("action_occurrences").select("item_id").eq("id", occurrence).maybeSingle();
+  if (!occRow) return { error: "not_found" }; // RLS: only the person's own tasks
+  const { error } = await createAdminClient().from("review_requests").insert({ user_id: user.id, occurrence_id: occurrence, evaluation_id: evaluation, evidence_id: ev?.evidence_id ?? null, item_id: occRow?.item_id ?? null, reason: evaluation ? "The person disagrees with the assessment" : reason.data, patient_note: reason.data, source: evaluation ? "appeal" : "user" });
   if (error) return { error: "save_failed" };
   revalidatePath(`/actions/${occurrence}`);
   return { ok: true };

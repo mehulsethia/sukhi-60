@@ -3,7 +3,10 @@ import { generateText, Output } from "ai";
 import type { AdminClient } from "@/lib/supabase/admin";
 import { getExtractModel, getModel } from "./providers";
 import { getConsents } from "./core";
-import { constrainEvaluation, fallbackEvaluation, ModelAssessmentSchema, type Category, type ConstrainedEvaluation } from "@/domain/evaluation";
+import { constrainEvaluation, fallbackEvaluation, ModelAssessmentSchema, type Category, type ConstrainedEvaluation, type ModelAssessment } from "@/domain/evaluation";
+import { challengeForModel, flagsFor, isHard, proofLevelFor, type Findings, type ProofLevel } from "@/domain/proof";
+import { challengeFor, findReuse, fingerprint, maybeAudit, previousBlisterCount } from "./proof";
+import type { Json } from "@/lib/database.types";
 import { cleanExtraction, ExtractionSchema, toDraftItems, type DraftItem } from "@/domain/extraction";
 import { looksLikeInjection, quoteUntrusted } from "@/domain/safety";
 
@@ -21,30 +24,59 @@ export interface EvaluationRecord extends ConstrainedEvaluation {
   method: "rule" | "model";
   model_id: string | null;
   status_after: string | null;
+  flags: string[];
+  proof_level: ProofLevel | null;
+  challenge: { kind: string; value: string; met: boolean | null } | null;
+  reuse: { createdAt: string } | null;
+  audited: boolean;
 }
 
 /** Evaluate one evidence row for its occurrence and apply the deterministic state change. Idempotent per evidence. */
 export async function evaluateEvidence(admin: AdminClient, userId: string, evidenceId: string, opts: { frames?: Uint8Array[] } = {}): Promise<EvaluationRecord> {
   const { data: ev } = await admin
     .from("evidence")
-    .select("*, action_occurrences!inner(id, user_id, plan_items!inner(title, instructions, category)), documents(bucket, storage_path, mime_type)")
+    .select("*, action_occurrences!inner(id, user_id, item_id, plan_items!inner(title, instructions, category)), documents(bucket, storage_path, mime_type)")
     .eq("id", evidenceId)
     .eq("user_id", userId)
     .single();
   if (!ev) throw new Error("evidence_not_found");
 
-  const existing = await admin.from("evaluations").select("*").eq("evidence_id", evidenceId).maybeSingle();
+  const existing = await admin.from("evaluations").select("*").eq("evidence_id", evidenceId).neq("method", "manual_review").maybeSingle();
   if (existing.data) {
-    return { ...existing.data, method: existing.data.method as "rule" | "model", status_after: null };
+    return { ...existing.data, method: existing.data.method as "rule" | "model", status_after: null, flags: existing.data.flags ?? [], proof_level: (existing.data.proof_level as ProofLevel | null) ?? null, challenge: null, reuse: null, audited: false };
   }
 
-  const occ = ev.action_occurrences as unknown as { id: string; plan_items: { title: string; instructions: string | null; category: Category } };
+  const occ = ev.action_occurrences as unknown as { id: string; item_id: string; plan_items: { title: string; instructions: string | null; category: Category } };
   const item = occ.plan_items;
   const doc = ev.documents as unknown as { bucket: string; storage_path: string; mime_type: string } | null;
   const consents = await getConsents(admin, userId);
   const m = getModel();
 
+  // Image bytes for photos; the first frame stands in for a video.
+  let bytes: Uint8Array | null = null;
+  if ((ev.kind === "photo" || ev.kind === "document") && doc && ["image/jpeg", "image/png", "image/webp"].includes(doc.mime_type)) {
+    const file = await admin.storage.from(doc.bucket).download(doc.storage_path);
+    if (!file.error && file.data) bytes = new Uint8Array(await file.data.arrayBuffer());
+  }
+  const frames = (opts.frames ?? []).slice(0, 6);
+  const printBytes = bytes ?? frames[0] ?? null;
+
+  // Checks that don't need the AI: same picture sent before, how old the photo is.
+  const fp = printBytes ? await fingerprint(printBytes) : { phash: null, takenAt: null };
+  const reuse = ev.kind === "photo" || ev.kind === "document" || ev.kind === "video" ? await findReuse(admin, userId, evidenceId, occ.id, ev.content_hash, fp.phash) : { own: null, similar: null, other: null };
+  const challenge = ev.kind === "photo" || ev.kind === "video" ? await challengeFor(admin, userId, occ.id, false) : null;
+  await admin.from("evidence").update({ phash: fp.phash, taken_at: fp.takenAt?.toISOString() ?? null, challenge_id: challenge?.id ?? null }).eq("id", evidenceId);
+  // A reviewer asked for a new photo and here it is: that request is done (this photo gets its own check).
+  await admin.from("review_requests").update({ status: "resolved" }).eq("occurrence_id", occ.id).eq("status", "waiting_patient");
+
+  const asks = [
+    challenge ? `Fresh-photo check: the person was asked to include ${challengeForModel(challenge)}. Set challenge_met.` : "No fresh-photo instruction was given; leave challenge_met unset.",
+    item.category === "medication" ? "Set label_match by comparing any readable medicine name with the agreed action. If a blister strip is visible, count the empty slots in blister_empty_slots." : "Leave label_match and blister_empty_slots unset unless a product label is relevant.",
+    "Set screen_or_edited if this is a photo of a screen or printout, a screenshot, or looks edited or generated.",
+  ].join("\n");
+
   let result: ConstrainedEvaluation;
+  let raw: ModelAssessment | null = null;
   let method: "rule" | "model" = "rule";
   let modelId: string | null = null;
 
@@ -60,7 +92,6 @@ export async function evaluateEvidence(admin: AdminClient, userId: string, evide
   } else if (!m || !consents.ai_processing) {
     result = fallbackEvaluation(item.category, "unconfigured");
   } else if (ev.kind === "video") {
-    const frames = (opts.frames ?? []).slice(0, 6);
     if (!frames.length) result = fallbackEvaluation(item.category, "unsupported_type");
     else {
       try {
@@ -74,12 +105,13 @@ export async function evaluateEvidence(admin: AdminClient, userId: string, evide
             {
               role: "user",
               content: [
-                { type: "text", text: `Agreed action (from the user's plan): ${quoteUntrusted("plan_item", `${item.title}${item.instructions ? `: ${item.instructions}` : ""}`, 600)}\nThese are ${frames.length} still frames from a short video the person recorded, in time order. Describe what they show relative to that action.` },
+                { type: "text", text: `Agreed action (from the user's plan): ${quoteUntrusted("plan_item", `${item.title}${item.instructions ? `: ${item.instructions}` : ""}`, 600)}\nThese are ${frames.length} still frames from a short video the person recorded, in time order. Describe what they show relative to that action.\n${asks}` },
                 ...frames.map((f) => ({ type: "file" as const, mediaType: "image/jpeg", data: f })),
               ],
             },
           ],
         });
+        raw = output;
         result = constrainEvaluation(item.category, "video", output);
         method = "model";
         modelId = m.id;
@@ -87,13 +119,10 @@ export async function evaluateEvidence(admin: AdminClient, userId: string, evide
         result = fallbackEvaluation(item.category, "model_error");
       }
     }
-  } else if (!doc || !["image/jpeg", "image/png", "image/webp"].includes(doc.mime_type)) {
+  } else if (!doc || !bytes) {
     result = fallbackEvaluation(item.category, "unsupported_type");
   } else {
     try {
-      const file = await admin.storage.from(doc.bucket).download(doc.storage_path);
-      if (file.error || !file.data) throw new Error("download_failed");
-      const bytes = new Uint8Array(await file.data.arrayBuffer());
       const { output } = await generateText({
         model: m.model,
         system: EVALUATOR_SYSTEM,
@@ -104,18 +133,44 @@ export async function evaluateEvidence(admin: AdminClient, userId: string, evide
           {
             role: "user",
             content: [
-              { type: "text", text: `Agreed action (from the user's plan): ${quoteUntrusted("plan_item", `${item.title}${item.instructions ? `: ${item.instructions}` : ""}`, 600)}\nDescribe what this photo shows relative to that action.` },
+              { type: "text", text: `Agreed action (from the user's plan): ${quoteUntrusted("plan_item", `${item.title}${item.instructions ? `: ${item.instructions}` : ""}`, 600)}\nDescribe what this photo shows relative to that action.\n${asks}` },
               { type: "file", mediaType: doc.mime_type, data: bytes },
             ],
           },
         ],
       });
+      raw = output;
       result = constrainEvaluation(item.category, ev.kind as "photo" | "document", output);
       method = "model";
       modelId = m.id;
     } catch {
       result = fallbackEvaluation(item.category, "model_error");
     }
+  }
+
+  // Fixed rules on top of the AI's description: flags and the proof level.
+  const blister = typeof raw?.blister_empty_slots === "number" && raw.blister_empty_slots >= 0 && raw.blister_empty_slots <= 100 ? raw.blister_empty_slots : null;
+  const findings: Findings = {
+    kind: ev.kind as Findings["kind"],
+    category: item.category,
+    outcome: result.outcome,
+    reusedOwn: !!reuse.own,
+    reusedOther: !!reuse.other,
+    similarOwn: !!reuse.similar,
+    takenHoursAgo: fp.takenAt ? (Date.now() - fp.takenAt.getTime()) / 3600_000 : null,
+    screenOrEdited: raw?.screen_or_edited === true,
+    labelMatch: raw?.label_match ?? null,
+    challengeIssued: !!challenge && method === "model",
+    challengeMet: challenge ? raw?.challenge_met ?? null : null,
+    actionObserved: raw?.action_observed === true,
+    blisterEmpty: blister,
+    previousBlisterEmpty: blister !== null ? await previousBlisterCount(admin, userId, occ.item_id, occ.id) : null,
+  };
+  const flags = flagsFor(findings);
+  const hard = flags.filter(isHard);
+  const proofLevel = proofLevelFor(findings, flags);
+  if (hard.length) {
+    result = { ...result, needs_review: true, explanation: `${hard.map((f) => FLAG_TEXT[f] ?? f).join(" ")} ${result.explanation}`.trim() };
   }
 
   const { data: row, error } = await admin
@@ -132,6 +187,12 @@ export async function evaluateEvidence(admin: AdminClient, userId: string, evide
         explanation: result.explanation.slice(0, 1500),
         model_id: modelId,
         needs_review: result.needs_review,
+        flags,
+        flag_detail: { reused: reuse.own ?? reuse.other ?? reuse.similar ?? null, taken_at: fp.takenAt?.toISOString() ?? null, challenge: challenge ? { kind: challenge.kind, value: challenge.value } : null, previous_blister: findings.previousBlisterEmpty ?? null } as unknown as Json,
+        challenge_met: findings.challengeMet ?? null,
+        label_match: findings.labelMatch ?? null,
+        blister_empty: blister,
+        proof_level: proofLevel,
       },
       { onConflict: "evidence_id,method", ignoreDuplicates: true },
     )
@@ -139,13 +200,25 @@ export async function evaluateEvidence(admin: AdminClient, userId: string, evide
     .maybeSingle();
   if (error) throw new Error(`evaluation_insert:${error.message}`);
   if (!row) {
-    const again = await admin.from("evaluations").select("*").eq("evidence_id", evidenceId).single();
-    return { ...again.data!, method: again.data!.method as "rule" | "model", status_after: null };
+    const again = await admin.from("evaluations").select("*").eq("evidence_id", evidenceId).neq("method", "manual_review").single();
+    return { ...again.data!, method: again.data!.method as "rule" | "model", status_after: null, flags: again.data!.flags ?? [], proof_level: (again.data!.proof_level as ProofLevel | null) ?? null, challenge: null, reuse: null, audited: false };
   }
   const applied = await admin.rpc("apply_evaluation_internal", { p_evaluation: row.id });
   const statusAfter = (applied.data as { status?: string } | null)?.status ?? null;
-  return { ...result, id: row.id, method, model_id: modelId, status_after: statusAfter };
+  // Accepted photos: a random share, and every "looks similar" one, go to a reviewer as a check.
+  const audited = hard.length === 0 && (proofLevel !== null || flags.includes("similar_photo")) ? await maybeAudit(admin, { userId, occurrenceId: occ.id, itemId: occ.item_id, evaluationId: row.id, evidenceId, similar: flags.includes("similar_photo") }).catch(() => false) : false;
+  return { ...result, id: row.id, method, model_id: modelId, status_after: statusAfter, flags, proof_level: proofLevel, challenge: challenge ? { kind: challenge.kind, value: challenge.value, met: findings.challengeMet ?? null } : null, reuse: reuse.own ? { createdAt: reuse.own.createdAt } : null, audited };
 }
+
+/** Plain-English notes stored with a flagged evaluation (the WhatsApp/web layers show their own wording). */
+const FLAG_TEXT: Record<string, string> = {
+  reused_photo: "This looks like a photo that was sent before.",
+  shared_photo: "This exact photo was also sent from another account.",
+  old_photo: "The photo seems to have been taken more than a day ago.",
+  screen_photo: "This looks like a photo of a screen, a screenshot or an edited image.",
+  label_mismatch: "The medicine name in the photo doesn't seem to match the plan.",
+  challenge_missed: "The fresh-photo instruction wasn't visible in the photo.",
+};
 
 const EXTRACT_SYSTEM = `You read care instructions from a photo or PDF (often a handwritten Indian prescription) and turn them into DRAFT items. The person checks and confirms every item against the photo before anything is scheduled, so your job is the most faithful, useful reading possible.
 

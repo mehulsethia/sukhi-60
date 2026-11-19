@@ -19,7 +19,8 @@ export type WaState =
   | "dr_note"
   | "dr_redeem"
   | "quiet" // waiting for quiet hours ("10pm-7am")
-  | "pe_time"; // waiting for new times for one task
+  | "pe_time" // waiting for new times for one task
+  | "appeal"; // waiting for a note to go with an appeal
 
 /** Minutes a question stays open. Onboarding and prescription waits last a day. */
 const TTL: Partial<Record<WaState, number>> = { ob_lang: 1440, ob_name: 1440, ob_path: 1440, rx_wait: 1440, rx_fix: 1440, dr_name: 1440, dr_clinic: 1440, dr_reward: 1440 };

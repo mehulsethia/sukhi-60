@@ -284,6 +284,8 @@ async function handleTap(ctx: WaCtx, id: string, binding: Binding): Promise<void
       return P.showMenu(ctx);
     }
   }
+  if (ns === "ap" && UUID.test(a ?? "")) return P.askAppeal(ctx, a);
+  if (ns === "aps" && UUID.test(a ?? "")) return P.fileAppeal(ctx, a, null);
   if (ns === "tn") return P.saveTone(ctx, a ?? "");
   if (ns === "rm") return P.saveReminders(ctx, a ?? "");
   if (ns === "pe") return a === "list" || !UUID.test(a ?? "") ? P.pickEdit(ctx) : P.showItem(ctx, a);
@@ -452,6 +454,9 @@ async function handleStateText(ctx: WaCtx, state: string, data: StateData, text:
       return true;
     case "quiet":
       return P.saveQuiet(ctx, text);
+    case "appeal":
+      if (data.evaluationId) await P.fileAppeal(ctx, String(data.evaluationId), text);
+      return true;
     case "pe_time":
       return data.itemId ? P.saveTime(ctx, String(data.itemId), text) : false;
     case "dr_redeem":

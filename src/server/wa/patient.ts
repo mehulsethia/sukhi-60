@@ -8,7 +8,9 @@ import { applyCheckIn, getProfile, getToday, materializeOccurrences, pickRelevan
 import { reply, rewardLine } from "@/domain/replies";
 import { parseRange, parseTimes, scheduleText, time12, waLink, type WaRow } from "@/domain/wa-ui";
 import { COMMUNICATION_STYLES } from "@/domain/behaviour";
-import { w } from "@/domain/wa-copy";
+import { isHard } from "@/domain/proof";
+import { challengeFor } from "../proof";
+import { w, type WaKey } from "@/domain/wa-copy";
 import { FEATURED_PACKS, PACK_KEYS, isPackKey, packFor, packMotivation, type PackKey } from "@/domain/templates";
 import { pointsTotal } from "../points";
 import { getCircleView, joinCircle, type JoinResult } from "../circle";
@@ -333,8 +335,12 @@ export async function applyFix(ctx: WaCtx, planId: string, correction: string) {
 export async function askProof(ctx: WaCtx, occId: string) {
   const { data: occ } = await ctx.admin.from("action_occurrences").select("id, plan_items!inner(title)").eq("id", occId).eq("user_id", ctx.userId).maybeSingle();
   if (!occ) return pickTask(ctx, "proof");
+  // A fresh-photo instruction an old or borrowed photo can't contain.
+  const ch = await challengeFor(ctx.admin, ctx.userId, occId);
   await setState(ctx.admin, ctx.bindingId, "proof", { occId });
-  await send(ctx, { type: "text", body: w(ctx.locale, "proof_send", { title: (occ.plan_items as unknown as { title: string }).title }) });
+  const l = ctx.locale;
+  const challengeLine = ch ? (ch.kind === "fingers" ? w(l, "proof_challenge_fingers", { n: ch.value }) : w(l, "proof_challenge_code", { code: ch.value })) : "";
+  await send(ctx, { type: "text", body: [w(l, "proof_send", { title: (occ.plan_items as unknown as { title: string }).title }), challengeLine, w(l, "proof_reviewer_note")].filter(Boolean).join("\n\n") });
 }
 
 /** Save a photo as evidence for a task (the chosen one, or the most relevant) and assess it. */
@@ -355,14 +361,47 @@ export async function saveProof(ctx: WaCtx, media: { bytes: Uint8Array; mime: st
   const { data: doc } = await ctx.admin.from("documents").upsert({ user_id: ctx.userId, bucket: "evidence", storage_path: path, mime_type: media.mime, size_bytes: media.bytes.byteLength, sha256: hash }, { onConflict: "user_id,bucket,storage_path" }).select("id").single();
   const { data: evRow } = await ctx.admin.from("evidence").upsert({ user_id: ctx.userId, occurrence_id: target.id, kind: kind === "image" ? "photo" : "document", document_id: doc!.id, text_content: caption ?? null, content_hash: hash, channel: "whatsapp" }, { onConflict: "occurrence_id,content_hash", ignoreDuplicates: true }).select("id").maybeSingle();
   await ctx.admin.from("messages").upsert({ user_id: ctx.userId, role: "user", channel: "whatsapp", content: `[photo] ${caption ?? ""}`.trim(), provider_message_id: msgId }, { onConflict: "provider_message_id", ignoreDuplicates: true });
-  const lines = [reply(l, "evidence_saved", { title: target.item.title })];
-  if (evRow) {
-    const evaluation = await evaluateEvidence(ctx.admin, ctx.userId, evRow.id);
-    lines.push(evaluation.explanation);
-    if (evaluation.cannot_confirm.length) lines.push(`• ${evaluation.cannot_confirm.slice(0, 2).join("\n• ")}`);
-  }
   await clearState(ctx.admin, ctx.bindingId);
-  await send(ctx, { type: "buttons", body: lines.join("\n\n"), buttons: [{ id: "m:today", title: w(l, "row_today") }, menuBtn(l)] });
+  if (!evRow) {
+    await send(ctx, { type: "buttons", body: reply(l, "evidence_saved", { title: target.item.title }), buttons: [{ id: "m:today", title: w(l, "row_today") }, menuBtn(l)] });
+    return;
+  }
+  const e = await evaluateEvidence(ctx.admin, ctx.userId, evRow.id);
+  const hard = e.flags.filter(isHard);
+  const lines = [reply(l, "evidence_saved", { title: target.item.title })];
+  if (hard.length) {
+    const challenge = e.challenge ? (e.challenge.kind === "fingers" ? w(l, "challenge_fingers_short", { n: e.challenge.value }) : e.challenge.value) : "";
+    lines.push(hard.map((f) => w(l, `flag_${f}` as WaKey, { challenge })).join("\n"), w(l, "flag_next"));
+    await send(ctx, { type: "buttons", body: lines.join("\n\n"), buttons: [{ id: `pf:${target.id}`, title: w(l, "btn_new_photo") }, { id: `ap:${e.id}`, title: w(l, "btn_disagree") }, { id: "m:today", title: w(l, "row_today") }] });
+    return;
+  }
+  if (e.proof_level === "photo_fresh") lines.push(w(l, "proof_level_fresh"));
+  else if (e.proof_level === "video_action") lines.push(w(l, "proof_level_video"));
+  else if (e.proof_level === "photo_ai") lines.push(w(l, "proof_level_ai"));
+  lines.push(e.explanation);
+  if (e.cannot_confirm.length) lines.push(`• ${e.cannot_confirm.slice(0, 2).join("\n• ")}`);
+  await send(ctx, { type: "buttons", body: lines.join("\n\n"), buttons: [{ id: "m:today", title: w(l, "row_today") }, { id: `ap:${e.id}`, title: w(l, "btn_disagree") }, menuBtn(l)] });
+}
+
+/** "Disagree" on a verdict: ask for an optional note, then it goes to a human reviewer. */
+export async function askAppeal(ctx: WaCtx, evaluationId: string) {
+  const { data: ev } = await ctx.admin.from("evaluations").select("id").eq("id", evaluationId).eq("user_id", ctx.userId).maybeSingle();
+  if (!ev) return showMenu(ctx);
+  await setState(ctx.admin, ctx.bindingId, "appeal", { evaluationId });
+  await send(ctx, { type: "buttons", body: w(ctx.locale, "appeal_ask"), buttons: [{ id: `aps:${evaluationId}`, title: w(ctx.locale, "btn_skip_note") }] });
+}
+
+export async function fileAppeal(ctx: WaCtx, evaluationId: string, note: string | null) {
+  await clearState(ctx.admin, ctx.bindingId);
+  const { data: ev } = await ctx.admin.from("evaluations").select("id, occurrence_id, evidence_id, action_occurrences!inner(item_id)").eq("id", evaluationId).eq("user_id", ctx.userId).maybeSingle();
+  if (!ev) return showMenu(ctx);
+  const { data: open } = await ctx.admin.from("review_requests").select("id").eq("evaluation_id", evaluationId).in("status", ["open", "waiting_patient"]).in("source", ["appeal", "flag", "evaluator"]).limit(1).maybeSingle();
+  if (open) {
+    if (note) await ctx.admin.from("review_requests").update({ patient_note: note.slice(0, 500) }).eq("id", open.id);
+    return send(ctx, { type: "buttons", body: w(ctx.locale, "appeal_exists"), buttons: [menuBtn(ctx.locale)] });
+  }
+  await ctx.admin.from("review_requests").insert({ user_id: ctx.userId, occurrence_id: ev.occurrence_id, evaluation_id: ev.id, evidence_id: ev.evidence_id, item_id: (ev.action_occurrences as unknown as { item_id: string }).item_id, reason: "The person disagrees with the assessment", source: "appeal", patient_note: note?.slice(0, 500) ?? null });
+  await send(ctx, { type: "buttons", body: w(ctx.locale, "appeal_sent"), buttons: [{ id: "m:today", title: w(ctx.locale, "row_today") }, menuBtn(ctx.locale)] });
 }
 
 // ---------------------------------------------------------------------------
@@ -388,7 +427,8 @@ export async function showProgress(ctx: WaCtx) {
       return `${names[i]}  ${rows.length ? "●".repeat(done) + "○".repeat(Math.max(0, rows.length - done)) : "·"}`;
     })
     .join("\n");
-  const body = `${w(l, "progress_body", { pct: pctText(a.pct), done: a.done, due: a.due, streak, points })}\n\n${week}`;
+  const proofLine = a.proof.done ? `\n${w(l, "progress_proof", { photo: a.proof.photo, done: a.proof.done, human: a.proof.human })}` : "";
+  const body = `${w(l, "progress_body", { pct: pctText(a.pct), done: a.done, due: a.due, streak, points })}${proofLine}\n\n${week}`;
   await send(ctx, { type: "buttons", body, buttons: [{ id: "m:circle", title: w(l, "row_circle") }, { id: "m:today", title: w(l, "row_today") }, menuBtn(l)] });
 }
 

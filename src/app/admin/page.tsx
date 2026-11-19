@@ -7,7 +7,7 @@ import { listChallenges } from "@/server/circle";
 import { AdminLogin } from "./AdminLogin";
 import { Logo } from "@/components/Logo";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { BarChart3, BookOpen, Trophy, HandHeart, Bot, Clock, Download, Filter, LayoutDashboard, LogOut, Quote, RefreshCw, Scale, Users } from "lucide-react";
+import { BarChart3, BookOpen, Trophy, HandHeart, Bot, Clock, Download, Filter, LayoutDashboard, LogOut, Quote, RefreshCw, Scale, ShieldCheck, Users } from "lucide-react";
 import { Card, DayBars, HBars, HeatCell, HourBars, Stat } from "./charts";
 
 export const metadata: Metadata = { title: "Admin", robots: { index: false, follow: false } };
@@ -55,11 +55,12 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
   const sp = await searchParams;
   const days = [7, 14, 30].includes(Number(sp.days)) ? Number(sp.days) : 14;
   const internal = sp.internal === "1";
-  const [m, checkinsSent, bm, challenges] = await Promise.all([
+  const [m, checkinsSent, bm, challenges, openReviews] = await Promise.all([
     getAdminMetrics(days, internal),
     createAdminClient().from("audit_events").select("id", { count: "exact", head: true }).eq("action", "assistant_checkin").then((r) => r.count ?? 0),
     getBehaviourMetrics(days, internal).catch(() => null),
     listChallenges(createAdminClient()).catch(() => []),
+    createAdminClient().from("review_requests").select("id", { count: "exact", head: true }).eq("status", "open").then((r) => r.count ?? 0, () => 0),
   ]);
   const o = m.overview;
   const q = (p: Record<string, string | number>) => `?${new URLSearchParams({ days: String(days), internal: internal ? "1" : "0", ...Object.fromEntries(Object.entries(p).map(([k, v]) => [k, String(v)])) })}`;
@@ -82,6 +83,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
           <ul className="flex flex-col gap-0.5">
             {sections.map(([id, label, Icon]) => <li key={id}><a href={`#${id}`} className={navLink}><Icon size={17} aria-hidden="true" />{label}</a></li>)}
           </ul>
+          <Link href="/admin/reviews" className={`${navLink} mt-4 text-primary`}><ShieldCheck size={17} aria-hidden="true" />Proof reviews{openReviews ? ` (${openReviews})` : ""}</Link>
           <p className="mb-2 mt-6 px-3 text-xs font-semibold text-ink-faint">Range</p>
           <div className="flex flex-wrap gap-1.5 px-3">
             {[7, 14, 30].map((d) => <Link key={d} href={`?days=${d}&internal=${internal ? 1 : 0}`} className={chip(d === days)}>{d}d</Link>)}
@@ -112,6 +114,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
           </div>
         </div>
         <nav aria-label="Dashboard sections" className="no-scrollbar flex gap-2 overflow-x-auto px-4 pb-3 lg:hidden">
+          <Link href="/admin/reviews" className="shrink-0 whitespace-nowrap rounded-lg border border-primary px-2.5 py-1 text-sm font-semibold text-primary">Proof reviews{openReviews ? ` (${openReviews})` : ""}</Link>
           {[7, 14, 30].map((d) => <Link key={d} href={`?days=${d}&internal=${internal ? 1 : 0}`} className={`shrink-0 ${chip(d === days)}`}>{d}d</Link>)}
           {sections.map(([id, label]) => <a key={id} href={`#${id}`} className="shrink-0 whitespace-nowrap rounded-lg border border-line px-2.5 py-1 text-sm font-semibold text-ink-soft">{label}</a>)}
         </nav>

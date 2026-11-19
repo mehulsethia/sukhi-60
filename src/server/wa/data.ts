@@ -3,6 +3,7 @@ import "server-only";
 import type { AdminClient } from "@/lib/supabase/admin";
 import { addDays, localDateOf } from "@/domain/schedule";
 import { adherence } from "@/domain/wa-ui";
+import { proofBreakdown } from "@/domain/proof";
 import { settings } from "@/lib/config";
 
 const DONE = ["self_reported", "evidence_supported"] as ("self_reported" | "evidence_supported")[];
@@ -13,7 +14,7 @@ export interface ItemAdherence { itemId: string; title: string; done: number; du
 export async function adherenceFor(admin: AdminClient, userId: string, from: string, to: string, now = new Date()) {
   const { data } = await admin
     .from("action_occurrences")
-    .select("item_id, status, window_end_at, target_count, completed_count, local_date, plan_items!inner(title, care_plans!inner(mode))")
+    .select("item_id, status, proof_level, window_end_at, target_count, completed_count, local_date, plan_items!inner(title, care_plans!inner(mode))")
     .eq("user_id", userId)
     .gte("local_date", from)
     .lte("local_date", to)
@@ -28,8 +29,8 @@ export async function adherenceFor(admin: AdminClient, userId: string, from: str
     return { itemId, title: pi.title, done: a.done, due: a.due, pct: a.pct, clinician: pi.care_plans.mode === "clinician_instructions" };
   });
   items.sort((a, b) => Number(b.clinician) - Number(a.clinician) || a.title.localeCompare(b.title));
-  const proofs = rows.filter((r) => r.status === "evidence_supported").length;
-  return { ...overall, items, proofs };
+  const proof = proofBreakdown(rows);
+  return { ...overall, items, proofs: proof.photo, proof };
 }
 
 /** Days in a row (ending today, or yesterday if nothing is done yet today) with something done. */
