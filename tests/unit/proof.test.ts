@@ -50,6 +50,12 @@ describe("flags and proof levels", () => {
     expect(flags).toEqual(["reused_photo", "shared_photo", "old_photo", "screen_photo", "label_mismatch", "challenge_missed"]);
     expect(proofLevelFor(f, flags)).toBe("flagged");
   });
+  it("a look-alike showing today's fresh sign is only 'similar'; the exact same file stays reused", () => {
+    const fresh = { ...base, challengeIssued: true, challengeMet: true };
+    expect(flagsFor({ ...fresh, reusedOwn: true })).toEqual(["similar_photo"]);
+    expect(flagsFor({ ...fresh, reusedOwn: true, reusedExact: true })).toEqual(["reused_photo"]);
+    expect(flagsFor({ ...base, reusedOwn: true })).toEqual(["reused_photo"]);
+  });
   it("a similar (not identical) photo is a soft flag: still counts, goes to a reviewer", () => {
     const f = { ...base, similarOwn: true };
     expect(flagsFor(f)).toEqual(["similar_photo"]);

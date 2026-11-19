@@ -79,6 +79,8 @@ export interface Findings {
   category: string;
   outcome: "supports" | "partially_supports" | "does_not_support" | "unclear" | "not_applicable";
   reusedOwn?: boolean;
+  /** The same file byte for byte (not just a look-alike). */
+  reusedExact?: boolean;
   reusedOther?: boolean;
   similarOwn?: boolean;
   takenHoursAgo?: number | null;
@@ -93,9 +95,13 @@ export interface Findings {
 
 export function flagsFor(f: Findings): Flag[] {
   const out: Flag[] = [];
-  if (f.reusedOwn) out.push("reused_photo");
+  // A near-identical look-alike that shows today's fresh-photo sign can't be an old copy:
+  // only the exact same file stays a hard flag then.
+  const fresh = f.challengeIssued && f.challengeMet === true;
+  const reused = !!f.reusedExact || (!!f.reusedOwn && !fresh);
+  if (reused) out.push("reused_photo");
   if (f.reusedOther) out.push("shared_photo");
-  if (!f.reusedOwn && f.similarOwn) out.push("similar_photo");
+  if (!reused && (f.similarOwn || f.reusedOwn)) out.push("similar_photo");
   if (f.takenHoursAgo !== null && f.takenHoursAgo !== undefined && f.takenHoursAgo > 36) out.push("old_photo");
   if (f.screenOrEdited) out.push("screen_photo");
   if (f.category === "medication" && f.labelMatch === "no") out.push("label_mismatch");

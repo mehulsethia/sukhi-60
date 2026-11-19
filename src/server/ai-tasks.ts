@@ -155,6 +155,7 @@ export async function evaluateEvidence(admin: AdminClient, userId: string, evide
     category: item.category,
     outcome: result.outcome,
     reusedOwn: !!reuse.own,
+    reusedExact: reuse.own?.distance === 0 && reuse.own.evidenceId !== undefined && !!(await admin.from("evidence").select("id").eq("id", reuse.own.evidenceId).eq("content_hash", ev.content_hash).maybeSingle()).data,
     reusedOther: !!reuse.other,
     similarOwn: !!reuse.similar,
     takenHoursAgo: fp.takenAt ? (Date.now() - fp.takenAt.getTime()) / 3600_000 : null,
