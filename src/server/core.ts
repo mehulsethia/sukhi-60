@@ -110,6 +110,25 @@ export interface CheckInResult {
   check_in_id?: string;
 }
 
+/**
+ * The doctor asked for a photo on this item: a plain Done doesn't count, only proof does.
+ * Returns the doctor's name (or "") when proof is needed, null when a tap is fine.
+ */
+export async function proofNeededFor(admin: AdminClient, occurrenceId: string): Promise<string | null> {
+  const { data } = await admin.from("action_occurrences").select("plan_items!inner(proof_required, proof_required_by)").eq("id", occurrenceId).maybeSingle();
+  const item = data?.plan_items as unknown as { proof_required: boolean; proof_required_by: string | null } | undefined;
+  if (!item?.proof_required) return null;
+  if (!item.proof_required_by) return "";
+  const { data: doc } = await admin.from("doctors").select("name").eq("user_id", item.proof_required_by).maybeSingle();
+  return doc?.name ?? "";
+}
+
+export class ProofRequiredError extends Error {
+  constructor(public doctor: string) {
+    super("proof_required");
+  }
+}
+
 /** Service-side check-in (WhatsApp / assistant). Web uses the RLS-scoped record_check_in RPC. */
 export async function applyCheckIn(
   admin: AdminClient,
@@ -118,6 +137,10 @@ export async function applyCheckIn(
   kind: CheckInKind,
   opts: { reason?: string | null; note?: string | null; channel: Channel; idempotencyKey: string; snoozeMinutes?: number },
 ): Promise<CheckInResult> {
+  if (kind === "done") {
+    const doctor = await proofNeededFor(admin, occurrenceId);
+    if (doctor !== null) throw new ProofRequiredError(doctor);
+  }
   const { data, error } = await admin.rpc("apply_check_in_internal", {
     p_user: userId,
     p_occurrence: occurrenceId,
@@ -152,14 +175,14 @@ export async function scheduleSnoozeReminder(admin: AdminClient, userId: string,
   );
 }
 
-export type TodayAction = Occurrence & { display: OccurrenceStatus; item: Pick<PlanItem, "id" | "title" | "category" | "instructions" | "evidence_hint" | "schedule_kind"> & { plan_mode: string; plan_title: string } };
+export type TodayAction = Occurrence & { display: OccurrenceStatus; item: Pick<PlanItem, "id" | "title" | "category" | "instructions" | "evidence_hint" | "schedule_kind" | "proof_required"> & { plan_mode: string; plan_title: string } };
 
 /** Today's actions (plus this week's weekly-target occurrences), ordered by due time. */
 export async function getToday(db: AdminClient, userId: string, tz: string, now = new Date()): Promise<TodayAction[]> {
   const today = localDateOf(now, tz);
   const { data } = await db
     .from("action_occurrences")
-    .select("*, plan_items!inner(id, title, category, instructions, evidence_hint, schedule_kind, care_plans!inner(mode, title))")
+    .select("*, plan_items!inner(id, title, category, instructions, evidence_hint, schedule_kind, proof_required, care_plans!inner(mode, title))")
     .eq("user_id", userId)
     .gte("local_date", addDays(today, -6))
     .lte("local_date", today)
@@ -173,7 +196,7 @@ export async function getToday(db: AdminClient, userId: string, tz: string, now 
       return {
         ...(occ as Occurrence),
         display: displayStatus(occ as Occurrence, now),
-        item: { id: plan_items.id, title: plan_items.title, category: plan_items.category, instructions: plan_items.instructions, evidence_hint: plan_items.evidence_hint, schedule_kind: plan_items.schedule_kind, plan_mode: plan_items.care_plans.mode, plan_title: plan_items.care_plans.title },
+        item: { id: plan_items.id, title: plan_items.title, category: plan_items.category, instructions: plan_items.instructions, evidence_hint: plan_items.evidence_hint, schedule_kind: plan_items.schedule_kind, proof_required: !!plan_items.proof_required, plan_mode: plan_items.care_plans.mode, plan_title: plan_items.care_plans.title },
       };
     });
 }

@@ -178,8 +178,55 @@ export async function showPatient(ctx: WaCtx, linkId: string) {
   const confirmed = (plan?.plan_items ?? []).some((i) => i.status === "confirmed");
   const buttons = [{ id: `dr:note:${linkId}`, title: d("btn_note") }];
   if (plan && confirmed && plan.clinician_verification !== "clinician_verified") buttons.push({ id: `dr:rv:${linkId}:${plan.id}`, title: d("btn_review") });
+  buttons.push({ id: `dr:pf:${linkId}`, title: d("btn_proof_rules") });
   buttons.push({ id: "dr:m:patients", title: d("btn_back") });
-  await send(ctx, { type: "buttons", body: parts.join("\n\n"), buttons });
+  if (buttons.length <= 3) return send(ctx, { type: "buttons", body: parts.join("\n\n"), buttons });
+  // WhatsApp allows three buttons: past that, the details go first and the choices as a list.
+  await send(ctx, { type: "text", body: parts.join("\n\n") });
+  await send(ctx, { type: "list", body: d("patient_actions"), button: d("btn_actions"), sections: [{ rows: buttons.map((b) => ({ id: b.id, title: b.title })) }] });
+}
+
+// ---------------------------------------------------------------------------
+// Photo proof: the doctor picks tasks where a plain Done doesn't count
+// ---------------------------------------------------------------------------
+async function patientItems(admin: AdminClient, patientId: string) {
+  const { data } = await admin
+    .from("plan_items")
+    .select("id, title, proof_required, care_plans!inner(status, mode)")
+    .eq("user_id", patientId)
+    .eq("status", "confirmed")
+    .eq("care_plans.status", "active")
+    .order("created_at");
+  // Items from the doctor's prescription first.
+  return (data ?? []).sort((a, b) => Number((b.care_plans as unknown as { mode: string }).mode === "clinician_instructions") - Number((a.care_plans as unknown as { mode: string }).mode === "clinician_instructions"));
+}
+
+export async function showProofRules(ctx: WaCtx, linkId: string) {
+  const link = await ownLink(ctx.admin, ctx.userId, linkId);
+  if (!link) return showPatients(ctx);
+  const { data: p } = await ctx.admin.from("profiles").select("display_name").eq("id", link.patient_id).single();
+  const name = p?.display_name ?? "Patient";
+  const items = await patientItems(ctx.admin, link.patient_id);
+  if (!items.length) return send(ctx, { type: "buttons", body: d("proof_rules_none", { name }), buttons: [{ id: `dr:p:${linkId}`, title: "Back to patient" }, menuBtn] });
+  const rows = items.slice(0, 10).map((i) => ({ id: `dr:pt:${linkId}:${i.id}`, title: i.title, description: i.proof_required ? d("proof_row_on") : d("proof_row_off") }));
+  await send(ctx, { type: "list", body: d("proof_rules", { name }), button: d("proof_rules_btn"), sections: [{ rows }] });
+}
+
+export async function toggleProof(ctx: WaCtx, linkId: string, itemId: string) {
+  const link = await ownLink(ctx.admin, ctx.userId, linkId);
+  if (!link) return showPatients(ctx);
+  const { data: item } = await ctx.admin.from("plan_items").select("id, title, proof_required").eq("id", itemId).eq("user_id", link.patient_id).eq("status", "confirmed").maybeSingle();
+  if (!item) return showProofRules(ctx, linkId);
+  const on = !item.proof_required;
+  await ctx.admin.from("plan_items").update({ proof_required: on, proof_required_by: on ? ctx.userId : null, proof_required_at: on ? new Date().toISOString() : null }).eq("id", item.id).eq("user_id", link.patient_id);
+  await ctx.admin.from("audit_events").insert({ user_id: link.patient_id, actor: "user", action: on ? "proof_required_on" : "proof_required_off", entity: "plan_item", entity_id: item.id, details: { doctor_id: ctx.userId, via: "whatsapp" } });
+  const doc = await myDoctor(ctx.admin, ctx.userId);
+  const { data: p } = await ctx.admin.from("profiles").select("display_name, locale").eq("id", link.patient_id).single();
+  const l = p?.locale ?? "en";
+  const body = on ? w(l, "proof_required_on", { doctor: doc?.name || w(l, "proof_doctor"), title: item.title }) : w(l, "proof_required_off", { title: item.title });
+  await notify(ctx.admin, link.patient_id, { type: "text", body }, `dr-proof:${item.id}:${on ? "on" : "off"}:${ctx.key}`, { hold: true });
+  const name = p?.display_name ?? "Patient";
+  await send(ctx, { type: "buttons", body: on ? d("proof_on_set", { name, title: item.title }) : d("proof_off_set", { name, title: item.title }), buttons: [{ id: `dr:pf:${linkId}`, title: d("proof_rules_btn") }, { id: `dr:p:${linkId}`, title: "Back to patient" }, menuBtn] });
 }
 
 // ---------------------------------------------------------------------------

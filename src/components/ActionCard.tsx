@@ -13,7 +13,7 @@ import { BARRIER_CODES, type BarrierCode } from "@/domain/behaviour";
 import type { SupportResult } from "@/server/support";
 
 interface Props {
-  action: { id: string; title: string; instructions: string | null; display: string; time: string | null; tz: string; weekly: { done: number; target: number } | null; planMode: string; canTellFamily?: boolean };
+  action: { id: string; title: string; instructions: string | null; display: string; time: string | null; tz: string; weekly: { done: number; target: number } | null; planMode: string; canTellFamily?: boolean; proofNeeded?: boolean };
   variant?: "row" | "hero";
 }
 
@@ -66,9 +66,12 @@ export function ActionCard({ action, variant = "row" }: Props) {
     <form action={formAction} className={`flex flex-col gap-2 ${hero ? "mt-4" : ""}`}>
       <input type="hidden" name="occurrence_id" value={action.id} />
       <input type="hidden" name="idempotency_key" value={key} />
+      {hero && action.proofNeeded ? <p className="text-sm text-ink-soft">{t("today.photoNeeded")}</p> : null}
       {hero ? (
         <div className="flex flex-wrap gap-2">
-          <button className="pill-btn pill-btn-primary min-h-[46px] px-6" name="kind" value="done" disabled={pending}><Check size={16} aria-hidden="true" />{t("today.done")}</button>
+          {action.proofNeeded
+            ? <Link href={`/actions/${action.id}`} className="pill-btn pill-btn-primary min-h-[46px] px-6"><Camera size={16} aria-hidden="true" />{t("today.addPhoto")}</Link>
+            : <button className="pill-btn pill-btn-primary min-h-[46px] px-6" name="kind" value="done" disabled={pending}><Check size={16} aria-hidden="true" />{t("today.done")}</button>}
           <button className="pill-btn min-h-[46px]" name="kind" value="later" disabled={pending}><Clock size={16} aria-hidden="true" />{t("today.later")}</button>
           <button type="button" className="pill-btn min-h-[46px] w-[46px] justify-center px-0" aria-expanded={more} aria-label={t("today.moreOptions")} onClick={() => setMore((v) => !v)}><MoreHorizontal size={18} aria-hidden="true" /></button>
         </div>
@@ -135,11 +138,15 @@ export function ActionCard({ action, variant = "row" }: Props) {
         {canAnswer ? (
           <>
             <button type="button" onClick={() => setMore((v) => !v)} aria-expanded={more} aria-label={t("today.moreOptions")} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-ink-faint hover:bg-surface-2"><MoreHorizontal size={17} aria-hidden="true" /></button>
-            <form action={formAction}>
-              <input type="hidden" name="occurrence_id" value={action.id} />
-              <input type="hidden" name="idempotency_key" value={key} />
-              <button name="kind" value="done" disabled={pending} aria-label={`${t("today.done")}: ${action.title}`} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border-2 border-primary text-primary transition-colors hover:bg-primary hover:text-primary-ink disabled:opacity-50"><Check size={18} aria-hidden="true" /></button>
-            </form>
+            {action.proofNeeded ? (
+              <Link href={`/actions/${action.id}`} aria-label={`${t("today.addPhoto")}: ${action.title}`} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border-2 border-primary text-primary transition-colors hover:bg-primary hover:text-primary-ink"><Camera size={18} aria-hidden="true" /></Link>
+            ) : (
+              <form action={formAction}>
+                <input type="hidden" name="occurrence_id" value={action.id} />
+                <input type="hidden" name="idempotency_key" value={key} />
+                <button name="kind" value="done" disabled={pending} aria-label={`${t("today.done")}: ${action.title}`} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border-2 border-primary text-primary transition-colors hover:bg-primary hover:text-primary-ink disabled:opacity-50"><Check size={18} aria-hidden="true" /></button>
+              </form>
+            )}
           </>
         ) : complete ? <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary text-primary-ink"><Check size={18} aria-hidden="true" /></span> : null}
       </div>

@@ -306,7 +306,9 @@
     "reviewTitle": "डॉक्टर के note से {count, plural, one {# item} other {# items}} आपके OK का इंतज़ार कर रहे हैं",
     "reviewCta": "देखें",
     "part_tomorrow": "कल",
-    "moreTomorrow": "+{count} और"
+    "moreTomorrow": "+{count} और",
+    "addPhoto": "फ़ोटो जोड़ें",
+    "photoNeeded": "आपके doctor ने फ़ोटो माँगी है"
   },
   "action": {
     "title": "काम का विवरण",

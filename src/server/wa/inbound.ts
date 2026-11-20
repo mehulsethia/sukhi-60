@@ -378,6 +378,8 @@ async function handleTap(ctx: WaCtx, id: string, binding: Binding): Promise<void
     if (a === "chg" && UUID.test(b ?? "")) return D.askNote(ctx, b, true);
     if (a === "rv" && UUID.test(b ?? "") && UUID.test(c ?? "")) return D.reviewPlan(ctx, b, c);
     if (a === "ok" && UUID.test(b ?? "") && UUID.test(c ?? "")) return D.approvePlan(ctx, b, c);
+    if (a === "pf" && UUID.test(b ?? "")) return D.showProofRules(ctx, b);
+    if (a === "pt" && UUID.test(b ?? "") && UUID.test(c ?? "")) return D.toggleProof(ctx, b, c);
   }
   // Unknown or stale tap: show the right menu.
   const { data: p } = await ctx.admin.from("profiles").select("primary_role").eq("id", ctx.userId).single();

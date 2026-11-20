@@ -5,7 +5,7 @@ import type { Locale } from "./safety";
 type Dict = Record<string, string>;
 
 const en: Dict = {
-  recorded_done: "Yes! “{title}” done. That's exactly how it adds up.",
+  recorded_done: "“{title}” done ✓",
   recorded_later: "Okay, I'll remind you about “{title}” a bit later.",
   recorded_skipped: "Okay, “{title}” skipped for now. Thanks for being honest with me.",
   recorded_unable: "No worries about “{title}”. Rest up. If you feel worse, please contact your doctor.",
@@ -13,7 +13,7 @@ const en: Dict = {
   already_recorded: "“{title}” is already recorded for this time. Nothing extra was added.",
   already_counted: "Today already counts toward “{title}”. Nothing extra was added.",
   no_open_action: "I don't see an action waiting right now. You can open Today to see your plan.",
-  points: "+{points} points ({labels}).",
+  points: "+{points} points",
   ai_unconfigured: "Chat isn't available yet. You can still reply done, later, skip or unwell, or use the Today screen.",
   ai_no_consent: "You haven't allowed AI processing, so I can only handle quick replies (done, later, skip, unwell). You can change this in Settings.",
   ai_error: "Sorry, I couldn't answer just now. Nothing was changed unless listed below. Please try again.",
@@ -41,7 +41,7 @@ const en: Dict = {
 
 // Everyday spoken Hindi mixed with English (Hinglish), same approach as Marathi below.
 const hi: Dict = {
-  recorded_done: "बढ़िया! “{title}” done में note कर लिया। Thank you.",
+  recorded_done: "“{title}” हो गया ✓",
   recorded_later: "ठीक है, “{title}” के लिए थोड़ी देर बाद फिर reminder दूँगा।",
   recorded_skipped: "ओके, “{title}” आज skip किया, note कर लिया। बताया, अच्छा किया।",
   recorded_unable: "कोई बात नहीं, अभी “{title}” नहीं हो पा रहा, note कर लिया। आराम कीजिए। तबीयत बिगड़े तो doctor को ज़रूर call करें।",
@@ -49,7 +49,7 @@ const hi: Dict = {
   already_recorded: "“{title}” पहले ही note हो चुका है। दोबारा add नहीं किया।",
   already_counted: "आज का दिन “{title}” में पहले ही count हो गया है।",
   no_open_action: "अभी कुछ बाकी नहीं है। अपना plan देखने के लिए 'आज' खोलिए।",
-  points: "+{points} points ({labels})।",
+  points: "+{points} points",
   ai_unconfigured: "Chat अभी चालू नहीं हुआ है। फिर भी आप done, later, skip या unwell लिखकर reply कर सकते हैं, या 'आज' screen इस्तेमाल करें।",
   ai_no_consent: "आपने AI की permission नहीं दी है, इसलिए मैं बस done, later, skip, unwell जैसे छोटे reply समझ सकता हूँ। Settings में बदल सकते हैं।",
   ai_error: "Sorry, अभी जवाब नहीं दे पाया। नीचे लिखे के अलावा कुछ नहीं बदला। फिर से try करें।",
@@ -77,7 +77,7 @@ const hi: Dict = {
 
 // Everyday spoken Marathi mixed with English (pilot feedback: formal Marathi was hard to follow).
 const mr: Dict = {
-  recorded_done: "छान! “{title}” done म्हणून नोंद केलं. Thank you.",
+  recorded_done: "“{title}” झालं ✓",
   recorded_later: "ठीक आहे, “{title}” साठी थोड्या वेळाने परत reminder देतो.",
   recorded_skipped: "ओके, “{title}” आज skip केलं, नोंद केलं. सांगितलंत ते छान केलं.",
   recorded_unable: "ठीक आहे, आत्ता “{title}” जमत नाहीये, नोंद केलं. आराम करा. त्रास वाढला तर doctor ला नक्की फोन करा.",
@@ -85,7 +85,7 @@ const mr: Dict = {
   already_recorded: "“{title}” आधीच नोंद झालंय. परत add केलं नाही.",
   already_counted: "आजचा दिवस “{title}” मध्ये आधीच count झालाय.",
   no_open_action: "आत्ता काहीच बाकी नाहीये. तुमचा plan बघायला 'आज' उघडा.",
-  points: "+{points} points ({labels}).",
+  points: "+{points} points",
   ai_unconfigured: "Chat अजून सुरू झालेलं नाही. तरी तुम्ही done, later, skip किंवा unwell असं reply करू शकता, किंवा 'आज' screen वापरा.",
   ai_no_consent: "तुम्ही AI ला परवानगी दिलेली नाही, म्हणून मी फक्त done, later, skip, unwell असे छोटे reply समजू शकतो. Settings मध्ये बदलू शकता.",
   ai_error: "Sorry, आत्ता उत्तर देता आलं नाही. खाली लिहिलंय त्याशिवाय काही बदललं नाही. परत try करा.",

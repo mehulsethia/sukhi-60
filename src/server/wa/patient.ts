@@ -4,7 +4,7 @@ import "server-only";
 // (ready-made goal, own words, or a prescription photo that the person checks).
 import type { AdminClient } from "@/lib/supabase/admin";
 import { addDays, localDateOf, weekStart } from "@/domain/schedule";
-import { applyCheckIn, getProfile, getToday, materializeOccurrences, pickRelevantOccurrence, type TodayAction } from "../core";
+import { applyCheckIn, getProfile, getToday, materializeOccurrences, pickRelevantOccurrence, ProofRequiredError, type TodayAction } from "../core";
 import { reply, rewardLine } from "@/domain/replies";
 import { parseRange, parseTimes, scheduleText, time12, waLink, type WaRow } from "@/domain/wa-ui";
 import { COMMUNICATION_STYLES } from "@/domain/behaviour";
@@ -132,7 +132,9 @@ export async function checkInTap(ctx: WaCtx, kind: "done" | "later" | "skipped" 
     const r = await applyCheckIn(ctx.admin, ctx.userId, occId, kind, { channel: "whatsapp", idempotencyKey: `wa:${ctx.key}:${occId}` });
     const key = r.result === "already_recorded" || r.result === "duplicate" ? "already_recorded" : r.result === "already_counted" ? "already_counted" : (`recorded_${kind}` as const);
     text = [reply(l, key, { title }), rewardLine(l, r.rewards)].filter(Boolean).join(" ");
-  } catch {
+  } catch (e) {
+    // The doctor asked for a photo on this one: a tap isn't enough, ask for the photo.
+    if (e instanceof ProofRequiredError) return askProof(ctx, occId, w(l, "proof_needed", { doctor: e.doctor || w(l, "proof_doctor") }));
     return showToday(ctx, w(l, "expired_button"));
   }
   if (kind !== "done") {
@@ -147,7 +149,7 @@ export async function checkInTap(ctx: WaCtx, kind: "done" | "later" | "skipped" 
   await send(ctx, {
     type: "buttons",
     body: [text, w(l, "proof_hint"), nextLine].filter(Boolean).join("\n\n"),
-    buttons: [{ id: `pf:${occId}`, title: w(l, "btn_proof") }, next && OPEN.has(next.display) ? { id: `ci:done:${next.id}`, title: `${w(l, "btn_done")}` } : { id: "m:today", title: w(l, "row_today") }, menuBtn(l)],
+    buttons: [{ id: `pf:${occId}`, title: w(l, "btn_proof") }, next && OPEN.has(next.display) && !next.item.proof_required ? { id: `ci:done:${next.id}`, title: `${w(l, "btn_done")}` } : { id: "m:today", title: w(l, "row_today") }, menuBtn(l)],
   });
 }
 
@@ -334,7 +336,7 @@ export async function applyFix(ctx: WaCtx, planId: string, correction: string) {
 // ---------------------------------------------------------------------------
 // Proof photos
 // ---------------------------------------------------------------------------
-export async function askProof(ctx: WaCtx, occId: string) {
+export async function askProof(ctx: WaCtx, occId: string, prefix?: string) {
   const { data: occ } = await ctx.admin.from("action_occurrences").select("id, plan_items!inner(title)").eq("id", occId).eq("user_id", ctx.userId).maybeSingle();
   if (!occ) return pickTask(ctx, "proof");
   // A fresh-photo instruction an old or borrowed photo can't contain.
@@ -342,7 +344,7 @@ export async function askProof(ctx: WaCtx, occId: string) {
   await setState(ctx.admin, ctx.bindingId, "proof", { occId });
   const l = ctx.locale;
   const challengeLine = ch ? (ch.kind === "fingers" ? w(l, "proof_challenge_fingers", { n: ch.value }) : w(l, "proof_challenge_code", { code: ch.value })) : "";
-  await send(ctx, { type: "text", body: [w(l, "proof_send", { title: (occ.plan_items as unknown as { title: string }).title }), challengeLine, w(l, "proof_reviewer_note")].filter(Boolean).join("\n\n") });
+  await send(ctx, { type: "text", body: [prefix, w(l, "proof_send", { title: (occ.plan_items as unknown as { title: string }).title }), challengeLine, w(l, "proof_reviewer_note")].filter(Boolean).join("\n\n") });
 }
 
 /** Save a photo as evidence for a task (the chosen one, or the most relevant) and assess it. */

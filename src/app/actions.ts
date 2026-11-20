@@ -12,7 +12,7 @@ import { z } from "zod";
 import { requireUser } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { LIMITS, settings } from "@/lib/config";
-import { materializeOccurrences, scheduleSnoozeReminder } from "@/server/core";
+import { materializeOccurrences, proofNeededFor, scheduleSnoozeReminder } from "@/server/core";
 import { isValidTime, isValidTimeZone } from "@/domain/schedule";
 import { generateLinkCode, hashLinkCode, randomToken, sha256Hex } from "@/domain/router";
 import { PACK_KEYS, isPackKey, packFor, packMotivation, type PackKey } from "@/domain/templates";
@@ -407,6 +407,7 @@ export async function chatQuickAction(occurrenceId: string, kind: "done" | "late
   const { data: occ } = await supabase.from("action_occurrences").select("id, plan_items!inner(title)").eq("id", occurrenceId).maybeSingle();
   if (!occ) return { ok: false, error: "not_found" };
   const title = (occ.plan_items as unknown as { title: string }).title;
+  if (kind === "done" && (await proofNeededFor(createAdminClient(), occurrenceId)) !== null) return { ok: false, error: "proof_required" };
   const { data, error } = await supabase.rpc("record_check_in", { p_occurrence: occurrenceId, p_kind: kind, p_idempotency_key: key });
   if (error) return { ok: false, error: error.message.includes("not_yet_due") ? "not_yet_due" : "save_failed" };
   if (kind === "later") await scheduleSnoozeReminder(createAdminClient(), user.id, occurrenceId);
@@ -790,6 +791,8 @@ export async function checkIn(_prev: ActionState, fd: FormData): Promise<ActionS
   if (!occurrence.success || !kind.success || !key.success) return { error: "invalid_input" };
   const reason = String(fd.get("reason") ?? "").slice(0, 300) || undefined;
   const barrier = z.enum(BARRIER_CODES).safeParse(fd.get("barrier"));
+  // The doctor asked for a photo on this task: a tap doesn't count.
+  if (kind.data === "done" && (await proofNeededFor(createAdminClient(), occurrence.data)) !== null) return { error: "proof_required" };
   const { data, error } = await supabase.rpc("record_check_in", { p_occurrence: occurrence.data, p_kind: kind.data, p_idempotency_key: key.data, p_reason: reason });
   if (error) return { error: error.message.includes("not_yet_due") ? "not_yet_due" : error.message.includes("paused") ? "paused" : "save_failed" };
   if (kind.data === "later") await scheduleSnoozeReminder(createAdminClient(), user.id, occurrence.data);

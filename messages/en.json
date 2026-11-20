@@ -306,7 +306,9 @@
     "reviewTitle": "{count, plural, one {# item from your doctor's note needs} other {# items from your doctor's note need}} your OK",
     "reviewCta": "Check",
     "part_tomorrow": "Tomorrow",
-    "moreTomorrow": "+{count} more"
+    "moreTomorrow": "+{count} more",
+    "addPhoto": "Add photo",
+    "photoNeeded": "Your doctor asked for a photo"
   },
   "action": {
     "title": "Action details",

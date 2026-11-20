@@ -125,9 +125,9 @@ async function executeJob(admin: AdminClient, job: Job, workerId: string): Promi
 async function handleReminder(admin: AdminClient, job: Job) {
   const p = job.payload as { occurrence_id: string; item_id: string; plan_id: string };
   const userId = job.user_id!;
-  const { data: occ } = await admin.from("action_occurrences").select("*, plan_items!inner(id, title, category, status, version, care_plans!inner(status, mode))").eq("id", p.occurrence_id).eq("user_id", userId).maybeSingle();
+  const { data: occ } = await admin.from("action_occurrences").select("*, plan_items!inner(id, title, category, status, version, proof_required, care_plans!inner(status, mode))").eq("id", p.occurrence_id).eq("user_id", userId).maybeSingle();
   if (!occ) throw new CancelJob("occurrence_gone");
-  const item = occ.plan_items as unknown as { title: string; category: string; status: string; version: number; care_plans: { status: string; mode: string } };
+  const item = occ.plan_items as unknown as { title: string; category: string; status: string; version: number; proof_required: boolean; care_plans: { status: string; mode: string } };
   if (!["pending", "due", "awaiting_response", "later"].includes(occ.status)) throw new CancelJob("already_answered");
   if (item.status !== "confirmed" || item.care_plans.status !== "active") throw new CancelJob("plan_paused_or_changed");
   if (job.plan_item_version !== null && job.plan_item_version !== item.version) throw new CancelJob("plan_version_changed");
@@ -169,7 +169,7 @@ async function handleReminder(admin: AdminClient, job: Job) {
   const l = profile.locale;
   const body = reminderText(copy);
   const interactive = decision.kind === "free_text"
-    ? toGraph({ type: "buttons", body, buttons: [{ id: `ci:done:${occ.id}`, title: w(l, "btn_done") }, { id: `ci:later:${occ.id}`, title: w(l, "btn_later") }, { id: `ci:skipped:${occ.id}`, title: w(l, "btn_skip") }] })
+    ? toGraph({ type: "buttons", body, buttons: [item.proof_required ? { id: `pf:${occ.id}`, title: w(l, "btn_proof") } : { id: `ci:done:${occ.id}`, title: w(l, "btn_done") }, { id: `ci:later:${occ.id}`, title: w(l, "btn_later") }, { id: `ci:skipped:${occ.id}`, title: w(l, "btn_skip") }] })
     : null;
   const sendJob = await enqueueOutbound(admin, userId, binding.id, {
     kind: decision.kind === "free_text" ? "interactive" : "template",

@@ -68,7 +68,7 @@ export default async function TodayPage() {
   const card = (a: (typeof actions)[number]) => ({
     id: a.id, title: a.item.title, instructions: a.item.instructions, display: a.display,
     time: a.local_time ? fmtTime(a.due_at, tz, locale) : null, tz,
-    weekly: a.target_count > 1 ? { done: a.completed_count, target: a.target_count } : null, planMode: a.item.plan_mode,
+    weekly: a.target_count > 1 ? { done: a.completed_count, target: a.target_count } : null, planMode: a.item.plan_mode, proofNeeded: !!a.item.proof_required,
     canTellFamily: (alertMembers ?? 0) > 0,
   });
   const hourOf = (a: (typeof actions)[number]) => Number((a.local_time ?? "00:00").slice(0, 2));

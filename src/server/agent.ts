@@ -11,7 +11,8 @@ import type { AdminClient } from "@/lib/supabase/admin";
 import type { Json } from "@/lib/database.types";
 import { LIMITS } from "@/lib/config";
 import { getModel } from "./providers";
-import { applyCheckIn, audit, getConsents, getProfile, getToday, materializeOccurrences, pickRelevantOccurrence, type Channel } from "./core";
+import { applyCheckIn, audit, getConsents, getProfile, getToday, materializeOccurrences, pickRelevantOccurrence, ProofRequiredError, type Channel } from "./core";
+import { w } from "@/domain/wa-copy";
 import { evaluateEvidence } from "./ai-tasks";
 import { routeMessage } from "@/domain/router";
 import { CLINICAL_REFERRAL_MESSAGE, ESCALATION_MESSAGE, looksLikeInjection, quoteUntrusted, type Locale } from "@/domain/safety";
@@ -156,7 +157,14 @@ export async function runAssistant(params: {
       await logRun("quick_action", "ok");
       return { text: reply(locale, "no_open_action"), sources: [], route: "quick_action" };
     }
-    const r = await applyCheckIn(admin, userId, target.id, routed.action, { channel: channel === "whatsapp" ? "whatsapp" : "web", idempotencyKey: `msg:${messageKey}` });
+    let r: Awaited<ReturnType<typeof applyCheckIn>>;
+    try {
+      r = await applyCheckIn(admin, userId, target.id, routed.action, { channel: channel === "whatsapp" ? "whatsapp" : "web", idempotencyKey: `msg:${messageKey}` });
+    } catch (e) {
+      if (!(e instanceof ProofRequiredError)) throw e;
+      await logRun("quick_action", "ok");
+      return { text: [w(locale, "proof_needed", { doctor: e.doctor || w(locale, "proof_doctor") }), w(locale, "proof_send", { title: target.item.title })].join("\n\n"), sources: [{ type: "occurrence", id: target.id, label: target.item.title }], route: "quick_action" };
+    }
     await logRun("quick_action", "ok");
     const key = r.result === "already_recorded" ? "already_recorded" : r.result === "already_counted" ? "already_counted" : (`recorded_${routed.action}` as const);
     const line = [reply(locale, key, { title: target.item.title }), rewardLine(locale, r.rewards)].filter(Boolean).join(" ");
@@ -235,7 +243,7 @@ export async function runAssistant(params: {
       }),
     }),
     submit_checkin: tool({
-      description: "Record the person's answer for one of today's actions. user_quote must be the exact words from their CURRENT message that state this.",
+      description: "Record the person's answer for one of today's actions. user_quote must be the exact words from their CURRENT message that state this. If it fails with proof_required, their doctor asked for a photo on this task: do not say it was recorded, ask them to send a photo of it.",
       inputSchema: z.object({ occurrence_id: z.string().uuid(), kind: z.enum(["done", "later", "skipped", "unable", "missed"]), reason: z.string().max(200).optional(), user_quote: z.string().min(2).max(200) }),
       execute: wrap(
         "submit_checkin",

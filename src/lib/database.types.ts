@@ -1627,6 +1627,9 @@ export type Database = {
           instructions: string | null
           once_date: string | null
           plan_id: string
+          proof_required: boolean
+          proof_required_at: string | null
+          proof_required_by: string | null
           provenance: Database["public"]["Enums"]["item_provenance"]
           schedule_kind: Database["public"]["Enums"]["schedule_kind"]
           source_document_id: string | null
@@ -1656,6 +1659,9 @@ export type Database = {
           instructions?: string | null
           once_date?: string | null
           plan_id: string
+          proof_required?: boolean
+          proof_required_at?: string | null
+          proof_required_by?: string | null
           provenance?: Database["public"]["Enums"]["item_provenance"]
           schedule_kind?: Database["public"]["Enums"]["schedule_kind"]
           source_document_id?: string | null
@@ -1685,6 +1691,9 @@ export type Database = {
           instructions?: string | null
           once_date?: string | null
           plan_id?: string
+          proof_required?: boolean
+          proof_required_at?: string | null
+          proof_required_by?: string | null
           provenance?: Database["public"]["Enums"]["item_provenance"]
           schedule_kind?: Database["public"]["Enums"]["schedule_kind"]
           source_document_id?: string | null

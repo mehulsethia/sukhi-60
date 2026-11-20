@@ -4,7 +4,7 @@ import { getUser } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { LIMITS } from "@/lib/config";
 import { evaluateEvidence } from "@/server/ai-tasks";
-import { getConsents, getProfile } from "@/server/core";
+import { getConsents, getProfile, proofNeededFor } from "@/server/core";
 import { validateUpload } from "@/server/files";
 import { transcribe } from "@/server/providers";
 import { errorJson, json } from "@/server/http";
@@ -55,7 +55,9 @@ export async function POST(req: Request) {
   if ((count ?? 0) >= LIMITS.evidencePerHour) return errorJson("rate_limited", 429);
 
   let checkIn: unknown = null;
-  if (f.mark_done === "true") {
+  // Proof the doctor asked for has to be a photo or video, not a typed note.
+  const textOnly = f.kind === "text" && (await proofNeededFor(createAdminClient(), f.occurrence_id)) !== null;
+  if (f.mark_done === "true" && !textOnly) {
     const { data, error } = await supabase.rpc("record_check_in", { p_occurrence: f.occurrence_id, p_kind: "done", p_idempotency_key: `${f.idempotency_key}:done` });
     if (error) return errorJson(error.message, 409);
     checkIn = data;
