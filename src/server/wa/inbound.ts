@@ -11,10 +11,10 @@ import type { AdminClient } from "@/lib/supabase/admin";
 import type { InboundMessage } from "@/domain/whatsapp";
 import { hashLinkCode, routeMessage } from "@/domain/router";
 import { reply } from "@/domain/replies";
-import { cleanName, parseCommand, parseInviteCode, type InviteCode } from "@/domain/wa-ui";
+import { cleanName, parseCommand, parseInviteCode, type InviteCode, type WaOut } from "@/domain/wa-ui";
 import { d, w } from "@/domain/wa-copy";
 import { audit, getConsents, getProfile } from "../core";
-import { runAssistant } from "../agent";
+import { decideProposal, runAssistant } from "../agent";
 import { fetchWhatsAppMedia, sendWhatsAppText, transcribe } from "../providers";
 import { send, sendDirect, releaseHeld, type WaCtx } from "./send";
 import { clearState, currentState, setState, type StateData } from "./state";
@@ -129,7 +129,21 @@ export async function handleWhatsAppMessage(admin: AdminClient, msg: InboundMess
   // Everything else: the same assistant, tools and memory as the web chat.
   const answer = await runAssistant({ admin, userId, channel: "whatsapp", text: userText, messageKey: msg.id });
   if (answer.safety && inserted) await admin.from("messages").update({ safety_flag: answer.safety }).eq("id", inserted.id);
-  await send(ctx, { type: "text", body: [heard, answer.text].filter(Boolean).join("\n\n") });
+  const body = [heard, answer.text].filter(Boolean).join("\n\n");
+  if (answer.proposal) return send(ctx, proposalCard(ctx.locale, body, answer.proposal));
+  await send(ctx, { type: "text", body });
+}
+
+/** The assistant's reply with the exact changes and Apply / Keep as is. Only a tap can send these ids. */
+function proposalCard(l: string, body: string, p: { code: string; lines: string[] }): WaOut {
+  const changes = p.lines.map((x) => `• ${x}`).join("\n");
+  const room = 1024 - changes.length - 2;
+  return { type: "buttons", body: `${body.length > room ? `${body.slice(0, Math.max(0, room - 1))}…` : body}\n\n${changes}`.trim(), buttons: [{ id: `cp:ok:${p.code}`, title: reply(l, "btn_apply") }, { id: `cp:no:${p.code}`, title: reply(l, "btn_keep") }] };
+}
+
+async function decideTap(ctx: WaCtx, code: string, accept: boolean) {
+  const out = await decideProposal(ctx.admin, ctx.userId, code, accept, ctx.locale);
+  await send(ctx, { type: "buttons", body: out, buttons: [{ id: "m:plan", title: w(ctx.locale, "row_plan") }, { id: "m:menu", title: w(ctx.locale, "btn_menu") }] });
 }
 
 // ---------------------------------------------------------------------------
@@ -284,6 +298,7 @@ async function handleTap(ctx: WaCtx, id: string, binding: Binding): Promise<void
       return P.showMenu(ctx);
     }
   }
+  if (ns === "cp" && (a === "ok" || a === "no") && /^[A-Z0-9]{4,8}$/.test(b ?? "")) return decideTap(ctx, b, a === "ok");
   if (ns === "ap" && UUID.test(a ?? "")) return P.askAppeal(ctx, a);
   if (ns === "aps" && UUID.test(a ?? "")) return P.fileAppeal(ctx, a, null);
   if (ns === "rf" && UUID.test(a ?? "")) return P.askReadingFix(ctx, a);

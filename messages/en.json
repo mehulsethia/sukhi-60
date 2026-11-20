@@ -391,6 +391,8 @@
     "rateLimited": "You're sending messages quickly. Please wait a moment.",
     "whatsappNote": "Messages from WhatsApp appear here too.",
     "fromWhatsapp": "via WhatsApp",
+    "apply": "Apply",
+    "keep": "Keep as is",
     "notice": "Reminder",
     "hello": "Namaste! I'm Sukhi. How is your day going?",
     "helloName": "Namaste, {name}! I'm Sukhi. How is your day going?",

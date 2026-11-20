@@ -32,6 +32,7 @@ import { w } from "@/domain/wa-copy";
 import { businessNumber } from "@/server/wa/data";
 import { claimConnectRequest, savePhone } from "@/server/wa/link";
 import { notify } from "@/server/wa/send";
+import { decideProposal } from "@/server/agent";
 import { correctReading } from "@/server/readings";
 import { FAMILY_LIMIT, FAMILY_SCOPES, familySeats } from "@/domain/family";
 import { BARRIER_CODES, cleanMotivation, normalizeRestart, normalizeStyles, parseConfidence } from "@/domain/behaviour";
@@ -439,6 +440,19 @@ export async function pingActivity() {
 export async function markChatSeen() {
   await requireUser();
   (await cookies()).set("sukhi_chat_seen", new Date().toISOString(), { path: "/", sameSite: "lax", httpOnly: true, secure: process.env.NODE_ENV === "production", maxAge: 60 * 60 * 24 * 365 });
+}
+
+/** Apply / Keep as is under an assistant proposal in the web chat. The reply is saved to the chat. */
+export async function decideChatProposal(code: string, accept: boolean): Promise<{ id: string | null; text: string }> {
+  const { user } = await requireUser();
+  const c = z.string().regex(/^[A-Z0-9]{4,8}$/).parse(code);
+  const admin = createAdminClient();
+  const { data: profile } = await admin.from("profiles").select("locale").eq("id", user.id).single();
+  const text = await decideProposal(admin, user.id, c, z.boolean().parse(accept), profile?.locale ?? "en");
+  const { data: saved } = await admin.from("messages").insert({ user_id: user.id, role: "assistant", channel: "web", content: text }).select("id").single();
+  revalidatePath("/plan");
+  revalidatePath("/today");
+  return { id: saved?.id ?? null, text };
 }
 
 /** Chat mode toggle (Text / Voice). Stored as accessibility.audio_replies so Settings stays in sync. */

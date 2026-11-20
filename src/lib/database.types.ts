@@ -340,8 +340,9 @@ export type Database = {
           decided_at: string | null
           expires_at: string
           id: string
-          item_id: string
-          item_version: number
+          item_id: string | null
+          item_version: number | null
+          plan_id: string | null
           status: string
           summary: string
           user_id: string
@@ -353,8 +354,9 @@ export type Database = {
           decided_at?: string | null
           expires_at?: string
           id?: string
-          item_id: string
-          item_version: number
+          item_id?: string | null
+          item_version?: number | null
+          plan_id?: string | null
           status?: string
           summary: string
           user_id: string
@@ -366,8 +368,9 @@ export type Database = {
           decided_at?: string | null
           expires_at?: string
           id?: string
-          item_id?: string
-          item_version?: number
+          item_id?: string | null
+          item_version?: number | null
+          plan_id?: string | null
           status?: string
           summary?: string
           user_id?: string

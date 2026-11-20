@@ -230,6 +230,35 @@ try {
   const { data: it } = await admin.from("plan_items").select("times, status").eq("id", item!.slice(3)).single();
   check(JSON.stringify(it?.times) === JSON.stringify(["08:00", "20:30"]) && it?.status === "confirmed", "task time changed from WhatsApp");
 
+  // 7. Assistant proposals (rows written as propose_action_change does; free chat needs the model).
+  const { generateConfirmCode } = await import("../src/domain/router");
+  const itemId = item!.slice(3);
+  const propose = async (rows: { kind: string; item?: boolean; times?: string[] }[]) => {
+    const c = generateConfirmCode();
+    const { data: cur } = await admin.from("plan_items").select("version, plan_id").eq("id", itemId).single();
+    for (const r of rows) {
+      await admin.from("change_proposals").insert(r.item === false
+        ? { user_id: webUserId!, plan_id: cur!.plan_id, confirm_code: c, change: { kind: r.kind }, summary: r.kind }
+        : { user_id: webUserId!, item_id: itemId, item_version: cur!.version, confirm_code: c, change: { kind: r.kind, ...(r.times ? { times: r.times, weekdays: [] } : {}) }, summary: r.kind });
+    }
+    return c;
+  };
+  const c1 = await propose([{ kind: "retime", times: ["09:15"] }]);
+  await say(PATIENT, `CONFIRM ${c1}`);
+  const { data: it2 } = await admin.from("plan_items").select("times, status").eq("id", itemId).single();
+  check(JSON.stringify(it2?.times) === JSON.stringify(["09:15"]) && it2?.status === "confirmed", "typed CONFIRM still applies a retime");
+  const c2 = await propose([{ kind: "remove" }]);
+  await tap(PATIENT, `cp:no:${c2}`);
+  const { data: it3 } = await admin.from("plan_items").select("status").eq("id", itemId).single();
+  check(it3?.status === "confirmed" && allText(PATIENT).includes("kept as is"), "Keep as is leaves the task alone");
+  const c3 = await propose([{ kind: "pause" }, { kind: "archive_goal", item: false }]);
+  await tap(PATIENT, `cp:ok:${c3}`);
+  const { data: it4 } = await admin.from("plan_items").select("status, plan_id").eq("id", itemId).single();
+  const { data: pl4 } = await admin.from("care_plans").select("status").eq("id", it4!.plan_id).single();
+  check(it4?.status === "paused" && pl4?.status === "archived", "one Apply tap paused the task and archived the goal");
+  await tap(PATIENT, `cp:ok:${c3}`);
+  check(allText(PATIENT).includes("Already done"), "second tap on Apply changes nothing");
+
   // Settings, help, STOP / START
   await say(PATIENT, "help");
   await say(PATIENT, "STOP");

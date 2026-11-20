@@ -6,7 +6,7 @@ import { ArrowUp, Check, Copy, Leaf, Plus, Keyboard, Square, AudioLines, Volume2
 import { Alert } from "@/components/ui";
 import { VoiceRecorder } from "@/components/VoiceRecorder";
 import { EvidenceCapture } from "@/components/EvidenceCapture";
-import { markChatSeen, setChatVoiceMode } from "@/app/actions";
+import { decideChatProposal, markChatSeen, setChatVoiceMode } from "@/app/actions";
 import { SupportFlow } from "@/components/SupportFlow";
 
 export interface ChatMessage {
@@ -44,7 +44,7 @@ function Rich({ text }: { text: string }) {
   );
 }
 
-export function ChatClient({ initial, voice, audioReplies, suggestions, name, autoSend, today, openNudges = [], whatsappLaunched = false }: { initial: ChatMessage[]; voice: { configured: boolean; consent: boolean }; audioReplies: boolean; suggestions: string[]; name: string | null; autoSend?: string; today: TodayRef[]; openNudges?: string[]; whatsappLaunched?: boolean }) {
+export function ChatClient({ initial, voice, audioReplies, suggestions, name, autoSend, today, openNudges = [], openProposals = [], whatsappLaunched = false }: { initial: ChatMessage[]; openProposals?: string[]; voice: { configured: boolean; consent: boolean }; audioReplies: boolean; suggestions: string[]; name: string | null; autoSend?: string; today: TodayRef[]; openNudges?: string[]; whatsappLaunched?: boolean }) {
   const t = useTranslations("chat");
   const tc = useTranslations("common");
   const router = useRouter();
@@ -60,6 +60,7 @@ export function ChatClient({ initial, voice, audioReplies, suggestions, name, au
   const sentAuto = useRef(false);
   const [statusById, setStatusById] = useState<Record<string, string>>(() => Object.fromEntries(today.map((o) => [o.id, o.display])));
   const [attachFor, setAttachFor] = useState<string | null>(null);
+  const [proposals, setProposals] = useState<string[]>(openProposals);
   const openToday = today.filter((o) => OPEN.includes(statusById[o.id] ?? o.display));
 
   // Opening the chat clears its unread badge; new proactive messages arrive by refresh.
@@ -174,6 +175,7 @@ export function ChatClient({ initial, voice, audioReplies, suggestions, name, au
       }
       const id = j.id ?? `a-${Date.now()}`;
       setMessages((m) => [...m.map((x) => (x.id === tempId ? { ...x, pending: false } : x)), { id, role: "assistant", channel: "web", content: j.text, sources: j.sources ?? [], safety: j.safety }]);
+      if (j.proposal?.code) setProposals((p) => [...p, j.proposal.code]);
       setReveal({ id, n: 0 });
       // Voice mode: read the answer aloud right after the person sends (a user gesture, so autoplay is allowed).
       if (voiceMode && j.text) void play(j.text, true);
@@ -195,6 +197,22 @@ export function ChatClient({ initial, voice, audioReplies, suggestions, name, au
       void send(autoSend);
     }
   }, [autoSend, router, send]);
+
+  async function decide(code: string, accept: boolean) {
+    if (busy) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const r = await decideChatProposal(code, accept);
+      setProposals((p) => p.filter((x) => x !== code));
+      setMessages((m) => [...m, { id: r.id ?? `a-${Date.now()}`, role: "assistant", channel: "web", content: r.text, sources: [] }]);
+      router.refresh();
+    } catch {
+      setError(tc("error"));
+    } finally {
+      setBusy(false);
+    }
+  }
 
   async function copy(m: ChatMessage) {
     try { await navigator.clipboard.writeText(m.content); setCopied(m.id); setTimeout(() => setCopied(null), 1500); } catch {}
@@ -245,6 +263,17 @@ export function ChatClient({ initial, voice, audioReplies, suggestions, name, au
                       // Unknown status (no reply) offers "I did it": silence is never treated as a miss.
                       return <SupportFlow key={x.id} occurrenceId={x.id} title={x.label} nudgeId={nudge?.id ?? null} allowDidIt={nudge?.label === "no_response"} />;
                     }) : null}
+                    {!isRevealing ? m.sources.filter((x) => x.type === "proposal").slice(0, 1).map((x) => (
+                      <div key={x.id} className="mt-3 rounded-2xl border border-line bg-surface p-3">
+                        <ul className="space-y-0.5 text-[0.92rem]">{x.label.split("\n").map((l, j) => <li key={j}>{l}</li>)}</ul>
+                        {proposals.includes(x.id) ? (
+                          <div className="mt-3 flex gap-2">
+                            <button type="button" disabled={busy} onClick={() => decide(x.id, true)} className="btn btn-primary min-h-10 px-4 text-sm">{t("apply")}</button>
+                            <button type="button" disabled={busy} onClick={() => decide(x.id, false)} className="btn btn-secondary min-h-10 px-4 text-sm">{t("keep")}</button>
+                          </div>
+                        ) : null}
+                      </div>
+                    )) : null}
                     {m.channel === "whatsapp" ? <p className="mt-1 text-xs text-ink-faint">{t("fromWhatsapp")}</p> : null}
                     {!isRevealing ? (
                       <div className="mt-1.5 flex gap-1 text-ink-faint opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100 sm:focus-within:opacity-100">

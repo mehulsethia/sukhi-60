@@ -32,5 +32,5 @@ export async function POST(req: Request) {
     .insert({ user_id: user.id, role: "assistant", channel: "web", content: answer.text, source_refs: answer.sources as never, safety_flag: answer.safety === "escalation" ? "escalation" : null })
     .select("id, created_at")
     .single();
-  return json({ id: saved?.id, text: answer.text, sources: answer.sources, route: answer.route, safety: answer.safety ?? null });
+  return json({ id: saved?.id, text: answer.text, sources: answer.sources, route: answer.route, safety: answer.safety ?? null, proposal: answer.proposal ?? null });
 }
