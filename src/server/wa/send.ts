@@ -62,7 +62,7 @@ export async function send(ctx: WaCtx, out: WaOut) {
 }
 
 /**
- * Voice note reply, sent after the text when the person spoke to us. Best effort: if speech or
+ * Voice note reply (not wired up: WhatsApp replies are text only for now). Best effort: if speech or
  * upload fails, the text reply already went out. Ogg Opus shows as a voice note; mp3 is the fallback.
  */
 export async function sendVoice(ctx: WaCtx, text: string) {

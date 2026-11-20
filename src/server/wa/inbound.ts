@@ -16,7 +16,7 @@ import { d, w } from "@/domain/wa-copy";
 import { audit, getConsents, getProfile } from "../core";
 import { runAssistant } from "../agent";
 import { fetchWhatsAppMedia, sendWhatsAppText, transcribe } from "../providers";
-import { send, sendDirect, sendVoice, releaseHeld, type WaCtx } from "./send";
+import { send, sendDirect, releaseHeld, type WaCtx } from "./send";
 import { clearState, currentState, setState, type StateData } from "./state";
 import { createWaAccount, grantPatientConsents } from "./account";
 import { hasActivePlan } from "./data";
@@ -130,8 +130,6 @@ export async function handleWhatsAppMessage(admin: AdminClient, msg: InboundMess
   const answer = await runAssistant({ admin, userId, channel: "whatsapp", text: userText, messageKey: msg.id });
   if (answer.safety && inserted) await admin.from("messages").update({ safety_flag: answer.safety }).eq("id", inserted.id);
   await send(ctx, { type: "text", body: [heard, answer.text].filter(Boolean).join("\n\n") });
-  // Spoke to us? Sukhi answers out loud too.
-  if (msg.kind === "audio") await sendVoice(ctx, answer.text).catch(() => undefined);
 }
 
 // ---------------------------------------------------------------------------
