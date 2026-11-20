@@ -156,7 +156,6 @@ const en = {
   // Help
   help: "You can tap the menu, or just type:\n\nTODAY: what's due\nPLAN: your tasks\nPROGRESS: your week\nCIRCLE: leaderboard\nDONE: mark the current task done\nSend a photo: proof for a task\nSTOP: no more messages\n\nYou can also ask me anything about your plan.",
   // Reminders
-  reminder_body: "Time for: {title}{time}",
   after_done_next: "Next: {title}{time}.",
   expired_button: "That task has already closed. Here's today:",
   // Web account link
@@ -374,7 +373,6 @@ const hi: Dict = {
   row_stop: "सारे मैसेज बंद",
   lang_saved: "भाषा सेव हो गई।",
   help: "मेनू दबाएँ, या बस लिखें:\n\nTODAY: आज क्या बाकी है\nPLAN: आपके काम\nPROGRESS: आपका हफ़्ता\nCIRCLE: लीडरबोर्ड\nDONE: अभी का काम हो गया\nफ़ोटो भेजें: काम का सबूत\nSTOP: मैसेज बंद\n\nआप प्लान के बारे में कुछ भी पूछ सकते हैं।",
-  reminder_body: "समय हो गया: {title}{time}",
   after_done_next: "अगला: {title}{time}।",
   expired_button: "वह काम बंद हो चुका है। यह रहा आज:",
   web_connect_link: "यह लिंक खोलें, अपने सुखी अकाउंट में लॉग इन करें और Connect दबाएँ। यह एक बार, 30 मिनट तक चलेगा।\n\n{link}",
@@ -588,7 +586,6 @@ const mr: Dict = {
   row_stop: "सर्व मेसेज बंद",
   lang_saved: "भाषा सेव झाली.",
   help: "मेनू दाबा, किंवा फक्त लिहा:\n\nTODAY: आज काय बाकी\nPLAN: तुमची कामे\nPROGRESS: तुमचा आठवडा\nCIRCLE: लीडरबोर्ड\nDONE: आत्ताचे काम झाले\nफोटो पाठवा: कामाचा पुरावा\nSTOP: मेसेज बंद\n\nतुम्ही प्लानबद्दल काहीही विचारू शकता.",
-  reminder_body: "वेळ झाली: {title}{time}",
   after_done_next: "पुढे: {title}{time}.",
   expired_button: "ते काम बंद झाले आहे. हा घ्या आजचा प्लान:",
   web_connect_link: "ही लिंक उघडा, तुमच्या सुखी अकाउंटमध्ये लॉग इन करा आणि Connect दाबा. ती एकदाच, 30 मिनिटे चालेल.\n\n{link}",

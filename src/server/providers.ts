@@ -60,7 +60,8 @@ export async function transcribe(audio: Blob, locale: string | null): Promise<Sp
   }
 }
 
-export async function synthesize(text: string, locale: string): Promise<SpeechResult<{ audioBase64: string; mime: string }>> {
+/** `format`: default (mp3 from ElevenLabs, wav from Sarvam), "ogg" (Opus, for WhatsApp voice notes) or "mp3". */
+export async function synthesize(text: string, locale: string, format?: "ogg" | "mp3"): Promise<SpeechResult<{ audioBase64: string; mime: string }>> {
   const provider = settings.speechProvider();
   if (!provider) return { ok: false, error: "unconfigured" };
   const clipped = text.slice(0, 2400);
@@ -69,27 +70,27 @@ export async function synthesize(text: string, locale: string): Promise<SpeechRe
     if (provider === "elevenlabs") {
       const voice = settings.elevenVoice(locale);
       if (!voice) return { ok: false, error: "unconfigured" };
-      const res = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${encodeURIComponent(voice)}?output_format=mp3_44100_128`, {
+      const res = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${encodeURIComponent(voice)}?output_format=${format === "ogg" ? "opus_48000_64" : "mp3_44100_128"}`, {
         method: "POST",
-        headers: { "xi-api-key": process.env.ELEVENLABS_API_KEY!, "Content-Type": "application/json", Accept: "audio/mpeg" },
+        headers: { "xi-api-key": process.env.ELEVENLABS_API_KEY!, "Content-Type": "application/json", Accept: format === "ogg" ? "audio/ogg" : "audio/mpeg" },
         body: JSON.stringify({ text: clipped, model_id: settings.elevenTtsModel(), language_code: ["en", "hi", "mr"].includes(locale) ? locale : "en" }),
         signal: AbortSignal.timeout(25_000),
       });
       if (!res.ok) return { ok: false, error: "provider_error" };
       const buf = Buffer.from(await res.arrayBuffer());
       if (!buf.byteLength) return { ok: false, error: "provider_error" };
-      return { ok: true, value: { audioBase64: buf.toString("base64"), mime: "audio/mpeg" } };
+      return { ok: true, value: { audioBase64: buf.toString("base64"), mime: format === "ogg" ? "audio/ogg" : "audio/mpeg" } };
     }
     const res = await fetch("https://api.sarvam.ai/text-to-speech", {
       method: "POST",
       headers: { "api-subscription-key": process.env.SARVAM_API_KEY!, "Content-Type": "application/json" },
-      body: JSON.stringify({ text: clipped, language_code: SARVAM_LANG[locale] ?? "en-IN", model: settings.sarvamTtsModel(), speaker: settings.sarvamSpeaker(), output_audio_codec: "wav", speech_sample_rate: 22050 }),
+      body: JSON.stringify({ text: clipped, language_code: SARVAM_LANG[locale] ?? "en-IN", model: settings.sarvamTtsModel(), speaker: settings.sarvamSpeaker(), output_audio_codec: format === "ogg" ? "opus" : format === "mp3" ? "mp3" : "wav", speech_sample_rate: format === "ogg" ? 48000 : 22050 }),
       signal: AbortSignal.timeout(20_000),
     });
     if (!res.ok) return { ok: false, error: "provider_error" };
     const j = (await res.json()) as { audios?: string[] };
     if (!j.audios?.[0]) return { ok: false, error: "provider_error" };
-    return { ok: true, value: { audioBase64: j.audios[0], mime: "audio/wav" } };
+    return { ok: true, value: { audioBase64: j.audios[0], mime: format === "ogg" ? "audio/ogg" : format === "mp3" ? "audio/mpeg" : "audio/wav" } };
   } catch (e) {
     return fail(e);
   }
@@ -148,6 +149,22 @@ export function sendWhatsAppPayload(to: string, body: Record<string, unknown>) {
 
 export function sendWhatsAppTemplate(to: string, name: string, languageCode: string) {
   return postMessage({ to, type: "template", template: { name, language: { code: languageCode } } });
+}
+
+/** Upload media we made (a voice reply) and get an id to send it with. */
+export async function uploadWhatsAppMedia(bytes: Uint8Array, mime: string): Promise<{ ok: true; id: string } | { ok: false; error: string }> {
+  if (!features.whatsapp()) return { ok: false, error: "unconfigured" };
+  const form = new FormData();
+  form.append("messaging_product", "whatsapp");
+  form.append("type", mime);
+  form.append("file", new Blob([bytes as BlobPart], { type: mime }), mime === "audio/ogg" ? "sukhi.ogg" : "sukhi.mp3");
+  try {
+    const res = await fetch(graph(`${process.env.WHATSAPP_PHONE_NUMBER_ID}/media`), { method: "POST", headers: { Authorization: `Bearer ${process.env.WHATSAPP_ACCESS_TOKEN}` }, body: form, signal: AbortSignal.timeout(15_000) });
+    const j = (await res.json().catch(() => ({}))) as { id?: string };
+    return res.ok && j.id ? { ok: true, id: j.id } : { ok: false, error: `media_upload_${res.status}` };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.name : "network_error" };
+  }
 }
 
 /** Fetch inbound media via the Graph API, only from trusted hosts, with size/type limits. */

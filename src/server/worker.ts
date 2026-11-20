@@ -9,7 +9,7 @@ import { audit, getConsents, getProfile, materializeOccurrences } from "./core";
 import { evaluateEvidence } from "./ai-tasks";
 import { sendWhatsAppPayload, sendWhatsAppTemplate, sendWhatsAppText, type SendResult } from "./providers";
 import { decideSend, parseWebhook, type InboundMessage } from "@/domain/whatsapp";
-import { time12, toGraph } from "@/domain/wa-ui";
+import { reminderText, toGraph } from "@/domain/wa-ui";
 import { w } from "@/domain/wa-copy";
 import { enqueueOutbound } from "./wa/send";
 export { enqueueOutbound };
@@ -164,10 +164,10 @@ async function handleReminder(admin: AdminClient, job: Job) {
   const decision = decideSend({ binding, consentWhatsapp: !!consents.whatsapp, approvedTemplates: settings.approvedTemplates(), quiet: false });
   if (decision.kind === "blocked" || !binding) return; // web-only reminder
 
-  // Lock-screen-friendly: only the item title inside an active conversation; templates are generic.
+  // Same words as the phone notification inside an active conversation; templates are generic.
   // Inside the window the reminder carries Done / Later / Skip buttons.
   const l = profile.locale;
-  const body = w(l, "reminder_body", { title: item.title, time: occ.local_time && occ.target_count === 1 ? ` · ${time12(occ.local_time)}` : "" });
+  const body = reminderText(copy);
   const interactive = decision.kind === "free_text"
     ? toGraph({ type: "buttons", body, buttons: [{ id: `ci:done:${occ.id}`, title: w(l, "btn_done") }, { id: `ci:later:${occ.id}`, title: w(l, "btn_later") }, { id: `ci:skipped:${occ.id}`, title: w(l, "btn_skip") }] })
     : null;

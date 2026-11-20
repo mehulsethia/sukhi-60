@@ -317,3 +317,34 @@ export function parseRange(raw: string): [string, string] | null {
   const a = parseTimes(m[0]), b = parseTimes(m[1]);
   return a?.length === 1 && b?.length === 1 && a[0] !== b[0] ? [a[0], b[0]] : null;
 }
+
+// ---------------------------------------------------------------------------
+// Reminders and voice replies
+// ---------------------------------------------------------------------------
+/** The WhatsApp reminder uses the same words as the phone notification: bold title, then the line. */
+export function reminderText(copy: { title: string; body: string }): string {
+  const title = copy.title.replace(/[*_~`]/g, "").trim();
+  const body = copy.body.replace(/[*_~`]/g, "").trim();
+  return body ? `*${title}*\n${body}` : `*${title}*`;
+}
+
+/** Text that reads well out loud: no markdown, links, emoji or menu hints, cut at a sentence. */
+export function speakable(text: string, max = 500): string {
+  const s = text
+    .replace(/https?:\/\/\S+/g, "")
+    .replace(/[*_~`#>]/g, "")
+    .replace(/\p{Extended_Pictographic}|\u{FE0F}|\u{200D}/gu, "")
+    .replace(/\s*\n+\s*/g, ". ")
+    .replace(/([.!?।])\s*\.\s*/g, "$1 ")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+  if (s.length <= max) return s;
+  const cut = s.slice(0, max);
+  const end = Math.max(cut.lastIndexOf(". "), cut.lastIndexOf("? "), cut.lastIndexOf("! "), cut.lastIndexOf("। "));
+  return end > max / 3 ? cut.slice(0, end + 1) : `${cut.slice(0, cut.lastIndexOf(" ")).trimEnd()}.`;
+}
+
+/** WhatsApp plays ogg only when it is Ogg Opus; anything else is sent as mp3 instead. */
+export function isOgg(bytes: Uint8Array): boolean {
+  return bytes.length > 4 && bytes[0] === 0x4f && bytes[1] === 0x67 && bytes[2] === 0x67 && bytes[3] === 0x53;
+}

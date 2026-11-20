@@ -6,10 +6,10 @@ import "server-only";
 import type { AdminClient } from "@/lib/supabase/admin";
 import type { Json } from "@/lib/database.types";
 import { settings } from "@/lib/config";
-import { clampOut, outText, toGraph, type WaOut } from "@/domain/wa-ui";
+import { clampOut, isOgg, outText, speakable, toGraph, type WaOut } from "@/domain/wa-ui";
 import { decideSend, withinServiceWindow } from "@/domain/whatsapp";
 import { inQuietHours, localTimeOf } from "@/domain/schedule";
-import { sendWhatsAppPayload } from "../providers";
+import { sendWhatsAppPayload, synthesize, uploadWhatsAppMedia } from "../providers";
 
 export interface WaCtx {
   admin: AdminClient;
@@ -58,6 +58,30 @@ export async function send(ctx: WaCtx, out: WaOut) {
   const p = prepare(out);
   const jobId = await enqueueOutbound(ctx.admin, ctx.userId, ctx.bindingId, { ...p, dedupeKey: `reply:${ctx.key}:${ctx.n++}` });
   await ctx.admin.from("messages").insert({ user_id: ctx.userId, role: "assistant", channel: "whatsapp", content: p.body.slice(0, 8000) });
+  await runNow(ctx.admin, jobId);
+}
+
+/**
+ * Voice note reply, sent after the text when the person spoke to us. Best effort: if speech or
+ * upload fails, the text reply already went out. Ogg Opus shows as a voice note; mp3 is the fallback.
+ */
+export async function sendVoice(ctx: WaCtx, text: string) {
+  const spoken = speakable(text);
+  if (!spoken) return;
+  let audio: { bytes: Uint8Array; mime: string } | null = null;
+  const ogg = await synthesize(spoken, ctx.locale, "ogg");
+  if (ogg.ok) {
+    const bytes = Buffer.from(ogg.value.audioBase64, "base64");
+    if (isOgg(bytes)) audio = { bytes, mime: "audio/ogg" };
+  }
+  if (!audio) {
+    const mp3 = await synthesize(spoken, ctx.locale, "mp3");
+    if (!mp3.ok) return;
+    audio = { bytes: Buffer.from(mp3.value.audioBase64, "base64"), mime: "audio/mpeg" };
+  }
+  const up = await uploadWhatsAppMedia(audio.bytes, audio.mime);
+  if (!up.ok) return;
+  const jobId = await enqueueOutbound(ctx.admin, ctx.userId, ctx.bindingId, { kind: "interactive", body: `[voice] ${spoken}`, payload: { type: "audio", audio: { id: up.id } }, dedupeKey: `reply:${ctx.key}:${ctx.n++}` });
   await runNow(ctx.admin, jobId);
 }
 
