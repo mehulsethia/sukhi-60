@@ -11,6 +11,7 @@ import { send, notify, type WaCtx } from "./send";
 import { clearState, setState } from "./state";
 import { adherenceFor, businessNumber, pctText, todayCounts } from "./data";
 import { formatReading, recentReadings } from "../readings";
+import { finishClaimedInvites } from "./care";
 
 const TZ = "Asia/Kolkata";
 const menuBtn = { id: "dr:m:menu", title: "Menu" };
@@ -76,6 +77,8 @@ async function sendReady(ctx: WaCtx, name: string, code: string) {
   await send(ctx, { type: "text", body: d("ready", { name, code, link }) });
   await sendQr(ctx, name, code);
   await showDoctorMenu(ctx);
+  // Signed up from a patient's invite: link them now (each patient gets a message here).
+  await finishClaimedInvites(ctx.admin, ctx.userId);
 }
 
 async function sendQr(ctx: WaCtx, name: string, code: string) {
@@ -125,6 +128,7 @@ async function patientRows(admin: AdminClient, doctorId: string) {
 export async function showPatients(ctx: WaCtx) {
   const doc = await myDoctor(ctx.admin, ctx.userId);
   if (!doc) return startDoctorSignup(ctx);
+  await finishClaimedInvites(ctx.admin, ctx.userId); // an invite left half-done at signup
   const rows = await patientRows(ctx.admin, ctx.userId);
   if (!rows.length) {
     await send(ctx, { type: "buttons", body: d("patients_none", { link: await doctorLink(doc.code) }), buttons: [menuBtn] });

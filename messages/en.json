@@ -1559,5 +1559,39 @@
     "pointsCapWeek": "Tasks earn up to 12 pts a day. Ties go to the longer streak.",
     "pointsChallenge": "In a challenge every task counts, with no daily limit. Ties go to more tasks done, then the longer streak.",
     "doneN": "{n} done"
+  },
+  "people": {
+    "title": "Your people",
+    "manage": "Doctor, family and circles",
+    "doctor": "Doctor",
+    "doctorNone": "No doctor linked.",
+    "doctorInvite": "Invite your doctor",
+    "doctorConsent": "Your doctor will see how much of your plan you follow and your proof photo results. Never your chats.",
+    "doctorSend": "Send to your doctor",
+    "doctorShareText": "I follow my health plan on Sukhi. Tap to see my progress:",
+    "doctorLinkNote": "The link works for 14 days.",
+    "copied": "Link copied",
+    "stopSharing": "Stop sharing",
+    "circles": "Circles",
+    "circlesNone": "Not in a circle yet.",
+    "openCircles": "Open",
+    "members": "{n, plural, one {# person} other {# people}}",
+    "following": "You follow",
+    "someone": "Someone"
+  },
+  "invite": {
+    "doctor": "{name} uses Sukhi",
+    "doctor_body": "Follow your treatment plan on WhatsApp. No app needed.",
+    "family": "{name} added you as family",
+    "family_body": "Get a short update on how they're doing.",
+    "care": "{name} invited you as their doctor",
+    "care_body": "See how much of their plan they follow and their proof photo results. Never their chats.",
+    "circle": "You're invited to a Sukhi circle",
+    "circle_body": "Keep a small daily plan and cheer each other on.",
+    "someone": "Someone",
+    "openWhatsApp": "Open in WhatsApp",
+    "useWeb": "Use the web app",
+    "whatsappOnly": "Send {code} to Sukhi on WhatsApp.",
+    "expired": "This invite has expired or was already used."
   }
 }

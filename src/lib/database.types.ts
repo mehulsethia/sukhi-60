@@ -576,6 +576,39 @@ export type Database = {
           },
         ]
       }
+      care_invites: {
+        Row: {
+          id: string
+          patient_id: string
+          code_hash: string
+          status: string
+          doctor_user_id: string | null
+          expires_at: string
+          accepted_at: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          patient_id: string
+          code_hash: string
+          status?: string
+          doctor_user_id?: string | null
+          expires_at?: string
+          accepted_at?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          patient_id?: string
+          code_hash?: string
+          status?: string
+          doctor_user_id?: string | null
+          expires_at?: string
+          accepted_at?: string | null
+          created_at?: string
+        }
+        Relationships: []
+      }
       circles: {
         Row: {
           created_at: string

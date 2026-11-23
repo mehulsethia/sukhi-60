@@ -24,6 +24,7 @@ import { connectNumber, consumeCodeForBoundNumber, createConnectLink, findWebMat
 import * as P from "./patient";
 import * as F from "./family";
 import * as D from "./doctor";
+import { acceptCareInvite, claimCareInvite, findCareInvite } from "./care";
 
 type Binding = { id: string; user_id: string; status: string; wa_state: string | null; wa_state_data: unknown; wa_state_at: string | null };
 
@@ -198,6 +199,12 @@ async function handleNewNumber(admin: AdminClient, msg: InboundMessage): Promise
     return void (await sendDirect(from, { type: "text", body: w("en", "family_invalid") }));
   }
   if (code?.kind === "circle") return void (await sendDirect(from, { type: "buttons", body: w("en", "welcome_circle"), buttons: startButtons("en", `ob:start:join:${code.code}`) }));
+  if (code?.kind === "care") {
+    // A patient invited their doctor. Doctor copy is English for the pilot.
+    const inv = await findCareInvite(admin, code.code);
+    if (!inv) return void (await sendDirect(from, { type: "text", body: d("care_invalid") }));
+    return void (await sendDirect(from, { type: "buttons", body: d("care_welcome", { name: inv.name || "A patient" }), buttons: [{ id: `ob:start:care:${code.code}`, title: "Start as doctor" }, { id: "ob:no", title: "Not now" }] }));
+  }
   if (parseCommand(text) === "register_doctor") return void (await sendDirect(from, { type: "buttons", body: d("welcome").split("\n\n").slice(0, 2).join("\n\n"), buttons: [{ id: "ob:start:doc", title: "Start as doctor" }, { id: "ob:no", title: "Not now" }] }));
   await sendDirect(from, { type: "buttons", body: w("en", "welcome_new"), buttons: startButtons("en", "ob:start", { id: "ob:web", title: w("en", "btn_web") }) });
 }
@@ -220,13 +227,17 @@ async function linkExisting(admin: AdminClient, from: string, code: string) {
 /** "Start" tapped: create the account, then continue with what brought them here. */
 async function startAccount(admin: AdminClient, msg: InboundMessage, id: string) {
   const [, , kind, code, lang] = id.split(":");
-  const role = kind === "doc" ? "doctor" : kind === "fam" ? "family" : "patient";
+  const role = kind === "doc" || kind === "care" ? "doctor" : kind === "fam" ? "family" : "patient";
   const { userId, bindingId } = await createWaAccount(admin, msg.from, role);
   const locale = lang === "hi" || lang === "mr" ? lang : "en";
   if (locale !== "en") await admin.from("profiles").update({ locale }).eq("id", userId);
   const ctx: WaCtx = { admin, userId, bindingId, to: msg.from, locale, key: msg.id, n: 0 };
   await admin.from("messages").upsert({ user_id: userId, role: "user", channel: "whatsapp", content: msg.text || "Start", provider_message_id: msg.id }, { onConflict: "provider_message_id", ignoreDuplicates: true });
-  if (role === "doctor") return D.startDoctorSignup(ctx);
+  if (role === "doctor") {
+    // Held for them; the link is made once their doctor profile exists (doctor.ts).
+    if (kind === "care" && code) await claimCareInvite(admin, userId, code);
+    return D.startDoctorSignup(ctx);
+  }
   const data: StateData = { kind: kind ?? null, code: code ?? null };
   if (role === "family") {
     // Language comes from the patient's invite; ask the name straight away.
@@ -343,6 +354,7 @@ async function handleTap(ctx: WaCtx, id: string, binding: Binding): Promise<void
     }
   }
   if (ns === "ds" && a === "stop" && UUID.test(b ?? "")) return P.stopSharing(ctx, b);
+  if (ns === "dv" && a === "new") return P.inviteMyDoctor(ctx);
   if (ns === "fm") {
     if (a === "add") return F.addFamily(ctx);
     if (a === "rm" && UUID.test(b ?? "")) return F.removeFamily(ctx, b);
@@ -494,6 +506,12 @@ async function handleStateText(ctx: WaCtx, state: string, data: StateData, text:
 // ---------------------------------------------------------------------------
 async function inviteForExisting(ctx: WaCtx, code: InviteCode, role: string) {
   if (code.kind === "circle") return P.joinCircleCode(ctx, code.code);
+  if (code.kind === "care") {
+    const r = await acceptCareInvite(ctx.admin, ctx.userId, code.code);
+    if (r.ok) return send(ctx, { type: "buttons", body: d("care_linked", { name: r.patientName }), buttons: [{ id: `dr:p:${r.linkId}`, title: "See patient" }, { id: "dr:m:menu", title: "Menu" }] });
+    if (r.reason === "not_doctor") return send(ctx, { type: "buttons", body: w(ctx.locale, "care_not_doctor"), buttons: [{ id: "m:menu", title: w(ctx.locale, "btn_menu") }] });
+    return send(ctx, { type: "text", body: role === "doctor" ? d("care_invalid") : w(ctx.locale, r.reason === "self" ? "care_self" : "care_invalid") });
+  }
   if (code.kind === "family") {
     const r = await F.acceptFamily(ctx.admin, ctx.userId, code.code);
     if (!r.ok) return send(ctx, { type: "buttons", body: w(ctx.locale, r.reason === "self" ? "family_self" : "family_invalid"), buttons: [{ id: "m:menu", title: w(ctx.locale, "btn_menu") }] });

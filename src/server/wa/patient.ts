@@ -20,9 +20,10 @@ import { draftQuickPlan } from "../quick-plan";
 import { markReading, readIntoPlan } from "../plan-reading";
 import { evaluateEvidence } from "../ai-tasks";
 import { sha256Hex } from "@/domain/router";
-import { send, notify, type WaCtx } from "./send";
+import { send, type WaCtx } from "./send";
 import { clearState, setState } from "./state";
 import { adherenceFor, businessNumber, linkedDoctor, pctText, streakFor } from "./data";
+import { careWaLink, createCareInvite, createDoctorLink, notifyDoctorNewPatient } from "./care";
 
 const DONE = new Set(["self_reported", "evidence_supported"]);
 const OPEN = new Set(["due", "awaiting_response", "later"]);
@@ -511,7 +512,7 @@ export async function showMyDoctor(ctx: WaCtx) {
   const l = ctx.locale;
   const doc = await linkedDoctor(ctx.admin, ctx.userId);
   if (!doc) {
-    await send(ctx, { type: "buttons", body: w(l, "doctor_none"), buttons: [menuBtn(l)] });
+    await send(ctx, { type: "buttons", body: w(l, "doctor_none"), buttons: [{ id: "dv:new", title: w(l, "btn_invite_doctor") }, menuBtn(l)] });
     return;
   }
   const profile = await getProfile(ctx.admin, ctx.userId);
@@ -543,21 +544,18 @@ export async function askDoctorConsent(ctx: WaCtx, doctorId: string) {
 }
 
 export async function linkDoctor(ctx: WaCtx, doctorId: string): Promise<string | null> {
-  const { data: doc } = await ctx.admin.from("doctors").select("user_id, name").eq("user_id", doctorId).maybeSingle();
-  if (!doc || doctorId === ctx.userId) return null;
-  const today = localDateOf(new Date(), "Asia/Kolkata");
-  const { data: link } = await ctx.admin
-    .from("doctor_patients")
-    .upsert({ doctor_id: doctorId, patient_id: ctx.userId, status: "active", consented_at: new Date().toISOString(), revoked_at: null, period_start: today }, { onConflict: "doctor_id,patient_id" })
-    .select("id")
-    .single();
-  await ctx.admin.from("audit_events").insert({ user_id: ctx.userId, actor: "user", action: "doctor_sharing_granted", entity: "doctor_patient", entity_id: link?.id ?? null });
-  // A doctor's own plans now name them.
-  await ctx.admin.from("care_plans").update({ clinician_name: doc.name }).eq("user_id", ctx.userId).eq("mode", "clinician_instructions").is("clinician_name", null);
-  const { data: me } = await ctx.admin.from("profiles").select("display_name").eq("id", ctx.userId).single();
-  const { d } = await import("@/domain/wa-copy");
-  await notify(ctx.admin, doctorId, { type: "buttons", body: d("new_patient", { name: me?.display_name ?? "A patient" }), buttons: [{ id: `dr:p:${link?.id}`, title: "See patient" }, { id: "dr:m:patients", title: "All patients" }] }, `dr-new:${link?.id}`, { hold: true, respectQuiet: false });
-  return doc.name;
+  const link = await createDoctorLink(ctx.admin, doctorId, ctx.userId, "doctor_code");
+  if (!link) return null;
+  await notifyDoctorNewPatient(ctx.admin, doctorId, ctx.userId, link.linkId, "doctor_code");
+  return link.doctorName;
+}
+
+/** Patient: a link to forward to their own doctor. Making it is the consent to share. */
+export async function inviteMyDoctor(ctx: WaCtx) {
+  const l = ctx.locale;
+  const code = await createCareInvite(ctx.admin, ctx.userId);
+  await send(ctx, { type: "text", body: w(l, "care_forward") });
+  await send(ctx, { type: "text", body: w(l, "care_invite_msg", { link: await careWaLink(code) }) });
 }
 
 // ---------------------------------------------------------------------------

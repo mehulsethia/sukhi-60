@@ -31,6 +31,7 @@ import { waLink } from "@/domain/wa-ui";
 import { w } from "@/domain/wa-copy";
 import { businessNumber } from "@/server/wa/data";
 import { claimConnectRequest, savePhone } from "@/server/wa/link";
+import { createCareInvite } from "@/server/wa/care";
 import { notify } from "@/server/wa/send";
 import { decideProposal } from "@/server/agent";
 import { correctReading } from "@/server/readings";
@@ -933,6 +934,7 @@ export async function createFamilyInvite(_prev: ActionState, fd: FormData): Prom
   const { error } = await supabase.from("family_access").insert({ patient_id: user.id, invitee_label: label.data, invite_token_hash: await sha256Hex(token), scopes: [...FAMILY_SCOPES] });
   if (error) return { error: error.message.includes("family_limit") ? "family_limit" : "save_failed" };
   revalidatePath("/settings");
+  revalidatePath("/people");
   return { ok: true, data: { link: `${settings.appUrl()}/family/accept?token=${token}` } };
 }
 
@@ -941,6 +943,30 @@ export async function revokeFamily(fd: FormData) {
   const id = z.string().uuid().parse(fd.get("access_id"));
   await supabase.from("family_access").update({ status: "revoked" }).eq("id", id).eq("patient_id", user.id);
   revalidatePath("/settings");
+  revalidatePath("/people");
+}
+
+// ---------------------------------------------------------------------------
+// Doctor sharing from the web (patient side)
+// ---------------------------------------------------------------------------
+/** A link for the patient to send their own doctor. Making it is the consent to share. */
+export async function createDoctorInviteAction(): Promise<{ ok: true; link: string } | { ok: false }> {
+  const { user } = await requireUser();
+  try {
+    const code = await createCareInvite(createAdminClient(), user.id);
+    return { ok: true, link: `${settings.appUrl()}/i/CARE-${code}` };
+  } catch {
+    return { ok: false };
+  }
+}
+
+export async function stopDoctorSharingAction(fd: FormData) {
+  const { user } = await requireUser();
+  const id = z.string().uuid().parse(fd.get("link_id"));
+  const admin = createAdminClient();
+  const { data } = await admin.from("doctor_patients").update({ status: "revoked", revoked_at: new Date().toISOString() }).eq("id", id).eq("patient_id", user.id).eq("status", "active").select("id").maybeSingle();
+  if (data) await admin.from("audit_events").insert({ user_id: user.id, actor: "user", action: "doctor_sharing_revoked", entity: "doctor_patient", entity_id: id, details: { via: "web" } });
+  revalidatePath("/people");
 }
 
 export async function acceptFamilyInvite(_prev: ActionState, fd: FormData): Promise<ActionState> {

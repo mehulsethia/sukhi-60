@@ -51,8 +51,9 @@ export default async function CirclePage({ searchParams }: { searchParams: Promi
   return (
     <>
       <FreshOnOpen renderedAt={nowMs()} />
-      <header className="mb-4">
+      <header className="mb-4 flex items-end justify-between gap-3">
         <h1 className="text-[1.6rem] sm:text-[2rem]">{t("circle.title")}</h1>
+        <Link href="/people" className="pb-1.5 text-sm text-primary underline">{t("people.title")}</Link>
       </header>
 
       {view.circles.length > 1 ? (

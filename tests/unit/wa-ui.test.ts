@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { adherence, cleanName, clampOut, dots, parseCommand, parseInviteCode, scheduleText, time12, toGraph, waLink } from "@/domain/wa-ui";
+import { adherence, cleanName, clampOut, dots, inviteText, parseCommand, parseInviteCode, scheduleText, time12, toGraph, waLink } from "@/domain/wa-ui";
 import { decideSend, parseWebhook } from "@/domain/whatsapp";
 import { d, w } from "@/domain/wa-copy";
 
@@ -39,6 +39,12 @@ describe("invite codes and commands", () => {
     expect(parseInviteCode("JOIN 12345")).toEqual({ kind: "circle", code: "12345" });
     expect(parseInviteCode("I walked 12345 steps")).toBeNull();
     expect(parseInviteCode("hello")).toBeNull();
+  });
+  it("parses a patient's invite to their doctor and round-trips every kind", () => {
+    expect(parseInviteCode("CARE-K7P2QX")).toEqual({ kind: "care", code: "K7P2QX" });
+    expect(parseInviteCode("care k7p2qx")).toEqual({ kind: "care", code: "K7P2QX" });
+    expect(parseInviteCode("CARE-K7P2Q1")).toBeNull(); // 1 is not in the code alphabet
+    for (const t of ["DR-123456", "FAMILY-K7P2QX", "JOIN-12345", "CARE-K7P2QX"]) expect(inviteText(parseInviteCode(t)!)).toBe(t);
   });
   it("maps command words in three languages", () => {
     expect(parseCommand("Hi")).toBe("menu");

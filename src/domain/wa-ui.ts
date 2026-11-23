@@ -74,12 +74,16 @@ export function outText(out: WaOut): string {
 // ---------------------------------------------------------------------------
 // Invite codes typed or pre-filled from a wa.me link
 // ---------------------------------------------------------------------------
-export type InviteCode = { kind: "doctor"; code: string } | { kind: "family"; code: string } | { kind: "circle"; code: string };
+// doctor: a doctor's clinic code; family: a patient invites family; circle: a peer circle;
+// care: a patient invites their own doctor.
+export type InviteCode = { kind: "doctor" | "family" | "circle" | "care"; code: string };
 
 const FAMILY_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 
 export function parseInviteCode(raw: string): InviteCode | null {
   const t = raw.normalize("NFC").trim().toUpperCase();
+  const care = t.match(/\bCARE[\s:#-]*([A-HJ-NP-Z2-9]{6})\b/);
+  if (care) return { kind: "care", code: care[1] };
   const dr = t.match(/\b(?:DR|DOC|DOCTOR)[\s:#-]*(\d{6})\b/);
   if (dr) return { kind: "doctor", code: dr[1] };
   const fam = t.match(/\b(?:FAMILY|FAM)[\s:#-]*([A-HJ-NP-Z2-9]{6})\b/);
@@ -87,6 +91,13 @@ export function parseInviteCode(raw: string): InviteCode | null {
   const join = t.match(/\b(?:JOIN|CIRCLE)[\s:#-]*(\d{5})\b/);
   if (join) return { kind: "circle", code: join[1] };
   return null;
+}
+
+const INVITE_PREFIX = { doctor: "DR", family: "FAMILY", circle: "JOIN", care: "CARE" } as const;
+
+/** The text form of an invite, as typed or pre-filled on WhatsApp and used in /i/<text> links. */
+export function inviteText(c: InviteCode): string {
+  return `${INVITE_PREFIX[c.kind]}-${c.code}`;
 }
 
 export function newFamilyCode(): string {

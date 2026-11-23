@@ -3,18 +3,15 @@ import Link from "next/link";
 import { phoneText, waLink } from "@/domain/wa-ui";
 import { businessNumber } from "@/server/wa/data";
 import { getLocale, getTranslations } from "next-intl/server";
-import { BellRing, Brain, HandHeart, MessageCircle, ShieldCheck, Trash2, UserRound, Users } from "lucide-react";
+import { BellRing, Brain, ChevronRight, HandHeart, MessageCircle, ShieldCheck, Trash2, UserRound, Users } from "lucide-react";
 import { requireUser } from "@/lib/supabase/server";
 import { features } from "@/lib/config";
-import { revokeFamily, setMemoryStatus, unlinkWhatsApp } from "@/app/actions";
-import { FAMILY_LIMIT, familySeats } from "@/domain/family";
-import { ConsentsForm, FamilyInviteForm, LinkCodeForm, PreferencesForm } from "@/components/SettingsForms";
+import { setMemoryStatus, unlinkWhatsApp } from "@/app/actions";
+import { ConsentsForm, LinkCodeForm, PreferencesForm } from "@/components/SettingsForms";
 import { PageHeader, Section } from "@/components/ui";
 import { SubmitButton } from "@/components/SubmitButton";
 import { DeleteAccount } from "@/components/DeleteAccount";
-import { summarizeWeek } from "@/domain/rewards";
-import { addDays, localDateOf, weekStart } from "@/domain/schedule";
-import { fmtDate, fmtDateTime } from "@/lib/format";
+import { fmtDateTime } from "@/lib/format";
 import { ResetLearnedForm, SupportPrefsForm } from "@/components/SupportPrefsForm";
 import { PushToggle } from "@/components/PushToggle";
 import { getLearnedSummary } from "@/server/support";
@@ -27,18 +24,14 @@ export default async function SettingsPage() {
   const t = await getTranslations();
   const locale = await getLocale();
   const waNumber = features.whatsapp() ? await businessNumber() : null;
-  const [{ data: profile }, { data: consents }, { data: binding }, { data: family }, { data: memory }] = await Promise.all([
+  const [{ data: profile }, { data: consents }, { data: binding }, { data: memory }] = await Promise.all([
     supabase.from("profiles").select("*").eq("id", user.id).single(),
     supabase.from("consents").select("kind, granted"),
     supabase.from("channel_bindings").select("status, last_inbound_at, opted_out_at").neq("status", "revoked").maybeSingle(),
-    supabase.from("family_access").select("id, invitee_label, scopes, status, expires_at, created_at").eq("patient_id", user.id).order("created_at", { ascending: false }),
     supabase.from("memory_facts").select("id, kind, content, status, created_at").in("status", ["proposed", "confirmed"]).order("created_at", { ascending: false }).limit(30),
   ]);
   const tz = profile?.timezone ?? "UTC";
   const consentMap = Object.fromEntries((consents ?? []).map((c) => [c.kind, c.granted]));
-  const ws = weekStart(localDateOf(new Date(), tz));
-  const { data: weekOcc } = await supabase.from("action_occurrences").select("local_date, status").gte("local_date", ws).lte("local_date", addDays(ws, 6));
-  const preview = summarizeWeek(Array.from({ length: 7 }, (_, i) => addDays(ws, i)), weekOcc ?? []).map((d) => ({ date: d.date, responded: d.responded, completed: d.completed }));
   const learned = await getLearnedSummary(supabase, user.id, profile?.learning_reset_at ?? null, tz);
 
   const nav = [
@@ -47,7 +40,7 @@ export default async function SettingsPage() {
     ["notifications", t("push.title"), BellRing],
     ["consents", t("settings.consents"), ShieldCheck],
     ...(features.whatsappLaunched() || binding ? [["wa", t("settings.whatsapp"), MessageCircle] as const] : []),
-    ["family", t("settings.family"), Users],
+    ["family", t("people.title"), Users],
     ["memory", t("settings.memory"), Brain],
     ["delete", t("app.deleteTitle"), Trash2],
   ] as const;
@@ -116,25 +109,8 @@ export default async function SettingsPage() {
         )}
       </Section> : null}
 
-      <Section title={t("settings.family")} id="family" icon={<Users size={20} aria-hidden="true" />}>
-        <p className="mb-2">{t("settings.familyIntro", { n: FAMILY_LIMIT })}</p>
-        {(family ?? []).length === 0 ? <p className="hint mb-2">{t("settings.familyNone")}</p> : (
-          <ul className="mb-3 flex flex-col gap-2">
-            {(family ?? []).map((f) => (
-              <li key={f.id} className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-line p-3">
-                <span><span className="font-semibold">{f.invitee_label}</span> · {t(`settings.fam_${f.status === "invited" && new Date(f.expires_at) < new Date() ? "expired" : f.status}`)}</span>
-                {f.status !== "revoked" ? (
-                  <form action={revokeFamily}><input type="hidden" name="access_id" value={f.id} /><SubmitButton className="btn btn-danger">{t("settings.familyRevoke")}</SubmitButton></form>
-                ) : null}
-              </li>
-            ))}
-          </ul>
-        )}
-        <FamilyInviteForm disabled={!consentMap.family_sharing} full={familySeats(family ?? []) >= FAMILY_LIMIT} />
-        <details className="mt-3">
-          <summary className="cursor-pointer font-semibold">{t("settings.familyPreview")}</summary>
-          <ul className="mt-2 text-sm">{preview.map((d) => <li key={d.date}>{fmtDate(d.date, locale)}: {t("progress.responded")} {d.responded} · {t("progress.completed")} {d.completed}</li>)}</ul>
-        </details>
+      <Section title={t("people.title")} id="family" icon={<Users size={20} aria-hidden="true" />}>
+        <Link href="/people" className="flex items-center justify-between gap-2 text-primary underline">{t("people.manage")}<ChevronRight size={16} aria-hidden="true" /></Link>
       </Section>
 
       <Section title={t("settings.memory")} id="memory" icon={<Brain size={20} aria-hidden="true" />}>
