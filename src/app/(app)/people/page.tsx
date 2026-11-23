@@ -56,14 +56,14 @@ export default async function PeoplePage() {
               const doc = d.doctors as unknown as { name: string; clinic: string | null };
               return (
                 <li key={d.id} className={row}>
-                  <span><span className="font-semibold">{doc.name}</span>{doc.clinic ? <span className="text-ink-soft"> · {doc.clinic}</span> : null}</span>
-                  <form action={stopDoctorSharingAction}><input type="hidden" name="link_id" value={d.id} /><SubmitButton className="btn btn-ghost underline">{t("people.stopSharing")}</SubmitButton></form>
+                  <span className="min-w-0"><span className="font-semibold">{doc.name}</span>{doc.clinic ? <span className="block text-sm text-ink-soft">{doc.clinic}</span> : null}</span>
+                  <form action={stopDoctorSharingAction}><input type="hidden" name="link_id" value={d.id} /><SubmitButton className="text-sm text-ink-soft underline">{t("people.stopSharing")}</SubmitButton></form>
                 </li>
               );
             })}
           </ul>
         ) : <p className="mb-3">{t("people.doctorNone")}</p>}
-        <DoctorInvite />
+        <DoctorInvite another={(doctors ?? []).length > 0} />
       </Section>
 
       <Section title={t("settings.family")} id="family" icon={<Users aria-hidden="true" />}>
@@ -74,7 +74,7 @@ export default async function PeoplePage() {
               <li key={f.id} className={row}>
                 <span><span className="font-semibold">{f.invitee_label}</span> · {t(`settings.fam_${f.status === "invited" && new Date(f.expires_at) < new Date() ? "expired" : f.status}`)}</span>
                 {f.status !== "revoked" ? (
-                  <form action={revokeFamily}><input type="hidden" name="access_id" value={f.id} /><SubmitButton className="btn btn-ghost underline">{t("settings.familyRevoke")}</SubmitButton></form>
+                  <form action={revokeFamily}><input type="hidden" name="access_id" value={f.id} /><SubmitButton className="text-sm text-ink-soft underline">{t("settings.familyRevoke")}</SubmitButton></form>
                 ) : null}
               </li>
             ))}

@@ -7,7 +7,8 @@ import { Alert } from "@/components/ui";
 
 // Two taps on purpose: the first makes the link (after the patient has read what is shared),
 // the second opens the share sheet (browsers only allow that straight from a tap).
-export function DoctorInvite() {
+// another: a doctor is already linked, so start as a quiet text link.
+export function DoctorInvite({ another = false }: { another?: boolean }) {
   const t = useTranslations("people");
   const tc = useTranslations("common");
   const [link, setLink] = useState<string | null>(null);
@@ -26,6 +27,7 @@ export function DoctorInvite() {
   if (link) {
     return (
       <div className="flex flex-col gap-2">
+        {another ? <p className="hint text-sm">{t("doctorConsent")}</p> : null}
         <button type="button" onClick={() => share(link)} className="btn btn-primary self-start">
           {copied ? <Check size={16} aria-hidden="true" /> : <Share2 size={16} aria-hidden="true" />}
           {copied ? t("copied") : t("doctorSend")}
@@ -34,13 +36,22 @@ export function DoctorInvite() {
       </div>
     );
   }
+  const create = () => start(async () => {
+    const r = await createDoctorInviteAction();
+    if (r.ok) setLink(r.link); else setError(true);
+  });
+  if (another) {
+    return (
+      <div>
+        <button type="button" disabled={pending} onClick={create} className="text-sm text-primary underline">{t("doctorInviteAnother")}</button>
+        {error ? <Alert tone="danger">{tc("error")}</Alert> : null}
+      </div>
+    );
+  }
   return (
     <div className="flex flex-col gap-2">
       <p className="hint text-sm">{t("doctorConsent")}</p>
-      <button type="button" disabled={pending} className="btn btn-secondary self-start" onClick={() => start(async () => {
-        const r = await createDoctorInviteAction();
-        if (r.ok) setLink(r.link); else setError(true);
-      })}>{t("doctorInvite")}</button>
+      <button type="button" disabled={pending} className="btn btn-secondary self-start" onClick={create}>{t("doctorInvite")}</button>
       {error ? <Alert tone="danger">{tc("error")}</Alert> : null}
     </div>
   );

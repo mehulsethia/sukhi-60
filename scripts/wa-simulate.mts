@@ -47,7 +47,8 @@ const admin = createAdminClient();
 
 const stamp = String(Date.now()).slice(-6);
 const PATIENT = `9199${stamp}01`, FAMILY = `9199${stamp}02`, DOCTOR = `9199${stamp}03`;
-const label: Record<string, string> = { [PATIENT]: "PATIENT", [FAMILY]: "FAMILY ", [DOCTOR]: "DOCTOR " };
+const DOCTOR2 = `9199${stamp}06`;
+const label: Record<string, string> = { [PATIENT]: "PATIENT", [FAMILY]: "FAMILY ", [DOCTOR]: "DOCTOR ", [DOCTOR2]: "DOCTOR2" };
 
 let n = 0;
 function render(b: Record<string, unknown>): string {
@@ -131,6 +132,32 @@ try {
   check(allText(PATIENT).includes("Ravi is cheering you on"), "patient got the cheer");
   check(allText(PATIENT).includes("Ravi will now get your daily update"), "patient told family joined");
 
+  // Patient invites their own doctor (CARE code): a new number signs up as doctor and is linked
+  await tap(PATIENT, "dv:new");
+  const care1 = allText(PATIENT).match(/CARE-([A-Z0-9]{6})/g)?.pop()?.slice(5) ?? null;
+  check(!!care1 && allText(PATIENT).includes("Forward the next message to your doctor"), "patient got a doctor invite link");
+  await say(FAMILY, `CARE-${care1}`);
+  check(allText(FAMILY).includes("This invite is for a doctor"), "a non-doctor can't accept a doctor invite");
+  await say(DOCTOR2, `CARE-${care1}`);
+  check(allText(DOCTOR2).includes("Asha invited you to see how they follow"), "new doctor sees who invited them");
+  await tap(DOCTOR2, lastId(DOCTOR2, "ob:start:care:"));
+  await say(DOCTOR2, "Dr. Sim Two");
+  await tap(DOCTOR2, "dr:clinic:skip");
+  await tap(DOCTOR2, "dr:rw:none");
+  const { data: d2 } = await admin.from("channel_bindings").select("user_id").eq("external_id", DOCTOR2).single();
+  const { data: d2link } = await admin.from("doctor_patients").select("status").eq("doctor_id", d2!.user_id).maybeSingle();
+  check(d2link?.status === "active", "new doctor linked to the patient after signup");
+  check(allText(DOCTOR2).includes("New patient: Asha invited you"), "new doctor told about the patient");
+  check(allText(PATIENT).includes("Dr. Sim Two accepted your invite"), "patient told the doctor accepted");
+  await say(DOCTOR2, `CARE-${care1}`);
+  check(allText(DOCTOR2).includes("expired or was already used"), "an invite works once");
+  // A doctor who already uses Sukhi accepts straight away
+  await tap(PATIENT, "dv:new");
+  const care2 = allText(PATIENT).match(/CARE-([A-Z0-9]{6})/g)?.pop()?.slice(5) ?? null;
+  check(!!care2 && care2 !== care1, "a new invite has a new code");
+  await say(DOCTOR, `CARE-${care2}`);
+  check(allText(DOCTOR).includes("Done. Asha is now in your patients."), "existing doctor accepts in one step");
+
   // Doctor looks at patients
   await say(DOCTOR, "menu");
   await tap(DOCTOR, "dr:m:patients");
@@ -158,11 +185,13 @@ try {
   const { data: patAfter } = await admin.from("channel_bindings").select("user_id").eq("external_id", PATIENT).neq("status", "revoked").single();
   const { count: plansAfter } = await admin.from("care_plans").select("id", { count: "exact", head: true }).eq("user_id", webUserId);
   const { data: gone } = await admin.from("profiles").select("id").eq("id", patBefore!.user_id).maybeSingle();
-  const { data: dl } = await admin.from("doctor_patients").select("id").eq("patient_id", webUserId).maybeSingle();
+  // Two doctors by now: the clinic code one and the one the patient invited.
+  const { data: dls } = await admin.from("doctor_patients").select("id").eq("patient_id", webUserId);
+  const dl = (dls ?? []).length === 2;
   check(patAfter!.user_id === webUserId, "number now belongs to the web account");
   check((plansAfter ?? 0) >= (plansBefore ?? 1) && (plansBefore ?? 0) > 0, `plans moved to the web account (${plansBefore} → ${plansAfter})`);
   check(!gone, "WhatsApp-only account removed");
-  check(!!dl, "doctor link moved with it");
+  check(dl, "both doctor links moved with it");
   check(allText(PATIENT).includes("What you did here on WhatsApp was added"), "patient told about the merge");
   await say(PATIENT, "today");
 
@@ -269,7 +298,7 @@ try {
   console.error("\nERROR", e);
 } finally {
   // Clean up the throwaway accounts (cascades to plans, bindings, doctor rows).
-  const { data: bindings } = await admin.from("channel_bindings").select("user_id").in("external_id", [PATIENT, FAMILY, DOCTOR, `9199${stamp}04`, `9199${stamp}05`]);
+  const { data: bindings } = await admin.from("channel_bindings").select("user_id").in("external_id", [PATIENT, FAMILY, DOCTOR, DOCTOR2, `9199${stamp}04`, `9199${stamp}05`]);
   const ids = new Set([...(bindings ?? []).map((b) => b.user_id), webUserId, web2UserId, ...extraUsers].filter((x): x is string => !!x));
   for (const id of ids) await admin.auth.admin.deleteUser(id);
   await admin.from("wa_connect_requests").delete().eq("external_id", `9199${stamp}04`);
