@@ -9,7 +9,7 @@ import { dots, newDoctorCode, newRewardCode, scheduleText, waLink, type WaRow } 
 import { d, w } from "@/domain/wa-copy";
 import { send, notify, type WaCtx } from "./send";
 import { clearState, setState } from "./state";
-import { adherenceFor, businessNumber, pctText, todayCounts } from "./data";
+import { adherenceFor, businessNumber, hasActivePlan, pctText, todayCounts } from "./data";
 import { formatReading, recentReadings } from "../readings";
 import { finishClaimedInvites } from "./care";
 
@@ -54,7 +54,11 @@ export async function doctorClinic(ctx: WaCtx, name: string, clinic: string | nu
   } else {
     await ctx.admin.from("doctors").update({ name, clinic: clinic?.slice(0, 120) || null }).eq("user_id", ctx.userId);
   }
-  await ctx.admin.from("profiles").update({ primary_role: "doctor", onboarded_at: new Date().toISOString(), locale: "en" }).eq("id", ctx.userId);
+  // Someone who is already a patient here keeps their default side and language;
+  // they reach the doctor side by typing "clinic".
+  const { data: prof } = await ctx.admin.from("profiles").select("primary_role, onboarded_at").eq("id", ctx.userId).single();
+  const alreadyPatient = prof?.primary_role === "patient" && !!prof.onboarded_at && (await hasActivePlan(ctx.admin, ctx.userId));
+  if (!alreadyPatient) await ctx.admin.from("profiles").update({ primary_role: "doctor", onboarded_at: new Date().toISOString(), locale: "en" }).eq("id", ctx.userId);
   await askReward(ctx, true);
 }
 
@@ -105,6 +109,7 @@ export async function showDoctorMenu(ctx: WaCtx) {
     { id: "dr:m:share", title: d("row_share"), description: d("row_share_d") },
     { id: "dr:m:reward", title: d("row_reward"), description: d("row_reward_d") },
     { id: "dr:m:redeem", title: d("row_redeem"), description: d("row_redeem_d") },
+    { id: "md:me", title: d("row_own_plan"), description: d("row_own_plan_d") },
     { id: "dr:m:help", title: d("row_help") },
   ];
   await send(ctx, { type: "list", body: d("menu_body"), button: "Menu", sections: [{ rows }] });

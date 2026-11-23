@@ -7,7 +7,8 @@ export default async function AcceptPage({ searchParams }: { searchParams: Promi
   const { token } = await searchParams;
   const t = await getTranslations("family");
   const { user } = await getUser();
-  if (!user) redirect(`/login?next=${encodeURIComponent(`/family/accept?token=${token ?? ""}`)}`);
+  // Most family members are new: start them on sign-up (it links to log in), keeping the invite.
+  if (!user) redirect(`/signup?next=${encodeURIComponent(`/family/accept?token=${token ?? ""}`)}`);
   return (
     <main className="mx-auto max-w-md p-6">
       <h1 className="mb-4 text-2xl font-bold">{t("acceptTitle")}</h1>

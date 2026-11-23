@@ -634,7 +634,8 @@
     "summaryFor": "Summary for {name}",
     "summaryIntro": "Shared by them. Shows participation counts only.",
     "revoked": "Access to this summary has been withdrawn.",
-    "openSummary": "Open summary"
+    "openSummary": "Open summary",
+    "ownPlan": "Start your own plan"
   },
   "demo": {
     "banner": "Fictional demo: no real AI, WhatsApp or medical evaluation. Nothing is saved.",
@@ -700,7 +701,9 @@
     "brandPoint1": "Gentle reminders at the times you choose",
     "brandPoint2": "Every honest answer counts, even “not today”",
     "brandPoint3": "Private by default, in English, हिन्दी and मराठी",
-    "brandSub": "Life happens. Sukhi adapts."
+    "brandSub": "Life happens. Sukhi adapts.",
+    "doctorQ": "Are you a doctor?",
+    "doctorLink": "Set up on WhatsApp"
   },
   "app": {
     "morning": "Good morning",

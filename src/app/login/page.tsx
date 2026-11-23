@@ -4,6 +4,7 @@ import { getTranslations } from "next-intl/server";
 import { getUser } from "@/lib/supabase/server";
 import { AuthShell } from "@/components/auth/AuthShell";
 import { LoginForm } from "@/components/auth/LoginForm";
+import { DoctorLink } from "@/components/auth/DoctorLink";
 
 export const metadata: Metadata = { title: "Log in" };
 
@@ -17,6 +18,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
   return (
     <AuthShell title={t("loginTitle")} subtitle={t("loginSubtitle")}>
       <LoginForm next={safeNext(sp.next)} initialError={sp.error === "link" ? t("linkError") : sp.error ? t("genericError") : null} />
+      {sp.next ? null : <DoctorLink />}
     </AuthShell>
   );
 }

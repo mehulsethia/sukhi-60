@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { hatsFrom } from "@/domain/hats";
+import { hatsFrom, waMode } from "@/domain/hats";
 
 describe("hatsFrom", () => {
   const none = { hasPlan: false, isDoctor: false, follows: 0 };
@@ -14,5 +14,16 @@ describe("hatsFrom", () => {
   });
   it("a patient who also follows someone keeps the patient hat without a plan yet", () => {
     expect(hatsFrom({ ...none, follows: 1, primaryRole: "patient" })).toEqual(["patient", "family"]);
+  });
+});
+
+describe("waMode", () => {
+  const now = Date.parse("2026-11-23T10:00:00Z");
+  it("non-doctors are always on the patient side", () => expect(waMode({ isDoctor: false, primaryRole: "doctor" }, now)).toBe("patient"));
+  it("doctor-only accounts are always on the doctor side", () => expect(waMode({ isDoctor: true, primaryRole: "doctor" }, now)).toBe("doctor"));
+  it("a doctor who is also a patient: patient side unless clinic mode is open", () => {
+    expect(waMode({ isDoctor: true, primaryRole: "patient" }, now)).toBe("patient");
+    expect(waMode({ isDoctor: true, primaryRole: "patient", doctorUntil: "2026-11-23T10:20:00Z" }, now)).toBe("doctor");
+    expect(waMode({ isDoctor: true, primaryRole: "patient", doctorUntil: "2026-11-23T09:59:00Z" }, now)).toBe("patient");
   });
 });

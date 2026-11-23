@@ -117,7 +117,9 @@ export function newRewardCode(): string {
 }
 
 /** Plain-language command words (any of the three languages). */
-export type Command = "menu" | "today" | "plan" | "progress" | "proof" | "circle" | "doctor" | "family" | "help" | "settings" | "register_doctor";
+// register_doctor: the bare word "doctor" (sign-up from a new number, "my doctor" otherwise);
+// doctor_signup: an explicit "I am a doctor" from any number; clinic: open the doctor side.
+export type Command = "menu" | "today" | "plan" | "progress" | "proof" | "circle" | "doctor" | "family" | "help" | "settings" | "register_doctor" | "doctor_signup" | "clinic";
 
 const COMMANDS: [Command, RegExp][] = [
   ["menu", /^(menu|hi|hii+|hello|hey|namaste|namaskar|नमस्ते|नमस्कार|मेनू|मेन्यू|start sukhi|sukhi)$/i],
@@ -130,7 +132,9 @@ const COMMANDS: [Command, RegExp][] = [
   ["family", /^(family|परिवार|कुटुंब)$/i],
   ["help", /^(help|\?|मदद|मदत)$/i],
   ["settings", /^(settings|setting|language|भाषा)$/i],
-  ["register_doctor", /^(doctor|i am a doctor|i'm a doctor|register doctor|doctor signup)$/i],
+  ["clinic", /^(clinic|my patients|patients|क्लिनिक)$/i],
+  ["doctor_signup", /^(i am a doctor|i'm a doctor|im a doctor|register doctor|register as doctor|doctor signup)$/i],
+  ["register_doctor", /^doctor$/i],
 ];
 
 export function parseCommand(raw: string): Command | null {

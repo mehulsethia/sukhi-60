@@ -388,6 +388,7 @@ export type Database = {
       channel_bindings: {
         Row: {
           wa_state: string | null
+          wa_doctor_until: string | null
           wa_state_at: string | null
           wa_state_data: Json
           channel: string
@@ -403,6 +404,7 @@ export type Database = {
         }
         Insert: {
           wa_state?: string | null
+          wa_doctor_until?: string | null
           wa_state_at?: string | null
           wa_state_data?: Json
           channel?: string
@@ -418,6 +420,7 @@ export type Database = {
         }
         Update: {
           wa_state?: string | null
+          wa_doctor_until?: string | null
           wa_state_at?: string | null
           wa_state_data?: Json
           channel?: string

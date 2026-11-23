@@ -9,7 +9,8 @@ import { Alert } from "@/components/ui";
 import { PasswordField } from "./PasswordField";
 import { authErrorKey } from "./authErrors";
 
-export function SignupForm() {
+// next: where an invite was taking them (e.g. a family invite), kept through signup.
+export function SignupForm({ next }: { next?: string }) {
   const t = useTranslations("auth");
   const router = useRouter();
   const [email, setEmail] = useState("");
@@ -24,7 +25,7 @@ export function SignupForm() {
     if (password.length < 8) return setError(t("weakPassword"));
     if (!agreed) return setError(t("agreeRequired"));
     setBusy(true);
-    const { data, error: err } = await createClient().auth.signUp({ email, password, options: { emailRedirectTo: authCallbackUrl() } });
+    const { data, error: err } = await createClient().auth.signUp({ email, password, options: { emailRedirectTo: authCallbackUrl(next) } });
     if (err) {
       setBusy(false);
       return setError(t(authErrorKey(err)));
@@ -35,7 +36,7 @@ export function SignupForm() {
       return setError(t("emailTaken"));
     }
     if (data.session) {
-      hardNavigate("/onboarding");
+      hardNavigate(next ?? "/onboarding");
     } else {
       router.push(`/check-email?email=${encodeURIComponent(email)}`);
     }
@@ -54,7 +55,7 @@ export function SignupForm() {
         <span>{t.rich("agree", { terms: (c) => <Link href="/terms" className="link" target="_blank">{c}</Link>, privacy: (c) => <Link href="/privacy" className="link" target="_blank">{c}</Link> })}</span>
       </label>
       <button type="submit" className="btn btn-primary btn-lg w-full" disabled={busy || !email || !password}>{busy ? t("creating") : t("createAccount")}</button>
-      <p className="text-center text-ink-soft">{t("haveAccount")} <Link href="/login" className="link">{t("logInLink")}</Link></p>
+      <p className="text-center text-ink-soft">{t("haveAccount")} <Link href={next ? `/login?next=${encodeURIComponent(next)}` : "/login"} className="link">{t("logInLink")}</Link></p>
     </form>
   );
 }

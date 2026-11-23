@@ -17,7 +17,8 @@ import { audit, getConsents, getProfile } from "../core";
 import { decideProposal, runAssistant } from "../agent";
 import { fetchWhatsAppMedia, sendWhatsAppText, transcribe } from "../providers";
 import { send, sendDirect, releaseHeld, type WaCtx } from "./send";
-import { clearState, currentState, setState, type StateData } from "./state";
+import { clearState, currentState, enterDoctorMode, leaveDoctorMode, setState, type StateData } from "./state";
+import { DOCTOR_MODE_MINUTES, waMode, type WaMode } from "@/domain/hats";
 import { createWaAccount, grantPatientConsents } from "./account";
 import { hasActivePlan } from "./data";
 import { connectNumber, consumeCodeForBoundNumber, createConnectLink, findWebMatch, matchRecentlyAsked, webLoginLink } from "./link";
@@ -26,11 +27,11 @@ import * as F from "./family";
 import * as D from "./doctor";
 import { acceptCareInvite, claimCareInvite, findCareInvite } from "./care";
 
-type Binding = { id: string; user_id: string; status: string; wa_state: string | null; wa_state_data: unknown; wa_state_at: string | null };
+type Binding = { id: string; user_id: string; status: string; wa_state: string | null; wa_state_data: unknown; wa_state_at: string | null; wa_doctor_until: string | null };
 
 export async function handleWhatsAppMessage(admin: AdminClient, msg: InboundMessage): Promise<void> {
   const from = msg.from;
-  const { data: binding } = await admin.from("channel_bindings").select("id, user_id, status, wa_state, wa_state_data, wa_state_at").eq("channel", "whatsapp").eq("external_id", from).neq("status", "revoked").maybeSingle();
+  const { data: binding } = await admin.from("channel_bindings").select("id, user_id, status, wa_state, wa_state_data, wa_state_at, wa_doctor_until").eq("channel", "whatsapp").eq("external_id", from).neq("status", "revoked").maybeSingle();
   if (!binding) return handleNewNumber(admin, msg);
 
   await admin.from("channel_bindings").update({ last_inbound_at: new Date(Math.max(msg.timestamp * 1000, Date.now() - 60_000)).toISOString() }).eq("id", binding.id);
@@ -57,6 +58,9 @@ export async function handleWhatsAppMessage(admin: AdminClient, msg: InboundMess
   const { data: inserted } = await admin.from("messages").select("id").eq("provider_message_id", msg.id).maybeSingle();
 
   const role = (profile as { primary_role?: string }).primary_role ?? "patient";
+  const { data: doctorRow } = await admin.from("doctors").select("user_id").eq("user_id", userId).maybeSingle();
+  const isDoctor = !!doctorRow;
+  const mode = waMode({ isDoctor, primaryRole: role, doctorUntil: binding.wa_doctor_until });
 
   // An account made on WhatsApp whose number is also saved on a web account: offer to join them.
   if (!msg.replyId && (profile as { signup_channel?: string }).signup_channel === "whatsapp") {
@@ -73,13 +77,14 @@ export async function handleWhatsAppMessage(admin: AdminClient, msg: InboundMess
     if (routed.route === "link_code") return boundLinkCode(ctx, routed.code);
   }
 
-  if (msg.replyId) return handleTap(ctx, msg.replyId, binding);
+  if (msg.replyId) return handleTap(ctx, msg.replyId, binding, { isDoctor, mode, role });
 
   const st = currentState(binding);
 
   // Photos and documents
   if ((msg.kind === "image" || msg.kind === "document") && msg.mediaId) {
-    if (role === "doctor") return send(ctx, { type: "text", body: d("help") });
+    // Doctor side ignores photos, unless Sukhi just asked this person for one (their own plan).
+    if (mode === "doctor" && !["rx_wait", "rx_fix", "proof"].includes(st?.state ?? "")) return send(ctx, { type: "text", body: d("help") });
     const media = await fetchWhatsAppMedia(msg.mediaId, msg.kind === "image" ? "image" : "document");
     if (!media.ok) {
       if (["unsupported_media_type", "media_too_large", "untrusted_media_host"].includes(media.error)) return send(ctx, { type: "text", body: reply(ctx.locale, "media_unsupported") });
@@ -108,15 +113,18 @@ export async function handleWhatsAppMessage(admin: AdminClient, msg: InboundMess
 
   // An open question takes the text first (unless it's clearly a command word).
   const cmd = parseCommand(userText);
-  if (st && !(cmd && cmd !== "register_doctor" && !["ob_name", "dr_name", "dr_clinic", "dr_note", "dr_reward"].includes(st.state))) {
+  if (st && !(cmd && cmd !== "register_doctor" && cmd !== "doctor_signup" && !["ob_name", "dr_name", "dr_clinic", "dr_note", "dr_reward"].includes(st.state))) {
     const handled = await handleStateText(ctx, st.state, st.data, userText);
     if (handled) return;
   }
 
   const code = parseInviteCode(userText);
-  if (code) return inviteForExisting(ctx, code, role);
+  if (code) return inviteForExisting(ctx, code, role, isDoctor);
 
-  if (role === "doctor") {
+  if (cmd === "doctor_signup") return isDoctor ? openClinic(ctx, role) : startDoctorHere(ctx, null);
+  if (cmd === "clinic" && isDoctor) return openClinic(ctx, role);
+  if (mode === "doctor") {
+    if (role !== "doctor") await enterDoctorMode(admin, binding.id, DOCTOR_MODE_MINUTES); // keep clinic mode open while in use
     if (cmd === "help") return send(ctx, { type: "buttons", body: d("help"), buttons: [{ id: "dr:m:menu", title: "Menu" }] });
     return D.showDoctorMenu(ctx);
   }
@@ -205,7 +213,8 @@ async function handleNewNumber(admin: AdminClient, msg: InboundMessage): Promise
     if (!inv) return void (await sendDirect(from, { type: "text", body: d("care_invalid") }));
     return void (await sendDirect(from, { type: "buttons", body: d("care_welcome", { name: inv.name || "A patient" }), buttons: [{ id: `ob:start:care:${code.code}`, title: "Start as doctor" }, { id: "ob:no", title: "Not now" }] }));
   }
-  if (parseCommand(text) === "register_doctor") return void (await sendDirect(from, { type: "buttons", body: d("welcome").split("\n\n").slice(0, 2).join("\n\n"), buttons: [{ id: "ob:start:doc", title: "Start as doctor" }, { id: "ob:no", title: "Not now" }] }));
+  const newCmd = parseCommand(text);
+  if (newCmd === "register_doctor" || newCmd === "doctor_signup") return void (await sendDirect(from, { type: "buttons", body: d("welcome").split("\n\n").slice(0, 2).join("\n\n"), buttons: [{ id: "ob:start:doc", title: "Start as doctor" }, { id: "ob:no", title: "Not now" }] }));
   await sendDirect(from, { type: "buttons", body: w("en", "welcome_new"), buttons: startButtons("en", "ob:start", { id: "ob:web", title: w("en", "btn_web") }) });
 }
 
@@ -296,10 +305,17 @@ async function channelCommand(admin: AdminClient, binding: Binding, userId: stri
 // ---------------------------------------------------------------------------
 const UUID = /^[0-9a-f-]{36}$/i;
 
-async function handleTap(ctx: WaCtx, id: string, binding: Binding): Promise<void> {
+async function handleTap(ctx: WaCtx, id: string, binding: Binding, who: { isDoctor: boolean; mode: WaMode; role: string }): Promise<void> {
   const parts = id.split(":");
   const [ns, a, b, c] = parts;
   const st = currentState(binding);
+
+  // Switching sides (one number, doctor and patient)
+  if (ns === "md" && a === "dr" && who.isDoctor) return openClinic(ctx, who.role);
+  if (ns === "md" && a === "me") return becomePatient(ctx);
+  if (ns === "dv" && a === "reg") return who.isDoctor ? openClinic(ctx, who.role) : startDoctorHere(ctx, b && /^[A-HJ-NP-Z2-9]{6}$/.test(b) ? b : null);
+  // A doctor-side tap keeps clinic mode open for typed replies that follow.
+  if (ns === "dr" && who.isDoctor && who.role !== "doctor") await enterDoctorMode(ctx.admin, ctx.bindingId, DOCTOR_MODE_MINUTES);
 
   if (ns === "m") return a === "addplan" ? P.askPath(ctx) : view(ctx, a);
   if (ns === "lk") {
@@ -342,6 +358,8 @@ async function handleTap(ctx: WaCtx, id: string, binding: Binding): Promise<void
   }
   if (ns === "dc") {
     if (a === "yes" && UUID.test(b ?? "")) {
+      // A doctor or family member joining a doctor as a patient: their default becomes the patient side.
+      if (who.role !== "patient") await makePatientDefault(ctx);
       const name = await P.linkDoctor(ctx, b);
       const prefix = name ? w(ctx.locale, "doctor_linked", { doctor: name }) : undefined;
       if (await hasActivePlan(ctx.admin, ctx.userId)) return P.showToday(ctx, prefix);
@@ -360,11 +378,7 @@ async function handleTap(ctx: WaCtx, id: string, binding: Binding): Promise<void
     if (a === "rm" && UUID.test(b ?? "")) return F.removeFamily(ctx, b);
     if (a === "see" && UUID.test(b ?? "")) return F.showFollow(ctx, b);
     if (a === "cheer" && UUID.test(b ?? "")) return F.cheer(ctx, b);
-    if (a === "own") {
-      await grantPatientConsents(ctx.admin, ctx.userId);
-      await ctx.admin.from("profiles").update({ primary_role: "patient" }).eq("id", ctx.userId);
-      return P.askPath(ctx);
-    }
+    if (a === "own") return becomePatient(ctx);
   }
   if (ns === "cl") {
     if (a === "invite" && UUID.test(b ?? "")) return P.inviteCircle(ctx, b);
@@ -409,8 +423,37 @@ async function handleTap(ctx: WaCtx, id: string, binding: Binding): Promise<void
     if (a === "pt" && UUID.test(b ?? "") && UUID.test(c ?? "")) return D.toggleProof(ctx, b, c);
   }
   // Unknown or stale tap: show the right menu.
-  const { data: p } = await ctx.admin.from("profiles").select("primary_role").eq("id", ctx.userId).single();
-  return p?.primary_role === "doctor" ? D.showDoctorMenu(ctx) : P.showMenu(ctx);
+  return who.mode === "doctor" ? D.showDoctorMenu(ctx) : P.showMenu(ctx);
+}
+
+// ---------------------------------------------------------------------------
+// One number, two sides
+// ---------------------------------------------------------------------------
+/** "clinic": the doctor side, kept open while they use it. */
+async function openClinic(ctx: WaCtx, role: string) {
+  if (role !== "doctor") await enterDoctorMode(ctx.admin, ctx.bindingId, DOCTOR_MODE_MINUTES);
+  return D.showDoctorMenu(ctx);
+}
+
+/** Their own reminders and plan become the default side. */
+async function makePatientDefault(ctx: WaCtx) {
+  await grantPatientConsents(ctx.admin, ctx.userId);
+  await ctx.admin.from("profiles").update({ primary_role: "patient" }).eq("id", ctx.userId);
+  await leaveDoctorMode(ctx.admin, ctx.bindingId);
+}
+
+/** "My own plan" (doctor or family member): switch to the patient side. */
+async function becomePatient(ctx: WaCtx) {
+  await makePatientDefault(ctx);
+  return (await hasActivePlan(ctx.admin, ctx.userId)) ? P.showMenu(ctx) : P.askPath(ctx);
+}
+
+/** A patient (or family member) registers as a doctor on this same number. */
+async function startDoctorHere(ctx: WaCtx, careCode: string | null) {
+  if (careCode) await claimCareInvite(ctx.admin, ctx.userId, careCode);
+  await enterDoctorMode(ctx.admin, ctx.bindingId, DOCTOR_MODE_MINUTES);
+  await send(ctx, { type: "text", body: d("welcome").split("\n\n").slice(0, 2).join("\n\n") });
+  return D.startDoctorSignup(ctx);
 }
 
 async function view(ctx: WaCtx, name: string) {
@@ -504,13 +547,13 @@ async function handleStateText(ctx: WaCtx, state: string, data: StateData, text:
 // ---------------------------------------------------------------------------
 // Invite codes from people who already have an account
 // ---------------------------------------------------------------------------
-async function inviteForExisting(ctx: WaCtx, code: InviteCode, role: string) {
+async function inviteForExisting(ctx: WaCtx, code: InviteCode, role: string, isDoctor: boolean) {
   if (code.kind === "circle") return P.joinCircleCode(ctx, code.code);
   if (code.kind === "care") {
     const r = await acceptCareInvite(ctx.admin, ctx.userId, code.code);
     if (r.ok) return send(ctx, { type: "buttons", body: d("care_linked", { name: r.patientName }), buttons: [{ id: `dr:p:${r.linkId}`, title: "See patient" }, { id: "dr:m:menu", title: "Menu" }] });
-    if (r.reason === "not_doctor") return send(ctx, { type: "buttons", body: w(ctx.locale, "care_not_doctor"), buttons: [{ id: "m:menu", title: w(ctx.locale, "btn_menu") }] });
-    return send(ctx, { type: "text", body: role === "doctor" ? d("care_invalid") : w(ctx.locale, r.reason === "self" ? "care_self" : "care_invalid") });
+    if (r.reason === "not_doctor") return send(ctx, { type: "buttons", body: w(ctx.locale, "care_not_doctor"), buttons: [{ id: `dv:reg:${code.code}`, title: w(ctx.locale, "btn_im_doctor") }, { id: "m:menu", title: w(ctx.locale, "btn_menu") }] });
+    return send(ctx, { type: "text", body: isDoctor ? d("care_invalid") : w(ctx.locale, r.reason === "self" ? "care_self" : "care_invalid") });
   }
   if (code.kind === "family") {
     const r = await F.acceptFamily(ctx.admin, ctx.userId, code.code);
@@ -518,10 +561,10 @@ async function inviteForExisting(ctx: WaCtx, code: InviteCode, role: string) {
     await send(ctx, { type: "text", body: w(ctx.locale, "family_joined_member", { name: r.name }) });
     return F.showFollow(ctx, r.accessId);
   }
-  if (role === "doctor") return send(ctx, { type: "text", body: d("already_patient_side") });
   const { data: doc } = await ctx.admin.from("doctors").select("user_id").eq("code", code.code).maybeSingle();
   if (!doc) return send(ctx, { type: "text", body: w(ctx.locale, "doctor_invalid") });
-  if (role === "family") await grantPatientConsents(ctx.admin, ctx.userId);
+  if (doc.user_id === ctx.userId) return send(ctx, { type: "buttons", body: d("own_code"), buttons: [{ id: "dr:m:share", title: "Share my link" }, { id: "dr:m:menu", title: "Menu" }] });
+  // Joining another doctor as a patient (a doctor can be someone's patient too).
   return P.askDoctorConsent(ctx, doc.user_id);
 }
 

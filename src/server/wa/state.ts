@@ -43,3 +43,12 @@ export async function setState(admin: AdminClient, bindingId: string, state: WaS
 export async function clearState(admin: AdminClient, bindingId: string) {
   await admin.from("channel_bindings").update({ wa_state: null, wa_state_data: {}, wa_state_at: null }).eq("id", bindingId);
 }
+
+/** Open (or keep open) the doctor side for someone who is also a patient. */
+export async function enterDoctorMode(admin: AdminClient, bindingId: string, minutes = 30) {
+  await admin.from("channel_bindings").update({ wa_doctor_until: new Date(Date.now() + minutes * 60_000).toISOString() }).eq("id", bindingId);
+}
+
+export async function leaveDoctorMode(admin: AdminClient, bindingId: string) {
+  await admin.from("channel_bindings").update({ wa_doctor_until: null }).eq("id", bindingId);
+}

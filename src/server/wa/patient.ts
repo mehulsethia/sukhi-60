@@ -37,10 +37,11 @@ export async function showMenu(ctx: WaCtx) {
   const l = ctx.locale;
   const { data: follows } = await ctx.admin.from("family_access").select("id, patient_id").eq("member_user_id", ctx.userId).eq("status", "active").limit(3);
   const names = await namesOf(ctx.admin, (follows ?? []).map((f) => f.patient_id));
-  const { data: prof } = await ctx.admin.from("profiles").select("primary_role").eq("id", ctx.userId).single();
+  const [{ data: prof }, { data: doc }] = await Promise.all([ctx.admin.from("profiles").select("primary_role").eq("id", ctx.userId).single(), ctx.admin.from("doctors").select("user_id").eq("user_id", ctx.userId).maybeSingle()]);
+  const clinicRow: WaRow[] = doc ? [{ id: "md:dr", title: w(l, "row_clinic"), description: w(l, "row_clinic_d") }] : [];
   const followRows: WaRow[] = (follows ?? []).map((f) => ({ id: `fm:see:${f.id}`, title: w(l, "row_follow", { name: names.get(f.patient_id) ?? "" }), description: w(l, "row_follow_d") }));
   if (prof?.primary_role === "family") {
-    await send(ctx, { type: "list", body: w(l, "menu_body"), button: w(l, "btn_menu"), sections: [{ rows: [...followRows, { id: "fm:own", title: w(l, "row_own_plan"), description: w(l, "row_own_plan_d") }, { id: "m:settings", title: w(l, "row_settings"), description: w(l, "row_settings_d") }, { id: "m:help", title: w(l, "row_help") }] }] });
+    await send(ctx, { type: "list", body: w(l, "menu_body"), button: w(l, "btn_menu"), sections: [{ rows: [...followRows, ...clinicRow, { id: "fm:own", title: w(l, "row_own_plan"), description: w(l, "row_own_plan_d") }, { id: "m:settings", title: w(l, "row_settings"), description: w(l, "row_settings_d") }, { id: "m:help", title: w(l, "row_help") }] }] });
     return;
   }
   const rows: WaRow[] = [
@@ -52,6 +53,7 @@ export async function showMenu(ctx: WaCtx) {
     { id: "m:doctor", title: w(l, "row_doctor"), description: w(l, "row_doctor_d") },
     { id: "m:family", title: w(l, "row_family"), description: w(l, "row_family_d") },
     ...followRows.slice(0, 1),
+    ...clinicRow,
     { id: "m:settings", title: w(l, "row_settings"), description: w(l, "row_settings_d") },
     { id: "m:help", title: w(l, "row_help") },
   ];
@@ -563,7 +565,8 @@ export async function inviteMyDoctor(ctx: WaCtx) {
 // ---------------------------------------------------------------------------
 export async function showSettings(ctx: WaCtx) {
   const l = ctx.locale;
-  const { data: prof } = await ctx.admin.from("profiles").select("signup_channel, quiet_start, quiet_end").eq("id", ctx.userId).single();
+  const [{ data: prof }, { data: doc }] = await Promise.all([ctx.admin.from("profiles").select("signup_channel, quiet_start, quiet_end").eq("id", ctx.userId).single(), ctx.admin.from("doctors").select("user_id").eq("user_id", ctx.userId).maybeSingle()]);
+  const isDoctor = !!doc;
   await send(ctx, {
     type: "list",
     body: w(l, "settings_body"),
@@ -576,6 +579,7 @@ export async function showSettings(ctx: WaCtx) {
       { id: "st:pause", title: w(l, "row_pause"), description: w(l, "row_pause_d") },
       { id: "st:stop", title: w(l, "row_stop") },
       { id: "st:web", title: w(l, "row_web"), description: w(l, "row_web_d") },
+      ...(isDoctor ? [] : [{ id: "dv:reg", title: w(l, "row_im_doctor"), description: w(l, "row_im_doctor_d") }]),
       ...(prof?.signup_channel === "whatsapp" ? [{ id: "st:link", title: w(l, "row_link_web"), description: w(l, "row_link_web_d") }] : []),
     ] }],
   });

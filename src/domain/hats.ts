@@ -13,3 +13,17 @@ export function hatsFrom(f: HatFacts): Hat[] {
   if (f.follows > 0) hats.push("family");
   return hats;
 }
+
+export type WaMode = "patient" | "doctor";
+export const DOCTOR_MODE_MINUTES = 30;
+
+/**
+ * Which side of WhatsApp free text goes to. Doctor-only accounts (default "doctor") always get
+ * the doctor side; anyone else who is also a doctor gets it while "clinic" mode is open.
+ * Button taps carry their own side in the id, so this only decides typed messages and photos.
+ */
+export function waMode(f: { isDoctor: boolean; primaryRole?: string | null; doctorUntil?: string | null }, now = Date.now()): WaMode {
+  if (!f.isDoctor) return "patient";
+  if (f.primaryRole === "doctor") return "doctor";
+  return f.doctorUntil && Date.parse(f.doctorUntil) > now ? "doctor" : "patient";
+}

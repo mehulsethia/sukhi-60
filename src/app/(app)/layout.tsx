@@ -16,8 +16,14 @@ export const dynamic = "force-dynamic";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const { supabase, user } = await requireUser();
-  const { data: profile } = await supabase.from("profiles").select("onboarded_at, display_name, phone").eq("id", user.id).single();
-  if (!profile?.onboarded_at) redirect("/onboarding");
+  const { data: profile } = await supabase.from("profiles").select("onboarded_at, display_name, phone, primary_role").eq("id", user.id).single();
+  if (!profile?.onboarded_at || profile.primary_role === "family") {
+    // Came as family (follows someone, no plan of their own): land on that person's summary,
+    // not patient onboarding. Their page links to onboarding if they want a plan.
+    const { data: follow } = await supabase.from("family_access").select("id").eq("member_user_id", user.id).eq("status", "active").limit(1).maybeSingle();
+    if (follow) redirect(`/family/${follow.id}`);
+    if (!profile?.onboarded_at) redirect("/onboarding");
+  }
   // Every account has a phone number (it connects WhatsApp to this account).
   if (!profile.phone) redirect("/phone");
   const chatSeen = (await cookies()).get("sukhi_chat_seen")?.value ?? profile.onboarded_at;

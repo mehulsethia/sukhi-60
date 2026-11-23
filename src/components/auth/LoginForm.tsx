@@ -61,7 +61,7 @@ export function LoginForm({ next, initialError }: { next: string; initialError: 
       <button type="submit" className="btn btn-primary btn-lg w-full" disabled={busy || !email || !password}>{busy ? t("loggingIn") : t("logIn")}</button>
       <div className="flex items-center gap-3 text-sm text-ink-soft" aria-hidden="true"><span className="h-px flex-1 bg-line" />{t("or")}<span className="h-px flex-1 bg-line" /></div>
       <button type="button" className="btn btn-secondary w-full" onClick={magic} disabled={busy || !email}>{t("magic")}</button>
-      <p className="text-center text-ink-soft">{t("noAccount")} <Link href="/signup" className="link">{t("signUpLink")}</Link></p>
+      <p className="text-center text-ink-soft">{t("noAccount")} <Link href={next === "/today" ? "/signup" : `/signup?next=${encodeURIComponent(next)}`} className="link">{t("signUpLink")}</Link></p>
     </form>
   );
 }

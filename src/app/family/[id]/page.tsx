@@ -1,5 +1,6 @@
 import { getLocale, getTranslations } from "next-intl/server";
 import { notFound } from "next/navigation";
+import Link from "next/link";
 import { requireUser } from "@/lib/supabase/server";
 import { fmtDate, fmtDateTime } from "@/lib/format";
 import { markFamilyAlertsSeen } from "@/app/actions";
@@ -23,7 +24,7 @@ export default async function FamilySummary({ params }: { params: Promise<{ id: 
   const hasAlerts = s.scopes.includes("alerts");
   const [{ data: alerts }, { data: me }] = await Promise.all([
     hasAlerts ? supabase.from("family_alerts").select("id, kind, created_at, seen_at").eq("access_id", id).eq("member_user_id", user.id).order("created_at", { ascending: false }).limit(10) : Promise.resolve({ data: [] as { id: string; kind: string; created_at: string; seen_at: string | null }[] }),
-    supabase.from("profiles").select("timezone").eq("id", user.id).maybeSingle(),
+    supabase.from("profiles").select("timezone, onboarded_at, primary_role").eq("id", user.id).maybeSingle(),
   ]);
   if (alerts?.some((a) => !a.seen_at)) await markFamilyAlertsSeen(id);
   const name = s.first_name ?? t("companion.someone");
@@ -54,6 +55,7 @@ export default async function FamilySummary({ params }: { params: Promise<{ id: 
         <tbody>{s.days.map((d) => <tr key={d.date} className="border-t border-line"><th scope="row" className="py-2">{fmtDate(d.date, locale)}</th><td>{d.responded}</td><td>{d.completed}</td></tr>)}</tbody>
       </table>
       {s.garden_points !== null ? <p className="mt-4">{t("progress.points", { points: s.garden_points })}</p> : null}
+      {!me?.onboarded_at || me.primary_role === "family" ? <p className="mt-8 text-sm"><Link href="/onboarding" className="link">{t("family.ownPlan")}</Link></p> : null}
     </main>
   );
 }
