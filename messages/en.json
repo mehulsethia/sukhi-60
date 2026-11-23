@@ -1597,5 +1597,33 @@
     "useWeb": "Use the web app",
     "whatsappOnly": "Send {code} to Sukhi on WhatsApp.",
     "expired": "This invite has expired or was already used."
+  },
+  "switcher": {
+    "label": "Switch view",
+    "me": "You",
+    "clinic": "Clinic",
+    "someone": "Someone",
+    "myPlan": "Your plan",
+    "caringFor": "Caring for",
+    "onWhatsApp": "Opens WhatsApp"
+  },
+  "caring": {
+    "title": "Caring for",
+    "eyebrow": "Caring for",
+    "today": "Today",
+    "todayCount": "{done} of {total} done",
+    "nothingToday": "Nothing planned today",
+    "nothingPlanned": "Nothing planned",
+    "week": "Last 7 days",
+    "weekPct": "Done",
+    "streak": "Streak",
+    "days": "{n, plural, one {# day} other {# days}}",
+    "points": "Points",
+    "cheer": "Cheer {name} on",
+    "cheerSent": "Cheer sent",
+    "cheerReached": "{name} will see it soon.",
+    "cheerUnreached": "{name} hasn't turned on notifications yet.",
+    "cheerError": "That didn't go through. Try again.",
+    "privacy": "You see counts only, never {name}'s chats or health details."
   }
 }

@@ -10,6 +10,7 @@ import { w } from "@/domain/wa-copy";
 import { sha256Hex } from "@/domain/router";
 import { send, notify, type WaCtx } from "./send";
 import { adherenceFor, businessNumber, pctText, streakFor, todayCounts } from "./data";
+import { sendPush } from "@/server/push";
 
 const menuBtn = (l: string) => ({ id: "m:menu", title: w(l, "btn_menu") });
 
@@ -112,14 +113,28 @@ export async function showFollow(ctx: WaCtx, accessId: string) {
   await send(ctx, { type: "buttons", body: await summaryText(ctx.admin, a.patient_id, l), buttons: [{ id: `fm:cheer:${a.id}`, title: w(l, "btn_cheer") }, menuBtn(l)] });
 }
 
+/**
+ * A family member cheers the person they follow (WhatsApp tap or web button). Goes out on
+ * WhatsApp (held for their next message if the window is closed) and as a push. At most one
+ * per member per hour reaches them. Returns false if the access is not active.
+ */
+export async function sendCheer(admin: AdminClient, accessId: string, memberId: string): Promise<{ ok: boolean; reached: boolean }> {
+  const { data: a } = await admin.from("family_access").select("id, patient_id").eq("id", accessId).eq("member_user_id", memberId).eq("status", "active").maybeSingle();
+  if (!a) return { ok: false, reached: false };
+  const [{ data: me }, { data: patient }] = await Promise.all([admin.from("profiles").select("display_name").eq("id", memberId).single(), admin.from("profiles").select("locale").eq("id", a.patient_id).single()]);
+  const body = w(patient?.locale, "cheer_received", { name: me?.display_name?.split(" ")[0] ?? "" });
+  const hour = new Date().toISOString().slice(0, 13);
+  const [wa, pushed] = await Promise.all([
+    notify(admin, a.patient_id, { type: "text", body }, `cheer:${a.id}:${hour}`, { hold: true }),
+    sendPush(admin, a.patient_id, { title: "Sukhi", body, url: "/today", tag: `cheer:${a.id}` }).catch(() => 0),
+  ]);
+  return { ok: true, reached: wa !== "blocked" || pushed > 0 };
+}
+
 export async function cheer(ctx: WaCtx, accessId: string) {
-  const l = ctx.locale;
-  const { data: a } = await ctx.admin.from("family_access").select("id, patient_id").eq("id", accessId).eq("member_user_id", ctx.userId).eq("status", "active").maybeSingle();
-  if (!a) return;
-  const [{ data: me }, { data: patient }] = await Promise.all([ctx.admin.from("profiles").select("display_name").eq("id", ctx.userId).single(), ctx.admin.from("profiles").select("locale").eq("id", a.patient_id).single()]);
-  // One cheer per member per hour reaches the patient (dedupe key).
-  await notify(ctx.admin, a.patient_id, { type: "text", body: w(patient?.locale, "cheer_received", { name: me?.display_name?.split(" ")[0] ?? "" }) }, `cheer:${a.id}:${new Date().toISOString().slice(0, 13)}`, { hold: true });
-  await send(ctx, { type: "buttons", body: w(l, "cheer_sent"), buttons: [menuBtn(l)] });
+  const r = await sendCheer(ctx.admin, accessId, ctx.userId);
+  if (!r.ok) return;
+  await send(ctx, { type: "buttons", body: w(ctx.locale, "cheer_sent"), buttons: [menuBtn(ctx.locale)] });
 }
 
 /** Evening update to every family member with WhatsApp, around 8 pm in the patient's timezone. */

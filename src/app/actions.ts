@@ -683,6 +683,14 @@ export async function markFamilyAlertsSeen(accessId: string) {
   await supabase.from("family_alerts").update({ seen_at: new Date().toISOString() }).eq("access_id", accessId).eq("member_user_id", user.id).is("seen_at", null);
 }
 
+/** Family member: send a cheer to the person they follow ("Caring for" view). */
+export async function cheerAction(accessId: string): Promise<{ ok: boolean; reached: boolean }> {
+  const { user } = await requireUser();
+  if (!z.string().uuid().safeParse(accessId).success) return { ok: false, reached: false };
+  const { sendCheer } = await import("@/server/wa/family");
+  return sendCheer(createAdminClient(), accessId, user.id);
+}
+
 // ---------------------------------------------------------------------------
 // Doctor-visit prep: questions to ask (stored as confirmed "open question" memories)
 // ---------------------------------------------------------------------------

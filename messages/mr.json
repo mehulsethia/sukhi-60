@@ -1597,5 +1597,33 @@
     "useWeb": "वेब ॲप वापरा",
     "whatsappOnly": "WhatsApp वर सुखीला {code} पाठवा.",
     "expired": "हे आमंत्रण जुने झाले किंवा वापरले गेले."
+  },
+  "switcher": {
+    "label": "दृश्य बदला",
+    "me": "तुम्ही",
+    "clinic": "क्लिनिक",
+    "someone": "कोणीतरी",
+    "myPlan": "तुमची योजना",
+    "caringFor": "काळजी",
+    "onWhatsApp": "WhatsApp उघडेल"
+  },
+  "caring": {
+    "title": "काळजी",
+    "eyebrow": "काळजी",
+    "today": "आज",
+    "todayCount": "{total} पैकी {done} पूर्ण",
+    "nothingToday": "आज काही ठरलेले नाही",
+    "nothingPlanned": "काही ठरलेले नव्हते",
+    "week": "मागील 7 दिवस",
+    "weekPct": "पूर्ण",
+    "streak": "सलग",
+    "days": "{n, plural, one {# दिवस} other {# दिवस}}",
+    "points": "गुण",
+    "cheer": "{name} यांना प्रोत्साहन द्या",
+    "cheerSent": "प्रोत्साहन पाठवले",
+    "cheerReached": "{name} यांना लवकरच दिसेल.",
+    "cheerUnreached": "{name} यांच्या सूचना अजून चालू नाहीत, त्यामुळे कदाचित हे पोहोचणार नाही.",
+    "cheerError": "पाठवता आले नाही. पुन्हा प्रयत्न करा.",
+    "privacy": "तुम्हाला फक्त आकडे दिसतात, {name} यांच्या गप्पा किंवा आरोग्याची माहिती नाही."
   }
 }

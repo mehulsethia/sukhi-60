@@ -1597,5 +1597,33 @@
     "useWeb": "वेब ऐप इस्तेमाल करें",
     "whatsappOnly": "WhatsApp पर सुखी को {code} भेजें।",
     "expired": "यह न्योता पुराना हो गया या इस्तेमाल हो चुका।"
+  },
+  "switcher": {
+    "label": "दृश्य बदलें",
+    "me": "आप",
+    "clinic": "क्लिनिक",
+    "someone": "कोई",
+    "myPlan": "आपकी योजना",
+    "caringFor": "देखभाल",
+    "onWhatsApp": "WhatsApp खुलेगा"
+  },
+  "caring": {
+    "title": "देखभाल",
+    "eyebrow": "देखभाल",
+    "today": "आज",
+    "todayCount": "{total} में से {done} पूरे",
+    "nothingToday": "आज कुछ तय नहीं है",
+    "nothingPlanned": "कुछ तय नहीं था",
+    "week": "पिछले 7 दिन",
+    "weekPct": "पूरे",
+    "streak": "लगातार",
+    "days": "{n, plural, one {# दिन} other {# दिन}}",
+    "points": "अंक",
+    "cheer": "{name} का हौसला बढ़ाएं",
+    "cheerSent": "हौसला भेज दिया",
+    "cheerReached": "{name} को जल्द दिखेगा।",
+    "cheerUnreached": "{name} के नोटिफ़िकेशन अभी चालू नहीं हैं, शायद यह उन तक न पहुंचे।",
+    "cheerError": "नहीं भेजा जा सका। फिर कोशिश करें।",
+    "privacy": "आपको सिर्फ़ गिनती दिखती है, {name} की बातचीत या सेहत की जानकारी नहीं।"
   }
 }

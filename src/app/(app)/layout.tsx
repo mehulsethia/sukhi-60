@@ -11,6 +11,9 @@ import { ActivityPing } from "@/components/ActivityPing";
 import { TopTitle } from "@/components/TopTitle";
 import { cookies } from "next/headers";
 import { nowMs } from "@/lib/format";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { getSwitchOptions } from "@/server/care-for";
+import { RoleSwitcher } from "@/components/RoleSwitcher";
 
 export const dynamic = "force-dynamic";
 
@@ -27,10 +30,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   // Every account has a phone number (it connects WhatsApp to this account).
   if (!profile.phone) redirect("/phone");
   const chatSeen = (await cookies()).get("sukhi_chat_seen")?.value ?? profile.onboarded_at;
-  const [t, unreadChat] = await Promise.all([
+  const [t, unreadChat, switchOpts] = await Promise.all([
     getTranslations(),
     // Messages Sukhi started (reminders, check-ins) since the chat was last opened.
     supabase.from("messages").select("id", { count: "exact", head: true }).gt("created_at", chatSeen).eq("role", "assistant").eq("channel", "system").then((r) => r.count ?? 0, () => 0),
+    getSwitchOptions(createAdminClient(), user.id, "").catch(() => []),
   ]);
   const name = profile.display_name || user.email || "";
   const initial = (profile.display_name || user.email || "?").trim().charAt(0).toUpperCase();
@@ -61,6 +65,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             <TopTitle />
           </div>
           <div className="flex items-center gap-1.5">
+            <RoleSwitcher options={switchOpts} />
             <NotificationBell />
             <Link href="/settings" aria-label={t("app.account")} className="flex h-9 w-9 items-center justify-center rounded-full bg-primary-soft text-[0.8rem] font-semibold text-primary lg:hidden">{initial}</Link>
           </div>
