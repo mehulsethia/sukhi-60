@@ -18,10 +18,16 @@ export async function getFollows(admin: AdminClient, userId: string): Promise<{ 
 
 /** The views this account can switch between (shown only when there are two or more). */
 export async function getSwitchOptions(admin: AdminClient, userId: string, fallbackName: string): Promise<SwitchOption[]> {
-  const [follows, plan, doctor, profile] = await Promise.all([
-    getFollows(admin, userId),
-    admin.from("plan_items").select("id", { count: "exact", head: true }).eq("user_id", userId).eq("status", "confirmed"),
+  // Runs on every app page. Most people neither follow anyone nor are doctors: two cheap
+  // lookups settle that, and the rest is only fetched for people who may see the switcher.
+  const [hasFollow, doctor] = await Promise.all([
+    admin.from("family_access").select("id", { count: "exact", head: true }).eq("member_user_id", userId).eq("status", "active").then((r) => (r.count ?? 0) > 0),
     admin.from("doctors").select("user_id").eq("user_id", userId).maybeSingle(),
+  ]);
+  if (!hasFollow && !doctor.data) return [];
+  const [follows, plan, profile] = await Promise.all([
+    hasFollow ? getFollows(admin, userId) : Promise.resolve([]),
+    admin.from("plan_items").select("id", { count: "exact", head: true }).eq("user_id", userId).eq("status", "confirmed"),
     admin.from("profiles").select("primary_role, onboarded_at").eq("id", userId).maybeSingle(),
   ]);
   // Until onboarding is done, the default role says nothing (sign-up defaults it to patient).

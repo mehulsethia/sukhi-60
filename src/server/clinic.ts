@@ -30,6 +30,18 @@ async function planToCheck(admin: AdminClient, patientId: string) {
   return (plan.plan_items ?? []).some((i) => i.status === "confirmed") ? plan.id : null;
 }
 
+/** Patients (of these) whose prescription plan is waiting for the doctor's check. */
+async function plansToCheck(admin: AdminClient, ids: string[]): Promise<Set<string>> {
+  const { data } = await admin.from("care_plans").select("user_id, created_at, clinician_verification, plan_items(status)").in("user_id", ids).eq("mode", "clinician_instructions").eq("status", "active").order("created_at", { ascending: false });
+  const seen = new Set<string>(), out = new Set<string>();
+  for (const p of data ?? []) {
+    if (seen.has(p.user_id)) continue; // only each patient's latest plan counts
+    seen.add(p.user_id);
+    if (p.clinician_verification !== "clinician_verified" && (p.plan_items ?? []).some((i) => i.status === "confirmed")) out.add(p.user_id);
+  }
+  return out;
+}
+
 export type PatientRow = {
   linkId: string; patientId: string; name: string;
   pct: number | null; done: number; due: number;
@@ -43,19 +55,24 @@ export type PatientRow = {
 export async function clinicPatients(admin: AdminClient, doctorId: string, opts: { extras?: boolean } = {}): Promise<PatientRow[]> {
   const { data: links } = await admin.from("doctor_patients").select("id, patient_id").eq("doctor_id", doctorId).eq("status", "active").order("created_at", { ascending: false }).limit(200);
   const ids = (links ?? []).map((l) => l.patient_id);
-  const { data: profs } = ids.length ? await admin.from("profiles").select("id, display_name, timezone").in("id", ids) : { data: [] };
+  if (!ids.length) return [];
+  // Names and plans to check in one query each across all patients.
+  const [{ data: profs }, toCheck] = await Promise.all([
+    admin.from("profiles").select("id, display_name, timezone").in("id", ids),
+    opts.extras ? plansToCheck(admin, ids) : Promise.resolve(new Set<string>()),
+  ]);
+  const byId = new Map((profs ?? []).map((p) => [p.id, p]));
   const rows = await Promise.all(
     (links ?? []).map(async (l) => {
-      const p = (profs ?? []).find((x) => x.id === l.patient_id);
+      const p = byId.get(l.patient_id);
       const tz = p?.timezone ?? TZ;
       const today = localDateOf(new Date(), tz);
-      const [a, t, ci, check] = await Promise.all([
+      const [a, t, ci] = await Promise.all([
         adherenceFor(admin, l.patient_id, addDays(today, -6), today),
         todayCounts(admin, l.patient_id, tz),
         opts.extras ? admin.from("check_ins").select("created_at").eq("user_id", l.patient_id).order("created_at", { ascending: false }).limit(1).maybeSingle().then((r) => r.data?.created_at ?? null) : Promise.resolve(null),
-        opts.extras ? planToCheck(admin, l.patient_id) : Promise.resolve(null),
       ]);
-      return { linkId: l.id, patientId: l.patient_id, name: p?.display_name ?? "Patient", pct: a.pct, done: a.done, due: a.due, today: t, photoPct: a.proof.done ? Math.round((100 * a.proof.photo) / a.proof.done) : null, lastCheckIn: ci, toCheck: !!check };
+      return { linkId: l.id, patientId: l.patient_id, name: p?.display_name ?? "Patient", pct: a.pct, done: a.done, due: a.due, today: t, photoPct: a.proof.done ? Math.round((100 * a.proof.photo) / a.proof.done) : null, lastCheckIn: ci, toCheck: toCheck.has(l.patient_id) };
     }),
   );
   return rows.sort((a, b) => (a.pct ?? 101) - (b.pct ?? 101));

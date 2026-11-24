@@ -409,7 +409,7 @@ async function handleTap(ctx: WaCtx, id: string, binding: Binding, who: { isDoct
       if (b === "share") return D.shareLink(ctx);
       if (b === "reward") return D.showReward(ctx);
       if (b === "redeem") return D.askRedeem(ctx);
-      if (b === "web") return send(ctx, { type: "text", body: d("web_link", { link: await webLoginLink(ctx.admin, ctx.userId, ctx.to, "/clinic") }) });
+      if (b === "web" && who.isDoctor) return send(ctx, { type: "text", body: d("web_link", { link: await webLoginLink(ctx.admin, ctx.userId, ctx.to, "/clinic") }) });
       if (b === "help") return send(ctx, { type: "buttons", body: d("help"), buttons: [{ id: "dr:m:menu", title: "Menu" }] });
       return D.showDoctorMenu(ctx);
     }

@@ -35,7 +35,7 @@ export function RewardForm({ current }: { current: string | null }) {
       </div>
       <div className="mt-1 flex items-center gap-3">
         <button disabled={pending} className="btn btn-primary">{t("save")}</button>
-        {current ? <button type="submit" disabled={pending} onClick={() => setValue("")} className="link text-sm">{t("rewardRemove")}</button> : null}
+        {current ? <button type="submit" name="remove" value="1" disabled={pending} onClick={() => setValue("")} className="link text-sm">{t("rewardRemove")}</button> : null}
         <span role="status" className="text-sm text-ink-soft">{state?.ok ? t("saved") : state?.error ? t("error") : ""}</span>
       </div>
     </form>

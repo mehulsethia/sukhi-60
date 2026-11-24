@@ -124,6 +124,11 @@ export async function sendCheer(admin: AdminClient, accessId: string, memberId: 
   const [{ data: me }, { data: patient }] = await Promise.all([admin.from("profiles").select("display_name").eq("id", memberId).single(), admin.from("profiles").select("locale").eq("id", a.patient_id).single()]);
   const body = w(patient?.locale, "cheer_received", { name: me?.display_name?.split(" ")[0] ?? "" });
   const hour = new Date().toISOString().slice(0, 13);
+  // One cheer an hour per member reaches the patient, on every channel (repeat taps are no-ops).
+  const since = new Date(Date.now() - 3600_000).toISOString();
+  const { count } = await admin.from("audit_events").select("id", { count: "exact", head: true }).eq("user_id", a.patient_id).gte("created_at", since).eq("action", "family_cheer").eq("entity_id", a.id);
+  if ((count ?? 0) > 0) return { ok: true, reached: true };
+  await admin.from("audit_events").insert({ user_id: a.patient_id, actor: "family_member", action: "family_cheer", entity: "family_access", entity_id: a.id });
   const [wa, pushed] = await Promise.all([
     notify(admin, a.patient_id, { type: "text", body }, `cheer:${a.id}:${hour}`, { hold: true }),
     sendPush(admin, a.patient_id, { title: "Sukhi", body, url: "/today", tag: `cheer:${a.id}` }).catch(() => 0),

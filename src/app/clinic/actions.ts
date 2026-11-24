@@ -53,7 +53,8 @@ export async function clinicRewardAction(_prev: RewardState, fd: FormData): Prom
   const { admin, doctorId } = await doctor();
   const raw = z.string().trim().max(160).safeParse(fd.get("reward") ?? "");
   if (!raw.success) return { error: "invalid_input" };
-  await saveReward(admin, doctorId, raw.data || null);
+  // "Remove" submits the form with remove=1 (the field may still hold the old text).
+  await saveReward(admin, doctorId, fd.get("remove") === "1" ? null : raw.data || null);
   revalidatePath("/clinic");
   return { ok: true };
 }

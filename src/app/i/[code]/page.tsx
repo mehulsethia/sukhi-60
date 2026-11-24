@@ -17,7 +17,9 @@ export const metadata: Metadata = { title: "Invite", robots: { index: false } };
 // Shows who invited them, then opens WhatsApp with the code filled in (circles can also join on the web).
 export default async function InvitePage({ params }: { params: Promise<{ code: string }> }) {
   const { code: raw } = await params;
-  const code = parseInviteCode(decodeURIComponent(raw).slice(0, 40));
+  let decoded = raw;
+  try { decoded = decodeURIComponent(raw); } catch { notFound(); } // a stray "%" in a pasted link
+  const code = parseInviteCode(decoded.slice(0, 40));
   if (!code) notFound();
   const t = await getTranslations("invite");
   const admin = createAdminClient();

@@ -5,10 +5,10 @@ import { getUser } from "@/lib/supabase/server";
 import { AuthShell } from "@/components/auth/AuthShell";
 import { SignupForm } from "@/components/auth/SignupForm";
 import { DoctorLink } from "@/components/auth/DoctorLink";
+import { safeNext } from "@/lib/safe-next";
 
 export const metadata: Metadata = { title: "Create account" };
 
-const safeNext = (n?: string) => (n && n.startsWith("/") && !n.startsWith("//") ? n : undefined);
 
 export default async function SignupPage({ searchParams }: { searchParams: Promise<{ next?: string }> }) {
   const next = safeNext((await searchParams).next);

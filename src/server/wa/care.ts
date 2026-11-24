@@ -22,6 +22,10 @@ export async function createDoctorLink(admin: AdminClient, doctorId: string, pat
   if (doctorId === patientId) return null;
   const { data: doc } = await admin.from("doctors").select("user_id, name").eq("user_id", doctorId).maybeSingle();
   if (!doc) return null;
+  // Already sharing with this doctor (e.g. the code was sent again): keep the link and its
+  // reward period as they are.
+  const { data: active } = await admin.from("doctor_patients").select("id").eq("doctor_id", doctorId).eq("patient_id", patientId).eq("status", "active").maybeSingle();
+  if (active) return { linkId: active.id, doctorName: doc.name };
   const today = localDateOf(new Date(), "Asia/Kolkata");
   const { data: link } = await admin
     .from("doctor_patients")
@@ -89,7 +93,8 @@ export async function claimCareInvite(admin: AdminClient, newUserId: string, cod
 
 /** After doctor signup: complete any invites they claimed. Returns how many patients were linked. */
 export async function finishClaimedInvites(admin: AdminClient, doctorUserId: string): Promise<number> {
-  const { data } = await admin.from("care_invites").select("id, patient_id").eq("doctor_user_id", doctorUserId).eq("status", "claimed");
+  // Claimed invites expire like open ones: a signup abandoned for two weeks doesn't link later.
+  const { data } = await admin.from("care_invites").select("id, patient_id").eq("doctor_user_id", doctorUserId).eq("status", "claimed").gt("expires_at", new Date().toISOString());
   let n = 0;
   for (const inv of data ?? []) if ((await finishInvite(admin, inv.id, inv.patient_id, doctorUserId, "claimed", true)).ok) n++;
   return n;
