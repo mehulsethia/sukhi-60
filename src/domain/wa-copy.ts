@@ -805,6 +805,9 @@ const doc = {
   own_code: "That's your own clinic code. Share it with your patients.",
   row_own_plan: "My own plan",
   row_own_plan_d: "Your reminders. Type CLINIC to come back",
+  row_web: "Open on computer",
+  row_web_d: "All patients on one screen",
+  web_link: "Your clinic on the web: every patient on one screen, plan checks and notes.\n\nThe link signs you in once and works for 1 hour.\n\n{link}",
 } as const;
 
 export type DocKey = keyof typeof doc;

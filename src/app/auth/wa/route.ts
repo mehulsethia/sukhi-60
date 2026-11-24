@@ -8,7 +8,9 @@ export async function GET(req: Request) {
   if (token.length >= 20 && token.length <= 200) {
     const supabase = await createClient();
     const { error } = await supabase.auth.verifyOtp({ type: "magiclink", token_hash: token });
-    if (!error) return NextResponse.redirect(new URL("/today", url.origin));
+    // Only known in-app destinations (never an open redirect).
+    const next = url.searchParams.get("next") === "/clinic" ? "/clinic" : "/today";
+    if (!error) return NextResponse.redirect(new URL(next, url.origin));
   }
   return NextResponse.redirect(new URL("/login?error=link", url.origin));
 }

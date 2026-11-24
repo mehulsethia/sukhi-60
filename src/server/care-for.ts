@@ -1,11 +1,9 @@
 import "server-only";
 import type { AdminClient } from "@/lib/supabase/admin";
-import { features } from "@/lib/config";
 import { hatsFrom } from "@/domain/hats";
 import { addDays, localDateOf } from "@/domain/schedule";
 import { switchOptions, weekPct, weekStrip, type SwitchOption } from "@/domain/care-for";
-import { waLink } from "@/domain/wa-ui";
-import { businessNumber, streakFor } from "@/server/wa/data";
+import { streakFor } from "@/server/wa/data";
 
 const firstName = (n: string | null | undefined) => (n ?? "").trim().split(/\s+/)[0] || null;
 
@@ -29,9 +27,7 @@ export async function getSwitchOptions(admin: AdminClient, userId: string, fallb
   // Until onboarding is done, the default role says nothing (sign-up defaults it to patient).
   const role = profile.data?.onboarded_at ? profile.data.primary_role : null;
   const hats = hatsFrom({ hasPlan: (plan.count ?? 0) > 0, isDoctor: !!doctor.data, follows: follows.length, primaryRole: role });
-  // Doctors work on WhatsApp until the web clinic exists: this opens it on the doctor side.
-  const num = hats.includes("doctor") && features.whatsapp() ? await businessNumber() : null;
-  return switchOptions(hats, follows.map((f) => ({ id: f.id, name: f.name ?? fallbackName })), num ? waLink(num, "clinic") : null);
+  return switchOptions(hats, follows.map((f) => ({ id: f.id, name: f.name ?? fallbackName })));
 }
 
 export type CaringFor = {

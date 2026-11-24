@@ -112,7 +112,7 @@ async function saveProfile(fd: FormData, onboarding: boolean) {
   if (error) return { error: "save_failed" } as const;
   // Finishing onboarding makes their own plan the default side (they may have come as family).
   // primary_role isn't client-writable, so this goes through the server client.
-  if (onboarding) await createAdminClient().from("profiles").update({ primary_role: "patient" }).eq("id", user.id).eq("primary_role", "family");
+  if (onboarding) await createAdminClient().from("profiles").update({ primary_role: "patient" }).eq("id", user.id).in("primary_role", ["family", "doctor"]);
   await setUiCookies(v.locale, v);
   return { supabase, user } as const;
 }

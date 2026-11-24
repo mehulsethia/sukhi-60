@@ -20,6 +20,11 @@ export const dynamic = "force-dynamic";
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const { supabase, user } = await requireUser();
   const { data: profile } = await supabase.from("profiles").select("onboarded_at, display_name, phone, primary_role").eq("id", user.id).single();
+  if (profile?.primary_role === "doctor") {
+    // Doctor-only accounts land on their clinic. "Start your own plan" there goes to onboarding.
+    const { data: doc } = await createAdminClient().from("doctors").select("user_id").eq("user_id", user.id).maybeSingle();
+    if (doc) redirect("/clinic");
+  }
   if (!profile?.onboarded_at || profile.primary_role === "family") {
     // Came as family (follows someone, no plan of their own): land on that person's summary,
     // not patient onboarding. Their page links to onboarding if they want a plan.

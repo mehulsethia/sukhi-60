@@ -23,13 +23,11 @@ describe("weekStrip", () => {
 describe("switchOptions", () => {
   const f = [{ id: "a1", name: "Kamla" }];
   it("one role gets one option (no switcher)", () => {
-    expect(switchOptions(["patient"], [], "wa")).toHaveLength(1);
-    expect(switchOptions(["family"], f, null)).toHaveLength(1);
+    expect(switchOptions(["patient"], [])).toHaveLength(1);
+    expect(switchOptions(["family"], f)).toHaveLength(1);
+    expect(switchOptions(["doctor"], [])).toHaveLength(1);
   });
   it("patient who cares for someone and is a doctor", () => {
-    expect(switchOptions(["patient", "doctor", "family"], f, "https://wa.me/1?text=clinic").map((o) => o.kind)).toEqual(["me", "family", "clinic"]);
-  });
-  it("no clinic entry without a WhatsApp link", () => {
-    expect(switchOptions(["patient", "doctor"], [], null).map((o) => o.kind)).toEqual(["me"]);
+    expect(switchOptions(["patient", "doctor", "family"], f).map((o) => o.href)).toEqual(["/today", "/family/a1", "/clinic"]);
   });
 });

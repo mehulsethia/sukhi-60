@@ -35,10 +35,10 @@ export type SwitchOption =
  * Views this account can switch between. Only shown when there is more than one.
  * "me" is the person's own plan; one entry per person they follow; "clinic" for doctors.
  */
-export function switchOptions(hats: Hat[], follows: { id: string; name: string }[], clinicHref: string | null): SwitchOption[] {
+export function switchOptions(hats: Hat[], follows: { id: string; name: string }[]): SwitchOption[] {
   const out: SwitchOption[] = [];
   if (hats.includes("patient")) out.push({ kind: "me", href: "/today" });
   for (const f of follows) out.push({ kind: "family", href: `/family/${f.id}`, name: f.name, id: f.id });
-  if (hats.includes("doctor") && clinicHref) out.push({ kind: "clinic", href: clinicHref });
+  if (hats.includes("doctor")) out.push({ kind: "clinic", href: "/clinic" });
   return out;
 }

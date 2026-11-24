@@ -81,7 +81,7 @@ export async function consumeCodeForBoundNumber(admin: AdminClient, codeHash: st
 }
 
 /** One-time login link for the web app, sent only to the person's verified WhatsApp number. */
-export async function webLoginLink(admin: AdminClient, userId: string, externalId: string): Promise<string> {
+export async function webLoginLink(admin: AdminClient, userId: string, externalId: string, next?: "/clinic"): Promise<string> {
   const { data } = await admin.auth.admin.getUserById(userId);
   let email = data.user?.email ?? null;
   if (!email) {
@@ -93,7 +93,7 @@ export async function webLoginLink(admin: AdminClient, userId: string, externalI
   const link = await admin.auth.admin.generateLink({ type: "magiclink", email });
   const hashed = link.data.properties?.hashed_token;
   if (link.error || !hashed) throw new Error("web_login_link_failed");
-  return `${settings.appUrl()}/auth/wa?t=${encodeURIComponent(hashed)}`;
+  return `${settings.appUrl()}/auth/wa?t=${encodeURIComponent(hashed)}${next ? `&next=${encodeURIComponent(next)}` : ""}`;
 }
 
 // ---------------------------------------------------------------------------

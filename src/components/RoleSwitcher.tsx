@@ -24,7 +24,7 @@ export function RoleSwitcher({ options }: { options: SwitchOption[] }) {
 
   if (options.length < 2) return null;
   const label = (o: SwitchOption) => (o.kind === "me" ? t("me") : o.kind === "clinic" ? t("clinic") : o.name || t("someone"));
-  const current = options.find((o) => o.kind === "family" && path.startsWith(o.href)) ?? options.find((o) => o.kind === "me") ?? options[0];
+  const current = options.find((o) => o.kind !== "me" && path.startsWith(o.href)) ?? options.find((o) => o.kind === "me") ?? options[0];
 
   return (
     <div ref={ref} className="relative">
@@ -37,7 +37,7 @@ export function RoleSwitcher({ options }: { options: SwitchOption[] }) {
         <ul role="menu" className="absolute right-0 top-10 z-40 w-56 rounded-[var(--r-lg)] border border-line bg-surface p-1 shadow-lg">
           {options.map((o) => {
             const on = o === current;
-            const sub = o.kind === "family" ? t("caringFor") : o.kind === "clinic" ? t("onWhatsApp") : t("myPlan");
+            const sub = o.kind === "family" ? t("caringFor") : o.kind === "clinic" ? t("patients") : t("myPlan");
             const inner = (
               <>
                 <span className="min-w-0 flex-1">
@@ -50,9 +50,7 @@ export function RoleSwitcher({ options }: { options: SwitchOption[] }) {
             const cls = `flex min-h-11 items-center gap-2 rounded-lg px-3 py-1.5 ${on ? "bg-sky" : "hover:bg-sky/60"}`;
             return (
               <li key={o.href} role="none">
-                {o.kind === "clinic"
-                  ? <a role="menuitem" href={o.href} className={cls} onClick={() => setOpen(false)}>{inner}</a>
-                  : <Link role="menuitem" href={o.href} aria-current={on ? "page" : undefined} className={cls} onClick={() => setOpen(false)}>{inner}</Link>}
+                <Link role="menuitem" href={o.href} aria-current={on ? "page" : undefined} className={cls} onClick={() => setOpen(false)}>{inner}</Link>
               </li>
             );
           })}

@@ -9,9 +9,10 @@ import { dots, newDoctorCode, newRewardCode, scheduleText, waLink, type WaRow } 
 import { d, w } from "@/domain/wa-copy";
 import { send, notify, type WaCtx } from "./send";
 import { clearState, setState } from "./state";
-import { adherenceFor, businessNumber, hasActivePlan, pctText, todayCounts } from "./data";
+import { adherenceFor, businessNumber, hasActivePlan, pctText } from "./data";
 import { formatReading, recentReadings } from "../readings";
 import { finishClaimedInvites } from "./care";
+import { approveDoctorPlan, clinicPatients, ownLink, planItems, redeemReward, saveReward, sendDoctorNote, setProofRequired } from "../clinic";
 
 const TZ = "Asia/Kolkata";
 const menuBtn = { id: "dr:m:menu", title: "Menu" };
@@ -69,8 +70,8 @@ async function askReward(ctx: WaCtx, signup: boolean) {
 }
 
 export async function setReward(ctx: WaCtx, text: string | null, signup: boolean) {
-  const reward = text?.replace(/\s+/g, " ").trim().slice(0, 160) || null;
-  const { data: doc } = await ctx.admin.from("doctors").update({ reward_text: reward }).eq("user_id", ctx.userId).select("*").single();
+  const doc = await saveReward(ctx.admin, ctx.userId, text);
+  const reward = doc?.reward_text ?? null;
   await clearState(ctx.admin, ctx.bindingId);
   if (signup && doc) return sendReady(ctx, doc.name, doc.code);
   await send(ctx, { type: "buttons", body: reward ? d("reward_saved", { reward, pct: doc?.reward_target_pct ?? 80, days: doc?.reward_days ?? 30 }) : d("reward_removed"), buttons: [menuBtn] });
@@ -109,26 +110,14 @@ export async function showDoctorMenu(ctx: WaCtx) {
     { id: "dr:m:share", title: d("row_share"), description: d("row_share_d") },
     { id: "dr:m:reward", title: d("row_reward"), description: d("row_reward_d") },
     { id: "dr:m:redeem", title: d("row_redeem"), description: d("row_redeem_d") },
+    { id: "dr:m:web", title: d("row_web"), description: d("row_web_d") },
     { id: "md:me", title: d("row_own_plan"), description: d("row_own_plan_d") },
     { id: "dr:m:help", title: d("row_help") },
   ];
   await send(ctx, { type: "list", body: d("menu_body"), button: "Menu", sections: [{ rows }] });
 }
 
-async function patientRows(admin: AdminClient, doctorId: string) {
-  const { data: links } = await admin.from("doctor_patients").select("id, patient_id").eq("doctor_id", doctorId).eq("status", "active").order("created_at", { ascending: false }).limit(60);
-  const today = localDateOf(new Date(), TZ);
-  const ids = (links ?? []).map((l) => l.patient_id);
-  const { data: profs } = ids.length ? await admin.from("profiles").select("id, display_name, timezone").in("id", ids) : { data: [] };
-  return Promise.all(
-    (links ?? []).map(async (l) => {
-      const p = (profs ?? []).find((x) => x.id === l.patient_id);
-      const tz = p?.timezone ?? TZ;
-      const [a, t] = await Promise.all([adherenceFor(admin, l.patient_id, addDays(today, -6), today), todayCounts(admin, l.patient_id, tz)]);
-      return { linkId: l.id, patientId: l.patient_id, name: p?.display_name ?? "Patient", pct: a.pct, done: a.done, due: a.due, today: t, photoPct: a.proof.done ? Math.round((100 * a.proof.photo) / a.proof.done) : null };
-    }),
-  );
-}
+const patientRows = (admin: AdminClient, doctorId: string) => clinicPatients(admin, doctorId);
 
 export async function showPatients(ctx: WaCtx) {
   const doc = await myDoctor(ctx.admin, ctx.userId);
@@ -139,19 +128,13 @@ export async function showPatients(ctx: WaCtx) {
     await send(ctx, { type: "buttons", body: d("patients_none", { link: await doctorLink(doc.code) }), buttons: [menuBtn] });
     return;
   }
-  // Those who need attention first (lowest adherence; no data last).
-  rows.sort((a, b) => (a.pct ?? 101) - (b.pct ?? 101));
+  // Those who need attention first (lowest adherence; no data last): sorted by clinicPatients.
   await send(ctx, {
     type: "list",
     body: d("patients_body") + (rows.length > 10 ? `\n(${rows.length} patients, 10 lowest shown)` : ""),
     button: "Patients",
     sections: [{ rows: rows.slice(0, 10).map((r) => ({ id: `dr:p:${r.linkId}`, title: r.name, description: d("patient_row_d", { pct: pctText(r.pct), photo: pctText(r.photoPct), today: d("patient_today", { done: r.today.done, total: r.today.total }) }) })) }],
   });
-}
-
-async function ownLink(admin: AdminClient, doctorId: string, linkId: string) {
-  const { data } = await admin.from("doctor_patients").select("id, patient_id, period_start").eq("id", linkId).eq("doctor_id", doctorId).eq("status", "active").maybeSingle();
-  return data;
 }
 
 export async function showPatient(ctx: WaCtx, linkId: string) {
@@ -198,44 +181,27 @@ export async function showPatient(ctx: WaCtx, linkId: string) {
 // ---------------------------------------------------------------------------
 // Photo proof: the doctor picks tasks where a plain Done doesn't count
 // ---------------------------------------------------------------------------
-async function patientItems(admin: AdminClient, patientId: string) {
-  const { data } = await admin
-    .from("plan_items")
-    .select("id, title, proof_required, care_plans!inner(status, mode)")
-    .eq("user_id", patientId)
-    .eq("status", "confirmed")
-    .eq("care_plans.status", "active")
-    .order("created_at");
-  // Items from the doctor's prescription first.
-  return (data ?? []).sort((a, b) => Number((b.care_plans as unknown as { mode: string }).mode === "clinician_instructions") - Number((a.care_plans as unknown as { mode: string }).mode === "clinician_instructions"));
-}
-
 export async function showProofRules(ctx: WaCtx, linkId: string) {
   const link = await ownLink(ctx.admin, ctx.userId, linkId);
   if (!link) return showPatients(ctx);
   const { data: p } = await ctx.admin.from("profiles").select("display_name").eq("id", link.patient_id).single();
   const name = p?.display_name ?? "Patient";
-  const items = await patientItems(ctx.admin, link.patient_id);
+  const items = await planItems(ctx.admin, link.patient_id);
   if (!items.length) return send(ctx, { type: "buttons", body: d("proof_rules_none", { name }), buttons: [{ id: `dr:p:${linkId}`, title: "Back to patient" }, menuBtn] });
-  const rows = items.slice(0, 10).map((i) => ({ id: `dr:pt:${linkId}:${i.id}`, title: i.title, description: i.proof_required ? d("proof_row_on") : d("proof_row_off") }));
+  const rows = items.slice(0, 10).map((i) => ({ id: `dr:pt:${linkId}:${i.id}`, title: i.title, description: i.proofRequired ? d("proof_row_on") : d("proof_row_off") }));
   await send(ctx, { type: "list", body: d("proof_rules", { name }), button: d("proof_rules_btn"), sections: [{ rows }] });
 }
 
 export async function toggleProof(ctx: WaCtx, linkId: string, itemId: string) {
   const link = await ownLink(ctx.admin, ctx.userId, linkId);
   if (!link) return showPatients(ctx);
-  const { data: item } = await ctx.admin.from("plan_items").select("id, title, proof_required").eq("id", itemId).eq("user_id", link.patient_id).eq("status", "confirmed").maybeSingle();
-  if (!item) return showProofRules(ctx, linkId);
-  const on = !item.proof_required;
-  await ctx.admin.from("plan_items").update({ proof_required: on, proof_required_by: on ? ctx.userId : null, proof_required_at: on ? new Date().toISOString() : null }).eq("id", item.id).eq("user_id", link.patient_id);
-  await ctx.admin.from("audit_events").insert({ user_id: link.patient_id, actor: "user", action: on ? "proof_required_on" : "proof_required_off", entity: "plan_item", entity_id: item.id, details: { doctor_id: ctx.userId, via: "whatsapp" } });
-  const doc = await myDoctor(ctx.admin, ctx.userId);
-  const { data: p } = await ctx.admin.from("profiles").select("display_name, locale").eq("id", link.patient_id).single();
-  const l = p?.locale ?? "en";
-  const body = on ? w(l, "proof_required_on", { doctor: doc?.name || w(l, "proof_doctor"), title: item.title }) : w(l, "proof_required_off", { title: item.title });
-  await notify(ctx.admin, link.patient_id, { type: "text", body }, `dr-proof:${item.id}:${on ? "on" : "off"}:${ctx.key}`, { hold: true });
+  const { data: item } = await ctx.admin.from("plan_items").select("proof_required").eq("id", itemId).eq("user_id", link.patient_id).maybeSingle();
+  const on = !item?.proof_required;
+  const r = await setProofRequired(ctx.admin, ctx.userId, linkId, itemId, on, ctx.key, "whatsapp");
+  if (!r) return showProofRules(ctx, linkId);
+  const { data: p } = await ctx.admin.from("profiles").select("display_name").eq("id", link.patient_id).single();
   const name = p?.display_name ?? "Patient";
-  await send(ctx, { type: "buttons", body: on ? d("proof_on_set", { name, title: item.title }) : d("proof_off_set", { name, title: item.title }), buttons: [{ id: `dr:pf:${linkId}`, title: d("proof_rules_btn") }, { id: `dr:p:${linkId}`, title: "Back to patient" }, menuBtn] });
+  await send(ctx, { type: "buttons", body: on ? d("proof_on_set", { name, title: r.title }) : d("proof_off_set", { name, title: r.title }), buttons: [{ id: `dr:pf:${linkId}`, title: d("proof_rules_btn") }, { id: `dr:p:${linkId}`, title: "Back to patient" }, menuBtn] });
 }
 
 // ---------------------------------------------------------------------------
@@ -250,17 +216,10 @@ export async function askNote(ctx: WaCtx, linkId: string, review = false) {
 }
 
 export async function sendNote(ctx: WaCtx, linkId: string, text: string, review: boolean) {
-  const link = await ownLink(ctx.admin, ctx.userId, linkId);
   await clearState(ctx.admin, ctx.bindingId);
-  if (!link) return showPatients(ctx);
-  const doc = await myDoctor(ctx.admin, ctx.userId);
-  const { data: p } = await ctx.admin.from("profiles").select("display_name, locale").eq("id", link.patient_id).single();
-  const note = text.trim().slice(0, 1500);
-  // Kept in the patient's own history too (shown on the web as a message from the doctor).
-  await ctx.admin.from("memory_facts").insert({ user_id: link.patient_id, kind: "context", content: `Note from ${doc?.name ?? "their doctor"}: ${note}`.slice(0, 480), source_type: "user_message", status: "proposed" }).then(undefined, () => undefined);
-  if (review) await ctx.admin.from("review_requests").insert({ user_id: link.patient_id, reason: `Doctor asked for a plan change: ${note}`.slice(0, 500), source: "assistant" });
-  const r = await notify(ctx.admin, link.patient_id, { type: "text", body: w(p?.locale, "doctor_note", { doctor: doc?.name ?? "", text: note }) }, `dr-note:${ctx.key}`, { hold: true, respectQuiet: false });
-  await send(ctx, { type: "buttons", body: r === "sent" ? d("note_sent", { name: p?.display_name ?? "" }) : d("note_queued", { name: p?.display_name ?? "" }), buttons: [{ id: `dr:p:${linkId}`, title: "Back to patient" }, menuBtn] });
+  const r = await sendDoctorNote(ctx.admin, ctx.userId, linkId, text, review, ctx.key);
+  if (!r) return showPatients(ctx);
+  await send(ctx, { type: "buttons", body: r.sent ? d("note_sent", { name: r.name }) : d("note_queued", { name: r.name }), buttons: [{ id: `dr:p:${linkId}`, title: "Back to patient" }, menuBtn] });
 }
 
 /** Patient confirmed a plan read from a prescription: ask their doctor to check it. */
@@ -280,15 +239,10 @@ export async function reviewPlan(ctx: WaCtx, linkId: string, planId: string) {
 }
 
 export async function approvePlan(ctx: WaCtx, linkId: string, planId: string) {
-  const link = await ownLink(ctx.admin, ctx.userId, linkId);
-  if (!link) return showPatients(ctx);
-  const doc = await myDoctor(ctx.admin, ctx.userId);
-  const { data: plan } = await ctx.admin.from("care_plans").update({ clinician_verification: "clinician_verified", clinician_name: doc?.name ?? null }).eq("id", planId).eq("user_id", link.patient_id).eq("mode", "clinician_instructions").select("id").maybeSingle();
-  if (!plan) return showPatient(ctx, linkId);
-  await ctx.admin.from("audit_events").insert({ user_id: link.patient_id, actor: "user", action: "plan_clinician_verified", entity: "care_plan", entity_id: planId, details: { doctor_id: ctx.userId, via: "whatsapp" } });
-  const { data: p } = await ctx.admin.from("profiles").select("display_name, locale").eq("id", link.patient_id).single();
-  await notify(ctx.admin, link.patient_id, { type: "text", body: w(p?.locale, "doctor_note", { doctor: doc?.name ?? "", text: w(p?.locale, "plan_checked", { doctor: doc?.name ?? "" }) + " ✓" }) }, `dr-ok:${planId}`, { hold: true });
-  await send(ctx, { type: "buttons", body: d("plan_approved", { name: p?.display_name ?? "" }), buttons: [{ id: `dr:p:${linkId}`, title: "Back to patient" }, menuBtn] });
+  if (!(await ownLink(ctx.admin, ctx.userId, linkId))) return showPatients(ctx);
+  const r = await approveDoctorPlan(ctx.admin, ctx.userId, linkId, planId, "whatsapp");
+  if (!r) return showPatient(ctx, linkId);
+  await send(ctx, { type: "buttons", body: d("plan_approved", { name: r.name }), buttons: [{ id: `dr:p:${linkId}`, title: "Back to patient" }, menuBtn] });
 }
 
 // ---------------------------------------------------------------------------
@@ -314,13 +268,10 @@ export async function askRedeem(ctx: WaCtx) {
 
 export async function redeem(ctx: WaCtx, raw: string) {
   await clearState(ctx.admin, ctx.bindingId);
-  const code = raw.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(-6);
-  const { data: r } = await ctx.admin.from("doctor_rewards").select("id, patient_id, reward_text, adherence_pct, period_start, period_end, status, redeemed_at").eq("doctor_id", ctx.userId).eq("code", code).maybeSingle();
-  if (!r) return send(ctx, { type: "buttons", body: d("redeem_bad"), buttons: [{ id: "dr:m:redeem", title: "Try again" }, menuBtn] });
-  if (r.status === "redeemed") return send(ctx, { type: "buttons", body: d("redeem_used", { date: r.redeemed_at ? new Date(r.redeemed_at).toLocaleDateString("en-IN", { timeZone: TZ, day: "numeric", month: "short" }) : "" }), buttons: [menuBtn] });
-  await ctx.admin.from("doctor_rewards").update({ status: "redeemed", redeemed_at: new Date().toISOString() }).eq("id", r.id).eq("status", "earned");
-  const { data: p } = await ctx.admin.from("profiles").select("display_name").eq("id", r.patient_id).single();
-  await send(ctx, { type: "buttons", body: d("redeem_ok", { name: p?.display_name ?? "Patient", reward: r.reward_text, pct: r.adherence_pct, start: r.period_start, end: r.period_end }), buttons: [menuBtn] });
+  const r = await redeemReward(ctx.admin, ctx.userId, raw);
+  if (r.kind === "bad") return send(ctx, { type: "buttons", body: d("redeem_bad"), buttons: [{ id: "dr:m:redeem", title: "Try again" }, menuBtn] });
+  if (r.kind === "used") return send(ctx, { type: "buttons", body: d("redeem_used", { date: r.redeemedAt ? new Date(r.redeemedAt).toLocaleDateString("en-IN", { timeZone: TZ, day: "numeric", month: "short" }) : "" }), buttons: [menuBtn] });
+  await send(ctx, { type: "buttons", body: d("redeem_ok", { name: r.name, reward: r.reward, pct: r.pct, start: r.start, end: r.end }), buttons: [menuBtn] });
 }
 
 /**

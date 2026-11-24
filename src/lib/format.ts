@@ -26,3 +26,13 @@ export function fmtWhen(dueIso: string, localDate: string, today: string, tomorr
 // Request-time clock helpers (server components render per request).
 export const nowMs = () => Date.now();
 export const hoursAgoIso = (h: number) => new Date(Date.now() - h * 3600_000).toISOString();
+
+/** "2 hours ago", "yesterday", "3 days ago" in the person's language. */
+export function fmtAgo(iso: string, locale: string, now = Date.now()) {
+  const diff = (new Date(iso).getTime() - now) / 1000;
+  const rtf = new Intl.RelativeTimeFormat(intlLocale(locale), { numeric: "auto" });
+  const abs = Math.abs(diff);
+  if (abs < 3600) return rtf.format(Math.round(diff / 60), "minute");
+  if (abs < 86_400) return rtf.format(Math.round(diff / 3600), "hour");
+  return rtf.format(Math.round(diff / 86_400), "day");
+}

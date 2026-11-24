@@ -11,6 +11,6 @@ export default async function OnboardingPage() {
   const { supabase, user } = await requireUser();
   const { data: profile } = await supabase.from("profiles").select("timezone, locale, onboarded_at, primary_role").eq("id", user.id).single();
   // Family members (onboarded on WhatsApp) can still set up their own plan here.
-  if (profile?.onboarded_at && profile.primary_role !== "family") redirect("/today");
+  if (profile?.onboarded_at && profile.primary_role !== "family" && profile.primary_role !== "doctor") redirect("/today");
   return <OnboardingForm defaults={{ timezone: profile?.timezone ?? "Asia/Kolkata", locale: profile?.locale ?? "en" }} />;
 }
