@@ -29,6 +29,8 @@ function safeEqual(a: Buffer, b: Buffer) {
 }
 
 export function checkAdminPassword(password: string) {
+  // The pilot default only works outside production: production must set ADMIN_PASSWORD.
+  if (!process.env.ADMIN_PASSWORD && process.env.VERCEL_ENV === "production") return false;
   const expected = process.env.ADMIN_PASSWORD ? sha256(process.env.ADMIN_PASSWORD) : Buffer.from(DEFAULT_PASSWORD_SHA256, "hex");
   return safeEqual(sha256(password), expected);
 }
