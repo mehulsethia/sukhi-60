@@ -1,55 +1,88 @@
-# Sukhi 60
+# Sukhi Care
 
-Sukhi helps a person stay with a routine they have agreed on — with their care team (transcribed clinician instructions) or with themselves (personal wellbeing goals). It works in English, हिन्दी and मराठी, on the web/PWA and optionally on official WhatsApp.
+**A care companion that helps people follow their care plan at home, and shows their family and doctor what really happened.**
 
-**New operator? Follow [docs/OPERATOR_QUICKSTART.md](docs/OPERATOR_QUICKSTART.md)** — one ordered path from a clean checkout to a demo, then AI/voice, then a real WhatsApp test.
+People leave the clinic with a clear plan, then follow it alone for weeks. Doses and exercises get missed, and nobody knows until the next visit. Sukhi Care turns the plan into a daily routine, checks in kindly, helps people restart after a miss, and keeps the people who care in the loop. It works on the web and on WhatsApp, in English, Hindi and Marathi.
 
-> Sukhi is not a medical device, does not diagnose, does not adjust treatment, and does not monitor emergencies. It is a production-oriented hackathon build, not a clinically validated service.
-
-## The loop
-Agreed plan → scheduled action → reminder/check-in → response or evidence → evaluation → progress/encouragement → barrier-aware follow-up.
-
-| Pillar | Where |
+| | |
 |---|---|
-| Supportive assistant | `src/server/agent.ts` (bounded tool loop), `src/domain/router.ts`, `src/domain/safety.ts`, `/chat` |
-| Action evaluation | `src/domain/evaluation.ts`, `src/server/ai-tasks.ts`, SQL `apply_evaluation_internal`, `/actions/[id]` |
-| Encouragement | SQL `_award` (rules + caps + dedupe), `src/domain/rewards.ts`, `src/components/Garden.tsx`, `/progress` |
+| **Live app** | [sukhi-60.vercel.app](https://sukhi-60.vercel.app) |
+| **Demo video (3 min)** | [Watch on Google Drive](https://drive.google.com/file/d/1gR7_7XXUOw4ayDswuGMQXsUw62gxgAlP/view?usp=drive_link) |
+| **Judge login** | `testuser@example.com` / `Sukhitestuser@2026` (test account, no real patient data) |
+| **No-login walkthrough** | [sukhi-60.vercel.app/demo](https://sukhi-60.vercel.app/demo) |
 
-## Architecture
-```
-Browser/PWA ──► Next.js 16 on Vercel (Node runtime)
-                 ├─ pages: /today /chat /plan /progress /settings /onboarding /demo /family/*
-                 ├─ /api/chat · /api/evidence · /api/plan/extract · /api/voice/*      (session-authenticated)
-                 ├─ /api/whatsapp/webhook   (HMAC-verified; persist → enqueue → after())
-                 └─ /api/worker/tick        (bearer secret; claims leased jobs)
-Supabase ──► Postgres (RLS on every patient table, SQL state functions, jobs outbox)
-         ├─ Auth (@supabase/ssr cookies) · private Storage buckets
-         └─ Cron (pg_cron) + pg_net + Vault ──► POST /api/worker/tick every minute
-Providers ──► Anthropic (AI SDK, model from env) · Sarvam ASR/TTS · Meta WhatsApp Cloud API
-```
-Identity always comes from the verified session or a verified WhatsApp binding, never from model output. The model can act only through tools bound to that identity. Completion state and rewards are changed only by SQL functions.
+<p>
+  <img src="docs/images/today.png" alt="Today screen" width="19%">
+  <img src="docs/images/buddy-marathi.png" alt="Sukhi buddy chat in Marathi" width="19%">
+  <img src="docs/images/proof.png" alt="Adding photo proof" width="19%">
+  <img src="docs/images/progress.png" alt="Progress screen" width="19%">
+  <img src="docs/images/visit-prep.png" alt="Doctor visit prep" width="19%">
+</p>
 
-## Scripts
+> Sukhi Care is not a medical device. It does not diagnose, prescribe, change a dose or monitor emergencies. It helps people follow the plan their doctor already wrote.
+
+## What it does
+
+- **Prescription to plan.** A photo of the prescription is read by AI into plan items, and the patient confirms every item.
+- **Reminders and one-tap check-ins.** Push and WhatsApp reminders with Done, Later and Skip. Replies can be a tap, a photo or a voice note.
+- **Sukhi, the buddy.** Chat or voice in English, Hindi, Marathi or Hinglish. After a miss it asks what got in the way and suggests a smaller step or a better time. Plan changes always need the person's one-tap OK.
+- **Photo proof that holds up.** Live camera only, reuse detection by image fingerprinting, a fresh-photo challenge, an AI description, and human review of doubtful cases within 12 hours. Doctors can require a photo on specific tasks.
+- **Device readings.** A photo of a BP monitor or glucometer becomes a number the patient confirms.
+- **Family: Caring for.** Up to 2 family members see today, the week and streaks, and can send a cheer. Read-only.
+- **Doctor clinic.** Patient list, plan approval, photo-proof rules, weekly summary and rewards, on WhatsApp or the web.
+- **Progress and visit prep.** 7 and 30-day views, the reasons behind misses, and a printable summary for the follow-up.
+- **One account, many roles.** The same person can be a patient, a family member and a doctor, with a switcher between views.
+
+## Pilot so far
+
+Live with real users since 12 November 2026 (team accounts excluded): 23 people signed up, 18 built a plan, 375 check-ins, 4 prescriptions read into 44 plan items with 0 failures, median AI reply 5.8 s. The biggest lesson: when people reply they almost always say "done", but most reminders get no reply at all. The gap is silence, not refusal, which is why we built WhatsApp, voice notes and photo proof.
+
+## How it's built
+
+| Layer | Technology |
+|---|---|
+| Frontend | Next.js 16, React 19, Tailwind CSS 4, installable PWA with web push |
+| Backend | Vercel functions and Supabase (Postgres, Auth, private Storage), both in Mumbai |
+| AI | Anthropic Claude via the Vercel AI SDK: chat with tools, prescription and photo reading |
+| Speech | ElevenLabs and Sarvam speech-to-text and text-to-speech |
+| Messaging | Official Meta WhatsApp Cloud API with signed webhooks and an outbox with retries |
+| Proof | sharp perceptual image fingerprinting, live-camera capture |
+| Jobs | Postgres cron every minute: reminders, follow-ups, evidence checks, digests |
+| Quality | TypeScript, zod, Vitest and Playwright, WhatsApp and proof simulators |
+
+```
+Browser / PWA ──► Next.js 16 on Vercel (Node runtime, Mumbai)
+                   ├─ patient, family ("Caring for") and clinic views
+                   ├─ /api/chat · /api/evidence · /api/plan/extract · /api/voice/*   (session-authenticated)
+                   ├─ /api/whatsapp/webhook   (signature-verified; persist, enqueue, process)
+                   └─ /api/worker/tick        (bearer secret; claims leased jobs)
+Supabase ──► Postgres (row-level security on every patient table, SQL state functions, jobs outbox)
+          ├─ Auth · private Storage buckets
+          └─ pg_cron + pg_net ──► POST /api/worker/tick every minute
+Providers ──► Anthropic · ElevenLabs / Sarvam · Meta WhatsApp Cloud API
+```
+
+**Safety by design**
+- Identity always comes from the verified session or a verified WhatsApp number, never from model output. The model can act only through tools bound to that identity.
+- Completion state and rewards change only through SQL functions.
+- Self-reports and evidence are kept apart, and silence is recorded as "no reply", never as done or missed.
+- Consent at sign-up, data hosted in Mumbai, proof photos deleted after 7 days.
+
+## Running it locally
+
 | Script | Purpose |
 |---|---|
 | `pnpm dev` / `build` / `start` | Next.js |
 | `pnpm db:start` / `db:reset` / `db:types` | Local Supabase, apply migrations, generate types |
-| `pnpm check` | typecheck + lint + unit/integration tests + build |
-| `pnpm test:unit` / `test:integration` / `test:e2e` | Vitest (pure) / Vitest against local Supabase / Playwright |
-| `pnpm check:config [--strict]` | Shows set/missing/invalid per variable, never values |
-| `pnpm worker:tick` | Manual authenticated worker run |
-| `pnpm jobs:health` | Job states, dead letters, uncertain WhatsApp sends |
+| `pnpm check` | Typecheck, lint, tests and build |
+| `pnpm test:unit` / `test:integration` / `test:e2e` | Vitest / Vitest against local Supabase / Playwright |
+| `pnpm wa:simulate` / `proof:simulate` | End-to-end WhatsApp and photo-proof simulators |
+| `pnpm check:config [--strict]` | Shows set, missing or invalid variables, never values |
+| `pnpm worker:tick` / `jobs:health` | Manual worker run / job and outbox health |
 | `pnpm seed:demo` | Fictional local demo account |
 
-## User journeys
-1. **Start:** sign up → onboarding (name, language, timezone, check-in times, quiet hours, accessibility, optional context, explicit permissions) → pick an example personal routine or enter your doctor's instructions.
-2. **Plan:** create a personal goal or a clinician-instruction plan. Add items manually, or upload a photo or PDF to get *drafts* with page/snippet provenance. Fill in unresolved fields, then confirm. Edits to confirmed items go back to draft and are versioned.
-3. **Today:** each action shows its local time and status. Choose Done, Later, Skip (optional reason), or Not well. Silence becomes "No reply recorded" and is never counted as missed.
-4. **Evidence:** add a photo or note. The assessment lists what is visible and what it cannot confirm, and you can request a review. A self-report and evidence-supported completion are shown differently.
-5. **Assistant:** type or record a voice note (you confirm the transcript before it is sent). Replies cite your plan records. Concerning symptoms trigger a fixed safety message.
-6. **Progress:** a garden that only grows, a weekly table, milestones, and an optional personal reward goal.
-7. **WhatsApp (optional):** link with a one-time code sent from your WhatsApp. Reply "done", send photos or voice notes, or send STOP. The history is shared with the web app.
-8. **Family (optional):** invite someone to see weekly participation counts only. Revoking access takes effect immediately.
+Start with [docs/OPERATOR_QUICKSTART.md](docs/OPERATOR_QUICKSTART.md): one path from a clean checkout to a demo, then AI and voice, then a real WhatsApp test. Copy [.env.example](.env.example) to `.env.local` for local work.
 
-## Documents
-[SETUP.md](SETUP.md) · [WHATSAPP_SETUP.md](WHATSAPP_SETUP.md) · [USER_HANDOFF.md](USER_HANDOFF.md) · [ACCEPTANCE_REPORT.md](ACCEPTANCE_REPORT.md) · [BUILD_STATUS.md](BUILD_STATUS.md) · [REPO_ASSESSMENT.md](REPO_ASSESSMENT.md) · [LICENSE_NOTES.md](LICENSE_NOTES.md) · [.env.example](.env.example)
+**More docs:** [SETUP.md](SETUP.md) · [WHATSAPP_SETUP.md](WHATSAPP_SETUP.md) · [USER_HANDOFF.md](USER_HANDOFF.md) · [ACCEPTANCE_REPORT.md](ACCEPTANCE_REPORT.md) · [BUILD_STATUS.md](BUILD_STATUS.md) · [LICENSE_NOTES.md](LICENSE_NOTES.md)
+
+Built by Mehul Sethia (team Senseibles). All rights reserved.
