@@ -94,6 +94,10 @@ export const settings = {
   speechProvider: (): "elevenlabs" | "sarvam" | null => (ok("ELEVENLABS_API_KEY") ? "elevenlabs" : ok("SARVAM_API_KEY") ? "sarvam" : null),
   elevenTtsModel: () => process.env.ELEVENLABS_TTS_MODEL || "eleven_v4",
   elevenSttModel: () => process.env.ELEVENLABS_STT_MODEL || "scribe_v2",
+  /** Live transcription for "Talk to Sukhi" (WebSocket, partial text while the person speaks). */
+  elevenRealtimeModel: () => process.env.ELEVENLABS_REALTIME_MODEL || "scribe_v2_realtime",
+  /** Low-latency streamed voice for spoken replies. eleven_v4_turbo supports Hindi and Marathi. */
+  elevenStreamModel: () => process.env.ELEVENLABS_TTS_STREAM_MODEL || "eleven_v4_turbo",
   elevenVoice: (locale: string) => (locale === "hi" ? process.env.ELEVENLABS_VOICE_ID_HI : locale === "mr" ? process.env.ELEVENLABS_VOICE_ID_MR : undefined) || process.env.ELEVENLABS_VOICE_ID || "",
   sarvamAsrModel: () => process.env.SARVAM_ASR_MODEL || "saaras:v4",
   sarvamTtsModel: () => process.env.SARVAM_TTS_MODEL || "bulbul:v3",

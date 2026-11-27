@@ -96,6 +96,47 @@ export async function synthesize(text: string, locale: string, format?: "ogg" | 
   }
 }
 
+/**
+ * Streamed ElevenLabs speech: the browser starts playing while audio is still being made.
+ * Tries the low-latency model first, then the regular one. Null when not configured or failed.
+ */
+export async function synthesizeStream(text: string, locale: string): Promise<Response | null> {
+  if (settings.speechProvider() !== "elevenlabs") return null;
+  const voice = settings.elevenVoice(locale);
+  const clipped = text.slice(0, 1200).trim();
+  if (!voice || !clipped) return null;
+  for (const model of [settings.elevenStreamModel(), settings.elevenTtsModel()]) {
+    try {
+      const res = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${encodeURIComponent(voice)}/stream?output_format=mp3_44100_64`, {
+        method: "POST",
+        headers: { "xi-api-key": process.env.ELEVENLABS_API_KEY!, "Content-Type": "application/json", Accept: "audio/mpeg" },
+        body: JSON.stringify({ text: clipped, model_id: model, language_code: ["en", "hi", "mr"].includes(locale) ? locale : "en" }),
+        signal: AbortSignal.timeout(20_000),
+      });
+      if (res.ok && res.body) return res;
+    } catch {
+      // try the next model
+    }
+  }
+  return null;
+}
+
+/** One-time token so the browser can open ElevenLabs live transcription without our API key. */
+export async function realtimeSttToken(): Promise<string | null> {
+  if (settings.speechProvider() !== "elevenlabs") return null;
+  try {
+    const res = await fetch("https://api.elevenlabs.io/v1/single-use-token/realtime_scribe?max_session_duration_seconds=120", {
+      method: "POST",
+      headers: { "xi-api-key": process.env.ELEVENLABS_API_KEY! },
+      signal: AbortSignal.timeout(8_000),
+    });
+    const j = (await res.json().catch(() => ({}))) as { token?: string };
+    return res.ok && j.token ? j.token : null;
+  } catch {
+    return null;
+  }
+}
+
 // ---------------------------------------------------------------------------
 // WhatsApp Cloud API
 // ---------------------------------------------------------------------------

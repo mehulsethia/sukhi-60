@@ -12,14 +12,18 @@ import { useTranslations } from "next-intl";
 import { Mic, X, Volume2, Loader2 } from "lucide-react";
 import type { VoicePending, VoiceReply } from "@/domain/voice-intents";
 import { vt } from "@/domain/voice-flow";
+import { liveTranscribe } from "@/lib/live-stt";
 
 type Phase = "idle" | "listening" | "thinking" | "speaking";
 type Handler = (text: string, pending: VoicePending | null) => Promise<VoiceReply>;
 
 const LANG: Record<string, string> = { en: "en-IN", hi: "hi-IN", mr: "mr-IN" };
-const MAX_LISTEN_MS = 10_000;
-const NO_SPEECH_MS = 6_000;
-const END_SILENCE_MS = 1_300;
+// Fallback recorder (when live transcription isn't available). Generous: people pause mid-sentence.
+const MAX_LISTEN_MS = 20_000;
+const NO_SPEECH_MS = 7_000;
+const END_SILENCE_MS = 1_800;
+// A tiny silent clip played on the first tap: unlocks audio on iOS so later replies can play.
+const SILENT_WAV = "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAIA+AAACABAAZGF0YQAAAAA=";
 
 // Minimal typing for the browser speech API (webkit-prefixed in Chrome and Safari).
 interface Recognition { lang: string; interimResults: boolean; maxAlternatives: number; continuous: boolean; onresult: ((e: { results: ArrayLike<ArrayLike<{ transcript: string; confidence: number }>> }) => void) | null; onerror: ((e: { error: string }) => void) | null; onend: (() => void) | null; start(): void; abort(): void }
@@ -53,6 +57,7 @@ async function recordUntilSilence(onLevel: (l: number) => void, onStopper: (stop
   let spoke = false;
   const started = performance.now();
   let lastLoud = started;
+  let floor = 1; // quietest level heard: the room's own noise
   const done = new Promise<void>((resolve) => { rec.onstop = () => resolve(); });
   let raf = 0;
   const stop = () => { if (rec.state === "recording") rec.stop(); };
@@ -64,7 +69,8 @@ async function recordUntilSilence(onLevel: (l: number) => void, onStopper: (stop
     const rms = Math.sqrt(sum / buf.length) / 128;
     onLevel(Math.min(1, rms * 6));
     const now = performance.now();
-    if (rms > 0.035) { lastLoud = now; spoke = true; }
+    floor = Math.min(floor, Math.max(rms, 0.004));
+    if (rms > Math.max(0.025, floor * 3)) { lastLoud = now; spoke = true; }
     if ((spoke && now - lastLoud > END_SILENCE_MS) || (!spoke && now - started > NO_SPEECH_MS) || now - started > MAX_LISTEN_MS) return stop();
     raf = requestAnimationFrame(tick);
   };
@@ -78,12 +84,22 @@ async function recordUntilSilence(onLevel: (l: number) => void, onStopper: (stop
   return { blob: new Blob(chunks, { type: (rec.mimeType || "audio/webm").split(";")[0] }), spoke };
 }
 
+/** Plays a silent clip on an audio element during a tap, so iOS lets it play replies later. */
+function unlockAudio(el: HTMLAudioElement | null): HTMLAudioElement {
+  const a = el ?? new Audio();
+  a.src = SILENT_WAV;
+  a.play().catch(() => undefined);
+  return a;
+}
+
 export function TalkToSukhi({ locale, serverSpeech, handle, aboveNav = true }: { locale: string; serverSpeech: boolean; handle?: Handler; aboveNav?: boolean }) {
   const t = useTranslations("voice");
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [phase, setPhase] = useState<Phase>("idle");
   const [heard, setHeard] = useState("");
+  const [live, setLive] = useState(""); // words appearing while the person is still speaking
+  const liveOk = useRef(true); // false after live transcription fails once: use the recorder
   const [reply, setReply] = useState<VoiceReply | null>(null);
   const [level, setLevel] = useState(0);
   const pending = useRef<VoicePending | null>(null);
@@ -102,19 +118,18 @@ export function TalkToSukhi({ locale, serverSpeech, handle, aboveNav = true }: {
     if (!clean || !active.current) return;
     setPhase("speaking");
     if (useServer.current) {
-      try {
-        const res = await fetch("/api/voice/speak", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text: clean }) });
-        const j = await res.json();
-        if (res.ok && j.audio) {
-          await new Promise<void>((resolve) => {
-            const a = new Audio(j.audio);
-            audio.current = a;
-            a.onended = a.onerror = () => resolve();
-            a.play().catch(() => resolve());
-          });
-          return;
-        }
-      } catch { /* fall through to the browser voice */ }
+      // Streamed: playback starts as soon as the first audio arrives.
+      const a = audio.current ?? new Audio();
+      audio.current = a;
+      const played = await new Promise<boolean>((resolve) => {
+        let started = false;
+        a.onplaying = () => { started = true; };
+        a.onended = () => resolve(true);
+        a.onerror = () => resolve(started);
+        a.src = `/api/voice/speak?t=${encodeURIComponent(clean)}`;
+        a.play().catch(() => resolve(false));
+      });
+      if (played) return;
     }
     if (typeof speechSynthesis === "undefined") return;
     await new Promise<void>((resolve) => {
@@ -135,11 +150,11 @@ export function TalkToSukhi({ locale, serverSpeech, handle, aboveNav = true }: {
     return new Promise((resolve) => {
       const r = new R();
       r.lang = LANG[locale] ?? "en-IN";
-      r.interimResults = false;
+      r.interimResults = true;
       r.continuous = false;
       r.maxAlternatives = 1;
       let result: string | null = "";
-      r.onresult = (e) => { result = e.results[0]?.[0]?.transcript ?? ""; };
+      r.onresult = (e) => { result = Array.from(e.results).map((x) => x[0]?.transcript ?? "").join(" ").trim(); setLive(result); };
       r.onerror = (e) => { if (e.error !== "no-speech" && e.error !== "aborted") result = null; };
       r.onend = () => { setLevel(0); resolve(active.current ? result : ""); };
       stopNow.current = () => r.abort();
@@ -168,6 +183,21 @@ export function TalkToSukhi({ locale, serverSpeech, handle, aboveNav = true }: {
     }
   }
 
+  /** ElevenLabs live path: words appear while speaking, and its voice detection ends the sentence. */
+  async function listenLive(): Promise<string | null | undefined> {
+    if (!liveOk.current || !navigator.mediaDevices?.getUserMedia) return undefined;
+    const res = await fetch("/api/voice/token", { method: "POST" }).catch(() => null);
+    if (!res || !res.ok) {
+      if (res?.status === 403) useServer.current = false; // no voice consent: browser speech
+      liveOk.current = false;
+      return undefined;
+    }
+    const { token, model } = (await res.json()) as { token: string; model: string };
+    const text = await liveTranscribe({ token, model, onPartial: setLive, onLevel: setLevel, onStopper: (stop) => { stopNow.current = stop; }, silenceSecs: 1.2 });
+    if (text === null) liveOk.current = false;
+    return text;
+  }
+
   /** Listen, answer, speak; repeat until the conversation ends, the panel closes or it goes quiet. */
   async function turn(first?: string) {
     let spoken = first;
@@ -177,7 +207,11 @@ export function TalkToSukhi({ locale, serverSpeech, handle, aboveNav = true }: {
       spoken = undefined;
       if (text === null) {
         setPhase("listening");
-        text = useServer.current ? await listenServer() : await listenBrowser();
+        setLive("");
+        if (useServer.current) {
+          const l = await listenLive();
+          text = l === undefined || l === null ? await listenServer() : l;
+        } else text = await listenBrowser();
       }
       if (!active.current) return;
       if (text === null) {
@@ -196,6 +230,7 @@ export function TalkToSukhi({ locale, serverSpeech, handle, aboveNav = true }: {
       }
       silences.current = 0;
       setHeard(clean);
+      setLive("");
       setPhase("thinking");
       let r: VoiceReply;
       try {
@@ -217,6 +252,8 @@ export function TalkToSukhi({ locale, serverSpeech, handle, aboveNav = true }: {
   }
 
   function start() {
+    // Inside the tap itself: lets iOS play Sukhi's replies later in the conversation.
+    audio.current = unlockAudio(audio.current);
     active.current = true;
     silences.current = 0;
     setOpen(true);
@@ -275,8 +312,14 @@ export function TalkToSukhi({ locale, serverSpeech, handle, aboveNav = true }: {
             <p className="text-xs font-semibold uppercase tracking-wide text-primary" aria-live="polite">{status}</p>
             <button type="button" onClick={close} aria-label={t("close")} className="-mr-1 -mt-1 flex h-8 w-8 items-center justify-center rounded-full text-ink-soft hover:bg-surface-2"><X size={17} aria-hidden="true" /></button>
           </div>
-          {heard ? <p className="mt-1 text-sm text-ink-soft">“{heard}”</p> : <p className="mt-1 text-sm text-ink-soft">{t("examples")}</p>}
-          {reply ? <p className="mt-2 text-[1rem] font-medium leading-snug">{reply.say}</p> : null}
+          {phase === "listening" && live ? (
+            <p className="mt-1 text-[1rem] leading-snug text-ink">{live}<span className="animate-pulse text-primary"> ▍</span></p>
+          ) : heard ? (
+            <p className="mt-1 text-sm text-ink-soft"><span className="font-semibold text-ink">{t("you")}: </span>{heard}</p>
+          ) : (
+            <p className="mt-1 text-sm text-ink-soft">{t("examples")}</p>
+          )}
+          {reply && !(phase === "listening" && live) ? <p className="mt-2 text-[1rem] leading-snug"><span className="font-semibold text-primary">Sukhi: </span>{reply.say}</p> : null}
           {reply?.choices?.length ? (
             <div className="mt-3 flex flex-wrap gap-2">
               {reply.choices.map((c) => <button key={c.text} type="button" onClick={() => tapChoice(c.text)} className="pill-btn min-h-10 px-4 text-sm">{c.label}</button>)}

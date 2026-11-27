@@ -1698,6 +1698,7 @@
     "tapToTalk": "Tap to talk",
     "close": "Close",
     "examples": "Try: “I took my tablet”, “what's left today?”, “open progress”",
-    "micProblem": "I can't use the microphone here. Check the browser's mic permission, or tap on the screen instead."
+    "micProblem": "I can't use the microphone here. Check the browser's mic permission, or tap on the screen instead.",
+    "you": "You"
   }
 }
