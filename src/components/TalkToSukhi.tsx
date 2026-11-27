@@ -78,7 +78,7 @@ async function recordUntilSilence(onLevel: (l: number) => void, onStopper: (stop
   return { blob: new Blob(chunks, { type: (rec.mimeType || "audio/webm").split(";")[0] }), spoke };
 }
 
-export function TalkToSukhi({ locale, serverSpeech, handle, floating = true }: { locale: string; serverSpeech: boolean; handle?: Handler; floating?: boolean }) {
+export function TalkToSukhi({ locale, serverSpeech, handle, aboveNav = true }: { locale: string; serverSpeech: boolean; handle?: Handler; aboveNav?: boolean }) {
   const t = useTranslations("voice");
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -242,45 +242,71 @@ export function TalkToSukhi({ locale, serverSpeech, handle, floating = true }: {
     void turn(text);
   }
 
+  /** The orb is the one control: tap to start, tap while listening to finish, tap while Sukhi talks to interrupt. */
+  function tapOrb() {
+    if (!open) return start();
+    if (phase === "listening") return stopNow.current();
+    if (phase === "speaking") {
+      audio.current?.pause();
+      audio.current?.dispatchEvent(new Event("ended"));
+      if (typeof speechSynthesis !== "undefined") speechSynthesis.cancel();
+      return;
+    }
+    if (phase === "idle") { active.current = true; silences.current = 0; void turn(); }
+  }
+
   const status = phase === "listening" ? t("listening") : phase === "thinking" ? t("thinking") : phase === "speaking" ? t("speaking") : t("tapToTalk");
+  // Bottom centre, just above the middle tab ("My Plan") of the phone nav; bottom centre of the
+  // content column on desktop, where there is no bottom nav.
+  const orbPos = aboveNav
+    ? "bottom-[calc(64px+env(safe-area-inset-bottom))] left-1/2 lg:bottom-8 lg:left-[calc(50%+132px)]"
+    : "bottom-6 left-1/2";
+  const panelPos = aboveNav
+    ? "bottom-[calc(150px+env(safe-area-inset-bottom))] left-1/2 lg:bottom-[118px] lg:left-[calc(50%+132px)]"
+    : "bottom-[110px] left-1/2";
+  const scale = phase === "listening" ? 1 + level * 0.35 : 1;
+  const spin = phase === "thinking" ? 1.2 : phase === "speaking" ? 2.5 : phase === "listening" ? 3 : 7;
 
   return (
     <>
-      {!open ? (
-        <button
-          type="button"
-          onClick={start}
-          aria-label={t("talk")}
-          className={`${floating ? "fixed bottom-24 right-4 z-40 lg:bottom-8 lg:right-8" : ""} flex items-center gap-2 rounded-full bg-primary py-3 pl-4 pr-5 text-sm font-semibold text-primary-ink shadow-lg transition-transform hover:scale-[1.03] print:hidden`}
-        >
-          <Mic size={18} aria-hidden="true" />{t("talk")}
-        </button>
-      ) : (
-        <div role="dialog" aria-label={t("talk")} className={`${floating ? "fixed inset-x-3 bottom-24 z-40 sm:left-auto sm:right-4 sm:w-[380px] lg:bottom-8 lg:right-8" : ""} rounded-[var(--r-lg)] border border-line bg-surface p-4 shadow-xl print:hidden`}>
-          <div className="flex items-center justify-between">
-            <p className="flex items-center gap-2 text-sm font-semibold" aria-live="polite">
-              {phase === "thinking" ? <Loader2 size={16} className="animate-spin" aria-hidden="true" /> : phase === "speaking" ? <Volume2 size={16} aria-hidden="true" /> : <Mic size={16} aria-hidden="true" />}
-              {status}
-            </p>
-            <button type="button" onClick={close} aria-label={t("close")} className="flex h-9 w-9 items-center justify-center rounded-full text-ink-soft hover:bg-surface-2"><X size={18} aria-hidden="true" /></button>
+      {open ? (
+        <div role="dialog" aria-label={t("talk")} className={`fixed ${panelPos} z-40 w-[min(92vw,400px)] -translate-x-1/2 rounded-[1.4rem] border border-line bg-surface/95 p-4 shadow-xl backdrop-blur-md print:hidden`}>
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-xs font-semibold uppercase tracking-wide text-primary" aria-live="polite">{status}</p>
+            <button type="button" onClick={close} aria-label={t("close")} className="-mr-1 -mt-1 flex h-8 w-8 items-center justify-center rounded-full text-ink-soft hover:bg-surface-2"><X size={17} aria-hidden="true" /></button>
           </div>
-          {phase === "listening" ? (
-            <div className="mt-3 flex h-6 items-end gap-1" aria-hidden="true">
-              {[0.5, 0.8, 1, 0.8, 0.5].map((m, i) => <span key={i} className="w-1.5 rounded-full bg-primary transition-[height] duration-75" style={{ height: `${Math.max(15, level * m * 100)}%` }} />)}
-            </div>
-          ) : null}
-          {heard ? <p className="mt-3 text-sm text-ink-soft">“{heard}”</p> : <p className="mt-3 text-sm text-ink-soft">{t("examples")}</p>}
-          {reply ? <p className="mt-2 text-[0.95rem] leading-snug">{reply.say}</p> : null}
+          {heard ? <p className="mt-1 text-sm text-ink-soft">“{heard}”</p> : <p className="mt-1 text-sm text-ink-soft">{t("examples")}</p>}
+          {reply ? <p className="mt-2 text-[1rem] font-medium leading-snug">{reply.say}</p> : null}
           {reply?.choices?.length ? (
             <div className="mt-3 flex flex-wrap gap-2">
               {reply.choices.map((c) => <button key={c.text} type="button" onClick={() => tapChoice(c.text)} className="pill-btn min-h-10 px-4 text-sm">{c.label}</button>)}
             </div>
           ) : null}
-          {phase === "idle" ? (
-            <button type="button" onClick={() => { active.current = true; silences.current = 0; void turn(); }} className="pill-btn pill-btn-primary mt-3 min-h-10 px-4 text-sm"><Mic size={15} aria-hidden="true" />{t("tapToTalk")}</button>
-          ) : null}
         </div>
-      )}
+      ) : null}
+      <button
+        type="button"
+        onClick={tapOrb}
+        aria-label={open ? status : t("talk")}
+        aria-pressed={open}
+        className={`fixed ${orbPos} z-40 h-[62px] w-[62px] -translate-x-1/2 rounded-full print:hidden`}
+      >
+        {/* Soft glow, then three gradient layers turning at different speeds: the "Siri" orb. */}
+        <span aria-hidden="true" className="pointer-events-none absolute inset-0 transition-transform duration-100" style={{ transform: `scale(${scale})` }}>
+          {phase === "listening" || phase === "speaking" ? (
+            <span className="absolute inset-0 rounded-full bg-[#2dd4bf]" style={{ animation: "sukhi-orb-ring 1.6s ease-out infinite" }} />
+          ) : null}
+          <span className="absolute -inset-2 rounded-full opacity-70 blur-lg" style={{ background: "conic-gradient(from 0deg, #0f766e, #22d3ee, #a78bfa, #34d399, #0f766e)", animation: `sukhi-orb-spin ${spin * 1.6}s linear infinite` }} />
+          <span className="absolute inset-0 overflow-hidden rounded-full shadow-lg" style={{ animation: phase === "idle" || !open ? "sukhi-orb-breathe 3.2s ease-in-out infinite" : "none" }}>
+            <span className="absolute -inset-1/4" style={{ background: "conic-gradient(from 90deg, #0b5f55, #14b8a6, #38bdf8, #0b5f55)", animation: `sukhi-orb-spin ${spin}s linear infinite` }} />
+            <span className="absolute -inset-1/4 mix-blend-screen opacity-80" style={{ background: "conic-gradient(from 200deg, transparent, #a78bfa 25%, transparent 50%, #6ee7b7 75%, transparent)", animation: `sukhi-orb-spin ${spin * 0.7}s linear infinite reverse` }} />
+            <span className="absolute inset-0 rounded-full" style={{ background: "radial-gradient(circle at 35% 28%, rgba(255,255,255,.65), rgba(255,255,255,0) 52%)" }} />
+          </span>
+        </span>
+        <span aria-hidden="true" className="relative flex h-full w-full items-center justify-center text-white drop-shadow">
+          {phase === "thinking" ? <Loader2 size={22} className="animate-spin" /> : phase === "speaking" ? <Volume2 size={22} /> : <Mic size={22} />}
+        </span>
+      </button>
     </>
   );
 }

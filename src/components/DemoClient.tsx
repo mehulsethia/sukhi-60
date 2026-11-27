@@ -90,7 +90,7 @@ export function DemoClient() {
         <Link href="/login" className="btn btn-primary">{t("demo.signUp")}</Link>
       </div>
       <p className="hint mt-6">{t("common.disclaimer")}</p>
-      <TalkToSukhi locale={locale} serverSpeech={false} handle={voice} />
+      <TalkToSukhi locale={locale} serverSpeech={false} handle={voice} aboveNav={false} />
     </main>
   );
 }
