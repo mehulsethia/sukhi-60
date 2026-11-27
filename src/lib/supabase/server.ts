@@ -34,6 +34,10 @@ export async function createClient() {
  * instead of each making a round trip to Supabase Auth.
  */
 export const getUser = cache(async () => {
+  // Keyless mode (e.g. `docker compose up` with no .env): nobody can be signed in.
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY) {
+    return { supabase: null as unknown as Awaited<ReturnType<typeof createClient>>, user: null };
+  }
   const supabase = await createClient();
   const { data, error } = await supabase.auth.getUser();
   if (error || !data.user) return { supabase, user: null };

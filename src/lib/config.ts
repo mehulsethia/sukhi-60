@@ -67,6 +67,8 @@ export function configReport(env: Record<string, string | undefined> = process.e
 const ok = (name: string) => checkVar(name) === "set";
 
 export const features = {
+  /** Sign-in and data. Without these the app runs in keyless mode: landing page and /demo only. */
+  supabase: () => ok("NEXT_PUBLIC_SUPABASE_URL") && ok("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY"),
   ai: () => ok("ANTHROPIC_API_KEY") && ok("ANTHROPIC_MODEL"),
   speech: () => ok("ELEVENLABS_API_KEY") || ok("SARVAM_API_KEY"),
   whatsapp: () => ok("WHATSAPP_ACCESS_TOKEN") && ok("WHATSAPP_PHONE_NUMBER_ID") && ok("WHATSAPP_APP_SECRET") && ok("WHATSAPP_VERIFY_TOKEN"),

@@ -1,0 +1,46 @@
+# Start Sukhi Care with one command:
+#
+#   docker compose up --build
+#
+# Then open http://localhost:3000
+#
+# No keys needed: the app starts in keyless mode (landing page + guided demo at /demo).
+# To enable sign-in, AI, voice and WhatsApp, copy .env.example to .env, fill in what you
+# have, and run the same command again. Every value below is optional.
+
+services:
+  app:
+    build:
+      context: .
+      args:
+        NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL:-}
+        NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY:-}
+        NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
+        NEXT_PUBLIC_VAPID_PUBLIC_KEY: ${NEXT_PUBLIC_VAPID_PUBLIC_KEY:-}
+    image: sukhi-care:local
+    ports:
+      - "3000:3000"
+    environment:
+      DEMO_MODE_ENABLED: ${DEMO_MODE_ENABLED:-true}
+      NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
+      # Optional server-side keys. Leave empty to run without them.
+      SUPABASE_SECRET_KEY: ${SUPABASE_SECRET_KEY:-}
+      WORKER_SECRET: ${WORKER_SECRET:-}
+      LINK_CODE_PEPPER: ${LINK_CODE_PEPPER:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      ANTHROPIC_MODEL: ${ANTHROPIC_MODEL:-}
+      ELEVENLABS_API_KEY: ${ELEVENLABS_API_KEY:-}
+      ELEVENLABS_VOICE_ID: ${ELEVENLABS_VOICE_ID:-}
+      SARVAM_API_KEY: ${SARVAM_API_KEY:-}
+      WHATSAPP_ACCESS_TOKEN: ${WHATSAPP_ACCESS_TOKEN:-}
+      WHATSAPP_PHONE_NUMBER_ID: ${WHATSAPP_PHONE_NUMBER_ID:-}
+      WHATSAPP_APP_SECRET: ${WHATSAPP_APP_SECRET:-}
+      WHATSAPP_VERIFY_TOKEN: ${WHATSAPP_VERIFY_TOKEN:-}
+      VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      start_period: 20s
+      retries: 3
+    restart: unless-stopped

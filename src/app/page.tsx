@@ -68,6 +68,13 @@ export default async function Landing() {
     <>
       <a href="#main" className="skip-link">{tr("app.skipToContent")}</a>
       <SiteHeader signedIn={!!user} />
+      {!features.supabase() ? (
+        <div role="status" className="border-b border-line bg-sky px-4 py-3 text-center text-sm text-ink">
+          Running without keys. Sign-in, AI, voice and WhatsApp need keys (see .env.example).{" "}
+          <Link href="/demo" className="font-medium underline">Try the guided demo</Link> or the live app at{" "}
+          <a href="https://sukhi-60.vercel.app" className="font-medium underline">sukhi-60.vercel.app</a>.
+        </div>
+      ) : null}
       <main id="main">
         {/* Hero */}
         <section className="overflow-hidden bg-[linear-gradient(180deg,var(--sukhi-sky)_0%,var(--sukhi-page)_100%)]">

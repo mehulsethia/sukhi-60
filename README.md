@@ -68,6 +68,16 @@ Providers ──► Anthropic · ElevenLabs / Sarvam · Meta WhatsApp Cloud API
 - Self-reports and evidence are kept apart, and silence is recorded as "no reply", never as done or missed.
 - Consent at sign-up, data hosted in Mumbai, proof photos deleted after 7 days.
 
+## Run it with Docker (no keys needed)
+
+```bash
+git clone https://github.com/mehulsethia/sukhi-60.git
+cd sukhi-60
+docker compose up --build
+```
+
+Open [http://localhost:3000](http://localhost:3000). With no keys, Sukhi starts in **keyless mode**: the landing page and the guided demo at [/demo](http://localhost:3000/demo) work, and a notice explains that sign-in, AI, voice and WhatsApp need keys. To turn those on, copy `.env.example` to `.env`, fill in what you have (a Supabase project for sign-in, plus optional Anthropic, ElevenLabs or Sarvam and WhatsApp keys), and run the same command again. The full product is live at [sukhi-60.vercel.app](https://sukhi-60.vercel.app).
+
 ## Running it locally
 
 | Script | Purpose |

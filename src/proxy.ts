@@ -25,6 +25,18 @@ export async function proxy(request: NextRequest) {
     return response;
   }
 
+  // Keyless mode: no Supabase project is configured, so nothing can sign in. Serve the landing
+  // page, the guided demo and static pages; send everything else back to the landing page.
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY) {
+    const keyless = path === "/" || ["/demo", "/privacy", "/terms", "/offline", "/api/health"].some((p) => path.startsWith(p));
+    if (keyless) return response;
+    if (path.startsWith("/api/")) return NextResponse.json({ error: "supabase_not_configured" }, { status: 503 });
+    const url = request.nextUrl.clone();
+    url.pathname = "/";
+    url.search = "?keyless=1";
+    return NextResponse.redirect(url);
+  }
+
   const supabase = createServerClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!, {
     cookies: {
       getAll: () => request.cookies.getAll(),
