@@ -23,6 +23,8 @@ const MAX_LISTEN_MS = 20_000;
 const NO_SPEECH_MS = 7_000;
 const END_SILENCE_MS = 1_800;
 // A tiny silent clip played on the first tap: unlocks audio on iOS so later replies can play.
+// Returned by a listener when ElevenLabs needs the person's OK first.
+const NEEDS_CONSENT = "\u0000needs-consent";
 const SILENT_WAV = "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAIA+AAACABAAZGF0YQAAAAA=";
 
 // Minimal typing for the browser speech API (webkit-prefixed in Chrome and Safari).
@@ -82,6 +84,11 @@ async function recordUntilSilence(onLevel: (l: number) => void, onStopper: (stop
   ctx.close().catch(() => undefined);
   onLevel(0);
   return { blob: new Blob(chunks, { type: (rec.mimeType || "audio/webm").split(";")[0] }), spoke };
+}
+
+/** Same cookie the Settings page writes: the app's language for the next render. */
+function setLocaleCookie(locale: string) {
+  document.cookie = `sukhi_locale=${locale}; path=/; max-age=31536000; samesite=lax`;
 }
 
 /** Plays a silent clip on an audio element during a tap, so iOS lets it play replies later. */
@@ -175,7 +182,8 @@ export function TalkToSukhi({ locale, serverSpeech, handle, aboveNav = true }: {
     fd.append("language", "auto"); // people mix Hindi, Marathi and English in one sentence
     try {
       const res = await fetch("/api/voice/transcribe", { method: "POST", body: fd });
-      if (res.status === 403 || res.status === 503) { useServer.current = false; return listenBrowser(); }
+      // Never fall back to the phone's own recognizer here: it mishears Hindi and Marathi.
+      if (res.status === 403) return NEEDS_CONSENT;
       const j = await res.json();
       return res.ok ? String(j.transcript ?? "") : null;
     } catch {
@@ -187,13 +195,13 @@ export function TalkToSukhi({ locale, serverSpeech, handle, aboveNav = true }: {
   async function listenLive(): Promise<string | null | undefined> {
     if (!liveOk.current || !navigator.mediaDevices?.getUserMedia) return undefined;
     const res = await fetch("/api/voice/token", { method: "POST" }).catch(() => null);
+    if (res?.status === 403) return NEEDS_CONSENT;
     if (!res || !res.ok) {
-      if (res?.status === 403) useServer.current = false; // no voice consent: browser speech
       liveOk.current = false;
       return undefined;
     }
-    const { token, model } = (await res.json()) as { token: string; model: string };
-    const text = await liveTranscribe({ token, model, onPartial: setLive, onLevel: setLevel, onStopper: (stop) => { stopNow.current = stop; }, silenceSecs: 1.2 });
+    const { token, model, keyterms } = (await res.json()) as { token: string; model: string; keyterms?: string[] };
+    const text = await liveTranscribe({ token, model, keyterms, onPartial: setLive, onLevel: setLevel, onStopper: (stop) => { stopNow.current = stop; }, silenceSecs: 1.2 });
     if (text === null) liveOk.current = false;
     return text;
   }
@@ -209,8 +217,13 @@ export function TalkToSukhi({ locale, serverSpeech, handle, aboveNav = true }: {
         setPhase("listening");
         setLive("");
         if (useServer.current) {
+          // ElevenLabs only: live first, then its recorder-based transcription.
           const l = await listenLive();
           text = l === undefined || l === null ? await listenServer() : l;
+          if (text === NEEDS_CONSENT) {
+            setReply({ say: vt(locale, "consent"), needsVoiceConsent: true });
+            return setPhase("idle");
+          }
         } else text = await listenBrowser();
       }
       if (!active.current) return;
@@ -244,6 +257,7 @@ export function TalkToSukhi({ locale, serverSpeech, handle, aboveNav = true }: {
       }
       pending.current = r.pending ?? null;
       setReply(r);
+      if (r.setLocale) setLocaleCookie(r.setLocale);
       if (r.refresh) router.refresh();
       if (r.navigate) router.push(r.navigate);
       await speak(r.say);
@@ -270,6 +284,17 @@ export function TalkToSukhi({ locale, serverSpeech, handle, aboveNav = true }: {
     setOpen(false);
     setPhase("idle");
     pending.current = null;
+  }
+  /** "Allow" in the panel: record consent, then start listening with ElevenLabs straight away. */
+  async function allowVoice() {
+    const res = await fetch("/api/voice/consent", { method: "POST" }).catch(() => null);
+    if (!res?.ok) return setReply({ say: vt(locale, "failed") });
+    useServer.current = true;
+    liveOk.current = true;
+    active.current = true;
+    silences.current = 0;
+    setReply(null);
+    void turn();
   }
   function tapChoice(text: string) {
     stopNow.current();
@@ -320,6 +345,9 @@ export function TalkToSukhi({ locale, serverSpeech, handle, aboveNav = true }: {
             <p className="mt-1 text-sm text-ink-soft">{t("examples")}</p>
           )}
           {reply && !(phase === "listening" && live) ? <p className="mt-2 text-[1rem] leading-snug"><span className="font-semibold text-primary">Sukhi: </span>{reply.say}</p> : null}
+          {reply?.needsVoiceConsent ? (
+            <button type="button" onClick={() => void allowVoice()} className="pill-btn pill-btn-primary mt-3 min-h-10 px-4 text-sm">{vt(locale, "allow")}</button>
+          ) : null}
           {reply?.choices?.length ? (
             <div className="mt-3 flex flex-wrap gap-2">
               {reply.choices.map((c) => <button key={c.text} type="button" onClick={() => tapChoice(c.text)} className="pill-btn min-h-10 px-4 text-sm">{c.label}</button>)}

@@ -95,6 +95,8 @@ export const settings = {
   elevenTtsModel: () => process.env.ELEVENLABS_TTS_MODEL || "eleven_v4",
   elevenSttModel: () => process.env.ELEVENLABS_STT_MODEL || "scribe_v2",
   /** Live transcription for "Talk to Sukhi" (WebSocket, partial text while the person speaks). */
+  /** Small, fast model that maps unusual voice commands to one app action. */
+  voiceRouterModel: () => process.env.VOICE_ROUTER_MODEL || "claude-haiku-5-5",
   elevenRealtimeModel: () => process.env.ELEVENLABS_REALTIME_MODEL || "scribe_v2_realtime",
   /** Low-latency streamed voice for spoken replies. eleven_v4_turbo supports Hindi and Marathi. */
   elevenStreamModel: () => process.env.ELEVENLABS_TTS_STREAM_MODEL || "eleven_v4_turbo",

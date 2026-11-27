@@ -15,6 +15,8 @@ export interface LiveOptions {
   onStopper: (stop: () => void) => void;
   /** Seconds of silence that end a sentence. Generous: people pause while they think. */
   silenceSecs?: number;
+  /** Words to listen out for (the person's task and medicine names). */
+  keyterms?: string[];
 }
 
 /** Resolves with the full sentence, "" for silence, or null if live transcription can't run. */
@@ -38,6 +40,7 @@ export async function liveTranscribe(o: LiveOptions): Promise<string | null> {
     vad_silence_threshold_secs: String(o.silenceSecs ?? 1.4),
     min_speech_duration_ms: "120",
   });
+  for (const k of o.keyterms ?? []) params.append("keyterms", k);
   const ws = new WebSocket(`${WS}?${params}`);
   const queue: string[] = []; // audio captured before the socket opened: the first words are kept
   let open = false;

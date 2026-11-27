@@ -56,6 +56,28 @@ try {
   const r8 = await turn("Progress dikhao");
   check("navigates", r8.navigate === "/progress", r8.say);
 
+  // New actions: time change, doctor-plan refusal, progress, doctor question, language.
+  const { data: own } = await admin.from("care_plans").insert({ user_id: uid, title: "My goals", mode: "personal_goal", status: "active" }).select("id").single();
+  await admin.from("plan_items").insert({ plan_id: own!.id, user_id: uid, title: "Glass of water", category: "nutrition", schedule_kind: "daily", times: [ist(2)], status: "confirmed", evidence_hint: "none" });
+  let c1 = await turn("Water ka time shaam 7 baje kar do");
+  if (c1.pending?.kind === "choose") c1 = await turn("Glass of water", c1.pending); // two water tasks: it asks which
+  check("time change is read back", c1.pending?.kind === "change", c1.say);
+  await turn("haan", c1.pending);
+  const water = await admin.from("plan_items").select("times, status").eq("user_id", uid).eq("title", "Glass of water").single();
+  check("time change applied", water.data?.times?.[0]?.startsWith("19:00") === true && water.data?.status === "confirmed", JSON.stringify(water.data));
+  const c2 = await turn("Metformin ka time 9 baje kar do");
+  const c3 = c2.pending ? await turn("haan", c2.pending) : c2;
+  const review = await admin.from("review_requests").select("id").eq("user_id", uid);
+  check("doctor's plan is not changed, care team asked", (review.data?.length ?? 0) > 0, c3.say);
+  const p1 = await turn("is hafte kaisa raha?");
+  check("progress answered", /में से|of/.test(p1.say), p1.say);
+  const q1 = await turn("doctor se poochna hai ki chakkar kyun aata hai");
+  const facts = await admin.from("memory_facts").select("content").eq("user_id", uid).eq("kind", "open_question");
+  check("doctor question saved", facts.data?.[0]?.content === "chakkar kyun aata hai", q1.say);
+  const l1 = await turn("Marathi madhe bola");
+  const loc = await admin.from("profiles").select("locale").eq("id", uid).single();
+  check("language switched", l1.setLocale === "mr" && loc.data?.locale === "mr", l1.say);
+
   if (out) {
     const { chromium, devices } = await import("@playwright/test");
     const base = "http://localhost:3200";

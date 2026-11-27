@@ -130,3 +130,68 @@ describe("respond: read back before saving", () => {
     expect(checkIn).not.toHaveBeenCalled();
   });
 });
+
+describe("more actions by voice", () => {
+  it("parses time changes, pause and resume", () => {
+    expect(parseVoiceCommand("walk ka time shaam 7 baje kar do", TASKS)).toMatchObject({ kind: "retime", match: { taskId: "walk" }, time: "19:00" });
+    expect(parseVoiceCommand("paani wala reminder kuch din band kar do", TASKS)).toMatchObject({ kind: "pause", match: { taskId: "water" } });
+    expect(parseVoiceCommand("walk phir se shuru karo", TASKS)).toMatchObject({ kind: "resume", match: { taskId: "walk" } });
+  });
+  it("parses progress, language, tone and a doctor question", () => {
+    expect(parseVoiceCommand("is hafte kaisa raha?", TASKS).kind).toBe("progress");
+    expect(parseVoiceCommand("Marathi madhe bola", TASKS)).toEqual({ kind: "set_language", lang: "mr" });
+    expect(parseVoiceCommand("thoda pyaar se baat karo", TASKS)).toEqual({ kind: "set_tone", tone: "warm_gentle" });
+    expect(parseVoiceCommand("doctor se poochna hai ki chakkar kyun aata hai", TASKS)).toMatchObject({ kind: "doctor_question", question: "chakkar kyun aata hai" });
+  });
+  it("takes several tasks in one sentence", () => {
+    expect(parseVoiceCommand("tablet le li aur walk bhi ho gaya", TASKS)).toEqual({ kind: "batch", items: [{ taskId: "med", status: "done", reason: undefined }, { taskId: "walk", status: "done", reason: undefined }] });
+  });
+});
+
+describe("respond: new actions", () => {
+  function full(tasks = TASKS) {
+    const base = store(tasks);
+    const changeTask = vi.fn(async () => "ok" as const);
+    const s: VoiceStore = { ...base.s, changeTask, progress: async () => ({ weekDone: 12, weekDue: 18, todayDone: 1, todayTotal: 3 }), setLanguage: async () => true, setTone: async () => true, addQuestion: vi.fn(async () => true) };
+    return { s, changeTask, checkIn: base.checkIn };
+  }
+  it("reads back a time change, then applies it", async () => {
+    const { s, changeTask } = full();
+    const r1 = await respond("walk ka time shaam 7 baje kar do", null, s);
+    expect(r1.say).toBe("Move Morning walk 30 min to 7:00 pm every day?");
+    expect(changeTask).not.toHaveBeenCalled();
+    const r2 = await respond("haan", r1.pending!, s);
+    expect(changeTask).toHaveBeenCalledWith("walk", "retime", "19:00");
+    expect(r2.say).toContain("updated");
+  });
+  it("explains it can't change the doctor's plan", async () => {
+    const { s } = full();
+    s.changeTask = async () => "doctor_plan";
+    const r1 = await respond("Metformin ka time 9 baje kar do", null, s);
+    const r2 = await respond("haan", r1.pending!, s);
+    expect(r2.say).toMatch(/doctor's plan/);
+  });
+  it("saves several check-ins after one yes", async () => {
+    const { s, checkIn } = full();
+    const r1 = await respond("tablet le li aur walk bhi ho gaya", null, s);
+    expect(r1.say).toBe("Metformin 500 mg done, Morning walk 30 min done. Shall I save that?");
+    await respond("haan", r1.pending!, s);
+    expect(checkIn).toHaveBeenCalledTimes(2);
+  });
+  it("answers progress, switches language and saves a doctor question at once", async () => {
+    const { s } = full();
+    expect((await respond("how am i doing", null, s)).say).toBe("This week: 12 of 18 done. Today: 1 of 3.");
+    const lang = await respond("Hindi mein bolo", null, s);
+    expect(lang).toMatchObject({ setLocale: "hi", say: "ठीक है, अब हिंदी में बात करेंगे।" });
+    expect((await respond("ask my doctor about my sleep", null, s)).say).toContain("Saved for your doctor visit");
+  });
+  it("uses the smart router only when the word lists don't match", async () => {
+    const { s } = full();
+    const route = vi.fn(async () => ({ kind: "progress" as const }));
+    s.route = route;
+    expect((await respond("aaj tak kitna score bana", null, s)).say).toContain("This week");
+    expect(route).toHaveBeenCalledOnce();
+    await respond("tablet le li", null, s);
+    expect(route).toHaveBeenCalledOnce();
+  });
+});

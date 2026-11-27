@@ -8,10 +8,13 @@ import type { BarrierCode } from "./behaviour";
 export interface VoiceTask { id: string; title: string; category?: string | null; time?: string | null }
 
 /** Something Sukhi read back and is waiting for a yes/no on. Nothing is saved before that. */
+export type VoiceTone = "warm_gentle" | "fun_playful" | "motivating" | "simple_practical";
 export type VoicePending =
   | { kind: "checkin"; taskId: string; title: string; status: "done" | "skipped"; reason?: BarrierCode; note?: string }
+  | { kind: "batch"; items: { taskId: string; title: string; status: "done" | "skipped"; reason?: BarrierCode }[] }
+  | { kind: "change"; action: "retime" | "pause" | "resume"; taskId: string; title: string; time?: string }
   | { kind: "add_task"; title: string; time: string; category: "activity" | "nutrition" | "rest" | "measurement" | "other" }
-  | { kind: "choose"; action: "done" | "skipped" | "later" | "photo"; candidates: { id: string; title: string }[]; reason?: BarrierCode; note?: string };
+  | { kind: "choose"; action: "done" | "skipped" | "later" | "photo" | "retime" | "pause" | "resume"; candidates: { id: string; title: string }[]; reason?: BarrierCode; note?: string; time?: string };
 
 export interface VoiceReply {
   say: string;
@@ -24,6 +27,10 @@ export interface VoiceReply {
   refresh?: boolean;
   /** The conversation is over: stop listening. */
   end?: boolean;
+  /** Switch the app's language (sets the UI cookie and refreshes). */
+  setLocale?: "en" | "hi" | "mr";
+  /** Voice needs the person's OK to send audio to ElevenLabs: show an Allow button. */
+  needsVoiceConsent?: boolean;
 }
 
 export type VoiceIntent =
@@ -38,6 +45,15 @@ export type VoiceIntent =
   | { kind: "skipped"; match: TaskMatch; reason: BarrierCode; note: string }
   | { kind: "later"; match: TaskMatch }
   | { kind: "done"; match: TaskMatch }
+  | { kind: "batch"; items: { taskId: string; status: "done" | "skipped"; reason?: BarrierCode }[] }
+  | { kind: "retime"; match: TaskMatch; time: string | null }
+  | { kind: "pause"; match: TaskMatch }
+  | { kind: "resume"; match: TaskMatch }
+  | { kind: "progress" }
+  | { kind: "set_language"; lang: "en" | "hi" | "mr" }
+  | { kind: "set_tone"; tone: VoiceTone }
+  | { kind: "doctor_question"; question: string }
+  | { kind: "chat"; reply: string }
   | { kind: "unknown" };
 
 type VoicePendingAdd = Extract<VoicePending, { kind: "add_task" }>;
@@ -66,6 +82,17 @@ const PHOTO = ["photo", "foto", "photu", "pic", "picture", "camera", "proof", "s
 const REMIND = ["yaad dilana", "yaad dila", "yaad dilao", "yaad dila do", "yaad karana", "remind me", "reminder", "remind", "aathvan", "athvan", "आठवण", "याद दिलाना", "याद दिला", "याद दिलाओ", "रिमाइंडर"];
 const NAV_VERB = ["dikhao", "dikha", "dikhana", "kholo", "khol", "open", "show", "go to", "take me to", "chalo", "dakhva", "dakhav", "ughad", "दिखाओ", "दिखा", "खोलो", "खोल", "दाखवा", "उघडा", "उघड"];
 const DAILY = ["har roz", "har din", "roz", "rozana", "daily", "every day", "everyday", "रोज", "हर रोज", "दररोज", "रोज़"];
+
+const PROGRESS = ["kaisa raha", "kaisa chal raha", "kitna hua", "kitna kiya", "how am i doing", "how did i do", "my progress", "progress batao", "progress bata", "hafta kaisa", "is hafte", "this week", "kasa zala", "kiti zala", "आठवडा कसा", "कैसा रहा", "कितना हुआ", "प्रगति बताओ", "किती झालं"];
+const RETIME = ["time badlo", "time badal", "time change", "change the time", "change time", "move it to", "move to", "shift", "ka time", "ki time", "cha vel", "chi vel", "vel badal", "समय बदल", "टाइम बदल", "वेळ बदल"];
+const PAUSE = ["pause", "rok do", "roko", "band kar do", "kuch din band", "thamba", "thambav", "रोक दो", "बंद कर दो", "थांबवा"];
+const RESUME = ["resume", "phir se shuru", "fir se shuru", "wapas shuru", "chalu karo", "chalu kar", "start again", "पुन्हा सुरू", "फिर से शुरू", "चालू करा"];
+const ASK_DOCTOR = ["doctor se poochna", "doctor se puchna", "doctor ko poochna", "ask my doctor", "ask the doctor", "question for the doctor", "doctor la vicharaycha", "doctor la vicharayche", "डॉक्टर से पूछना", "डॉक्टर को पूछना", "डॉक्टरांना विचारायचं"];
+const LANG_WORDS: [("en" | "hi" | "mr"), string[]][] = [["hi", ["hindi", "हिंदी", "हिन्दी"]], ["mr", ["marathi", "मराठी"]], ["en", ["english", "angrezi", "इंग्लिश", "अंग्रेज़ी"]]];
+const LANG_VERB = ["mein bolo", "me bolo", "mein baat", "me baat", "language", "bhasha", "madhe bola", "madhye bola", "speak in", "talk in", "switch to", "में बोलो", "भाषा", "मध्ये बोला"];
+const TONES: [VoiceTone, string[]][] = [["warm_gentle", ["gentle", "pyaar se", "pyar se", "naram", "soft", "प्यार से", "प्रेमाने"]], ["fun_playful", ["funny", "mazak", "masti", "playful", "मज़ाक", "मस्ती"]], ["motivating", ["motivate", "josh", "push me", "motivating", "जोश", "प्रेरणा"]], ["simple_practical", ["simple", "seedha", "short", "practical", "सीधा", "सोपं"]]];
+const TONE_VERB = ["baat karo", "bolo", "talk", "tone", "style", "be more", "बात करो", "बोला"];
+const AND = [" aur ", " and ", " ani ", " आणि ", " और ", " tatha ", " phir ", " fir "];
 
 const NAV: { path: string; label: string; words: string[] }[] = [
   { path: "/progress", label: "Progress", words: ["progress", "pragati", "pragti", "mera hafta", "my week", "प्रगति", "प्रगती"] },
@@ -164,7 +191,7 @@ function taskFromWords(t: string): { title: string; category: VoicePendingAdd["c
 // ---------------------------------------------------------------------------
 // The parser
 // ---------------------------------------------------------------------------
-const MEDICAL = [/\b(kitni|kitne|how many|how much)\b.*\b(goli|tablet|dose|dawai|pill)/i, /\b(double|extra|do|2)\s+(goli|tablet|dose|pill)/i, /\b(dose|khurak)\b.*\b(badha|ghata|change|kam|zyada|double)/i, /\b(can|should)\s+i\s+(take|stop|skip|double)\b/i, /\b(band kar|stop taking|chhod d)/i, /कितनी\s*(गोली|दवा)|दो\s*गोली|कितनी\s*खुराक/, /किती\s*(गोळ्या|औषध)|दोन\s*गोळ्या/];
+const MEDICAL = [/\b(kitni|kitne|how many|how much)\b.*\b(goli|tablet|dose|dawai|pill)/i, /\b(double|extra|do|2)\s+(goli|tablet|dose|pill)/i, /\b(dose|khurak)\b.*\b(badha|ghata|change|kam|zyada|double)/i, /\b(can|should)\s+i\s+(take|stop|skip|double)\b/i, /\b(dawa|dawai|goli|tablet|medicine|pill|insulin)\w*\b.*\b(band kar|chhod d|kam kar|badha)/i, /\bstop taking\b/i, /कितनी\s*(गोली|दवा)|दो\s*गोली|कितनी\s*खुराक/, /किती\s*(गोळ्या|औषध)|दोन\s*गोळ्या/];
 
 export function parseVoiceCommand(text: string, tasks: readonly VoiceTask[]): VoiceIntent {
   const t = normalize(text);
@@ -174,6 +201,31 @@ export function parseVoiceCommand(text: string, tasks: readonly VoiceTask[]): Vo
   if (short && has(t, STOP)) return { kind: "stop" };
   if (short && has(t, YES) && !has(t, NO) && !has(t, DONE)) return { kind: "yes" };
   if (short && has(t, NO) && !has(t, SKIP) && !has(t, LATER)) return { kind: "no" };
+
+  // Language and tone: "Hindi mein bolo", "thoda pyaar se baat karo".
+  const lang = LANG_WORDS.find(([, w]) => has(t, w));
+  if (lang && (has(t, LANG_VERB) || count(t) <= 3)) return { kind: "set_language", lang: lang[0] };
+  const tone = TONES.find(([, w]) => has(t, w));
+  if (tone && has(t, TONE_VERB)) return { kind: "set_tone", tone: tone[0] };
+  if (has(t, ASK_DOCTOR)) {
+    let q = text.trim();
+    for (const p of ASK_DOCTOR) q = q.replace(new RegExp(p, "i"), " ");
+    q = q.replace(/\s+/g, " ").replace(/^\s*(hai|he|है)?\s*(ki|ke|that|ka|about|की|कि)?\s+/i, "").trim();
+    return { kind: "doctor_question", question: (q.length >= 3 ? q : text.trim()).slice(0, 300) };
+  }
+  if (has(t, PROGRESS)) return { kind: "progress" };
+  if (has(t, RESUME)) return { kind: "resume", match: matchTask(t, tasks) };
+  if (has(t, PAUSE) && !has(t, DONE)) return { kind: "pause", match: matchTask(t, tasks) };
+  if (has(t, RETIME) && parseSpokenTime(t)) return { kind: "retime", match: matchTask(t, tasks), time: parseSpokenTime(t) };
+
+  // Several tasks in one breath: "tablet le li aur walk bhi ho gaya".
+  if (AND.some((a) => t.includes(a))) {
+    let parts = [t];
+    for (const a of AND) parts = parts.flatMap((p) => p.split(a));
+    const items = parts.map((p) => parseVoiceCommand(p, tasks)).filter((i): i is Extract<VoiceIntent, { kind: "done" | "skipped" }> => (i.kind === "done" || i.kind === "skipped") && !!i.match.taskId);
+    const unique = [...new Map(items.map((i) => [i.match.taskId, i])).values()];
+    if (unique.length >= 2) return { kind: "batch", items: unique.map((i) => ({ taskId: i.match.taskId!, status: i.kind, reason: i.kind === "skipped" ? i.reason : undefined })) };
+  }
 
   const nav = NAV.find((n) => has(t, n.words));
   if (nav && (has(t, NAV_VERB) || count(t) <= 2)) return { kind: "navigate", path: nav.path, label: nav.label };

@@ -16,7 +16,6 @@ import { getSwitchOptions } from "@/server/care-for";
 import { RoleSwitcher } from "@/components/RoleSwitcher";
 import { TalkToSukhi } from "@/components/TalkToSukhi";
 import { features } from "@/lib/config";
-import { getConsents } from "@/server/core";
 
 export const dynamic = "force-dynamic";
 
@@ -38,16 +37,14 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   // Every account has a phone number (it connects WhatsApp to this account).
   if (!profile.phone) redirect("/phone");
   const chatSeen = (await cookies()).get("sukhi_chat_seen")?.value ?? profile.onboarded_at;
-  const [t, unreadChat, switchOpts, consents] = await Promise.all([
+  const [t, unreadChat, switchOpts] = await Promise.all([
     getTranslations(),
     // Messages Sukhi started (reminders, check-ins) since the chat was last opened.
     supabase.from("messages").select("id", { count: "exact", head: true }).gt("created_at", chatSeen).eq("role", "assistant").eq("channel", "system").then((r) => r.count ?? 0, () => 0),
     getSwitchOptions(createAdminClient(), user.id, "").catch(() => []),
-    getConsents(createAdminClient(), user.id).catch(() => null),
   ]);
-  // ElevenLabs speech when it's configured and the person allowed voice processing; otherwise
-  // the browser's own speech recognition and voice.
-  const serverSpeech = features.speech() && !!consents?.voice_processing;
+  // ElevenLabs speech whenever it's configured; consent is asked in the panel the first time.
+  const serverSpeech = features.speech();
   const name = profile.display_name || user.email || "";
   const initial = (profile.display_name || user.email || "?").trim().charAt(0).toUpperCase();
 
