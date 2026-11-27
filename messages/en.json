@@ -1689,5 +1689,15 @@
     "noteSent": "Sent to {name}.",
     "noteQueued": "{name} will see it next time they open Sukhi.",
     "another": "Write another"
+  },
+  "voice": {
+    "talk": "Talk to Sukhi",
+    "listening": "Listening…",
+    "thinking": "Thinking…",
+    "speaking": "Speaking…",
+    "tapToTalk": "Tap to talk",
+    "close": "Close",
+    "examples": "Try: “I took my tablet”, “what's left today?”, “open progress”",
+    "micProblem": "I can't use the microphone here. Check the browser's mic permission, or tap on the screen instead."
   }
 }

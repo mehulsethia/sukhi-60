@@ -14,12 +14,15 @@ import { nowMs } from "@/lib/format";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getSwitchOptions } from "@/server/care-for";
 import { RoleSwitcher } from "@/components/RoleSwitcher";
+import { TalkToSukhi } from "@/components/TalkToSukhi";
+import { features } from "@/lib/config";
+import { getConsents } from "@/server/core";
 
 export const dynamic = "force-dynamic";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const { supabase, user } = await requireUser();
-  const { data: profile } = await supabase.from("profiles").select("onboarded_at, display_name, phone, primary_role").eq("id", user.id).single();
+  const { data: profile } = await supabase.from("profiles").select("onboarded_at, display_name, phone, primary_role, locale").eq("id", user.id).single();
   if (profile?.primary_role === "doctor") {
     // Doctor-only accounts land on their clinic. "Start your own plan" there goes to onboarding.
     const { data: doc } = await createAdminClient().from("doctors").select("user_id").eq("user_id", user.id).maybeSingle();
@@ -35,12 +38,16 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   // Every account has a phone number (it connects WhatsApp to this account).
   if (!profile.phone) redirect("/phone");
   const chatSeen = (await cookies()).get("sukhi_chat_seen")?.value ?? profile.onboarded_at;
-  const [t, unreadChat, switchOpts] = await Promise.all([
+  const [t, unreadChat, switchOpts, consents] = await Promise.all([
     getTranslations(),
     // Messages Sukhi started (reminders, check-ins) since the chat was last opened.
     supabase.from("messages").select("id", { count: "exact", head: true }).gt("created_at", chatSeen).eq("role", "assistant").eq("channel", "system").then((r) => r.count ?? 0, () => 0),
     getSwitchOptions(createAdminClient(), user.id, "").catch(() => []),
+    getConsents(createAdminClient(), user.id).catch(() => null),
   ]);
+  // ElevenLabs speech when it's configured and the person allowed voice processing; otherwise
+  // the browser's own speech recognition and voice.
+  const serverSpeech = features.speech() && !!consents?.voice_processing;
   const name = profile.display_name || user.email || "";
   const initial = (profile.display_name || user.email || "?").trim().charAt(0).toUpperCase();
 
@@ -78,6 +85,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         <main id="main" className="mx-auto w-full max-w-6xl flex-1 px-4 pb-32 pt-6 sm:px-6 lg:px-10 lg:pb-14 lg:pt-8">{children}</main>
       </div>
       <div className="lg:hidden print:hidden"><BottomNav badges={{ chat: unreadChat }} /></div>
+      <TalkToSukhi locale={profile.locale ?? "en"} serverSpeech={serverSpeech} />
       <ActivityPing renderedAt={nowMs()} />
       <ToastHost />
     </div>
