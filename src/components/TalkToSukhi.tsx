@@ -270,7 +270,7 @@ export function TalkToSukhi({ locale, serverSpeech, handle, aboveNav = true }: {
   return (
     <>
       {open ? (
-        <div role="dialog" aria-label={t("talk")} className={`fixed ${panelPos} z-40 w-[min(92vw,400px)] -translate-x-1/2 rounded-[1.4rem] border border-line bg-surface/95 p-4 shadow-xl backdrop-blur-md print:hidden`}>
+        <div role="dialog" aria-label={t("talk")} className={`fixed ${panelPos} z-40 w-[min(92vw,400px)] -translate-x-1/2 rounded-[1.4rem] bg-surface/95 p-4 shadow-[0_8px_30px_rgba(0,0,0,0.08)] backdrop-blur-md print:hidden`}>
           <div className="flex items-center justify-between gap-2">
             <p className="text-xs font-semibold uppercase tracking-wide text-primary" aria-live="polite">{status}</p>
             <button type="button" onClick={close} aria-label={t("close")} className="-mr-1 -mt-1 flex h-8 w-8 items-center justify-center rounded-full text-ink-soft hover:bg-surface-2"><X size={17} aria-hidden="true" /></button>
@@ -289,15 +289,16 @@ export function TalkToSukhi({ locale, serverSpeech, handle, aboveNav = true }: {
         onClick={tapOrb}
         aria-label={open ? status : t("talk")}
         aria-pressed={open}
-        className={`fixed ${orbPos} z-40 h-[62px] w-[62px] -translate-x-1/2 rounded-full print:hidden`}
+        className={`fixed ${orbPos} z-40 h-[62px] w-[62px] -translate-x-1/2 rounded-full border-0 bg-transparent p-0 outline-none [-webkit-tap-highlight-color:transparent] focus-visible:shadow-[0_0_0_3px_var(--focus)] print:hidden`}
+        style={{ outline: "none" }}
       >
         {/* Soft glow, then three gradient layers turning at different speeds: the "Siri" orb. */}
         <span aria-hidden="true" className="pointer-events-none absolute inset-0 transition-transform duration-100" style={{ transform: `scale(${scale})` }}>
           {phase === "listening" || phase === "speaking" ? (
             <span className="absolute inset-0 rounded-full bg-[#2dd4bf]" style={{ animation: "sukhi-orb-ring 1.6s ease-out infinite" }} />
           ) : null}
-          <span className="absolute -inset-2 rounded-full opacity-70 blur-lg" style={{ background: "conic-gradient(from 0deg, #0f766e, #22d3ee, #a78bfa, #34d399, #0f766e)", animation: `sukhi-orb-spin ${spin * 1.6}s linear infinite` }} />
-          <span className="absolute inset-0 overflow-hidden rounded-full shadow-lg" style={{ animation: phase === "idle" || !open ? "sukhi-orb-breathe 3.2s ease-in-out infinite" : "none" }}>
+          <span className="absolute -inset-4 rounded-full" style={{ background: "radial-gradient(circle, rgba(45,212,191,.45) 0%, rgba(56,189,248,.28) 40%, rgba(167,139,250,.12) 58%, rgba(255,255,255,0) 70%)" }} />
+          <span className="absolute inset-0 overflow-hidden rounded-full" style={{ clipPath: "circle(50% at 50% 50%)", isolation: "isolate", animation: phase === "idle" || !open ? "sukhi-orb-breathe 3.2s ease-in-out infinite" : "none" }}>
             <span className="absolute -inset-1/4" style={{ background: "conic-gradient(from 90deg, #0b5f55, #14b8a6, #38bdf8, #0b5f55)", animation: `sukhi-orb-spin ${spin}s linear infinite` }} />
             <span className="absolute -inset-1/4 mix-blend-screen opacity-80" style={{ background: "conic-gradient(from 200deg, transparent, #a78bfa 25%, transparent 50%, #6ee7b7 75%, transparent)", animation: `sukhi-orb-spin ${spin * 0.7}s linear infinite reverse` }} />
             <span className="absolute inset-0 rounded-full" style={{ background: "radial-gradient(circle at 35% 28%, rgba(255,255,255,.65), rgba(255,255,255,0) 52%)" }} />
